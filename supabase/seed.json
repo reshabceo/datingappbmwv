@@ -1,0 +1,36 @@
+{
+  "profiles": [
+    {
+      "name": "Sophia",
+      "age": 23,
+      "image_urls": ["https://cdn.pixabay.com/photo/2023/09/14/08/20/girl-8252502_1280.jpg"],
+      "location": "New York, NY",
+      "distance": "3 miles away",
+      "description": "Creative photographer who loves exploring the city at night.",
+      "hobbies": ["Photography", "Music", "Art"],
+      "is_active": true
+    },
+    {
+      "name": "Daniel",
+      "age": 27,
+      "image_urls": ["https://cdn.pixabay.com/photo/2016/11/29/03/53/adult-1868750_1280.jpg"],
+      "location": "Brooklyn, NY",
+      "distance": "5 miles away",
+      "description": "Engineer and foodie. Weekend coffee and tech.",
+      "hobbies": ["Coding", "Coffee", "Hiking"],
+      "is_active": true
+    },
+    {
+      "name": "Ava",
+      "age": 26,
+      "image_urls": ["https://cdn.pixabay.com/photo/2017/08/07/22/19/girl-2605526_1280.jpg"],
+      "location": "Manhattan, NY",
+      "distance": "1.2 miles away",
+      "description": "Jazz clubs and bookshops.",
+      "hobbies": ["Reading", "Jazz", "Travel"],
+      "is_active": false
+    }
+  ]
+}
+
+

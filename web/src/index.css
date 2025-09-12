@@ -1,0 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: 'AppFont';
+  src: url('/assets/fonts/VisbyRoundCF-Regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'AppFont';
+  src: url('/assets/fonts/VisbyRoundCF-Medium.otf') format('opentype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'AppFont';
+  src: url('/assets/fonts/VisbyRoundCF-Bold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+html,body,#root { height: 100%; }
+
+body {
+  font-family: 'AppFont', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  /* Match Flutter app background: black -> deep blue (#1E3A8A) -> black */
+  background: linear-gradient(180deg, #000000 0%, #1E3A8A 50%, #000000 100%);
+}
+
+
