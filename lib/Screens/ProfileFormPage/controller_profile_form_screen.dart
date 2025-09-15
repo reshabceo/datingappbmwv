@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart' as image_cropper;
 import '../../services/supabase_service.dart';
+import '../../services/analytics_service.dart';
 import '../BottomBarPage/bottombar_screen.dart';
 import '../BottomBarPage/controller_bottombar_screen.dart';
 
@@ -384,6 +385,17 @@ class ProfileFormController extends GetxController {
       };
 
       await SupabaseService.createProfile(profileData);
+      
+      // Track profile creation analytics
+      await AnalyticsService.trackProfileCreated({
+        'has_photos': uploadedImageUrls.isNotEmpty,
+        'has_bio': aboutController.text.isNotEmpty,
+        'age': age,
+        'gender': selectedGender.value,
+        'interests_count': selectedInterests.length,
+        'languages_count': selectedLanguage.length,
+      });
+      
       Get.snackbar('Success', 'Profile created successfully!');
       
       // Hide profile completion banner (if BottomBarController exists)

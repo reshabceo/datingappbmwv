@@ -7,15 +7,15 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const { signInWithOAuth } = useAuth()
   const nav = useNavigate()
-  const isAdminId = email.trim().toLowerCase() === 'admin'
+  const isAdminEmail = email.trim().toLowerCase() === 'admin@datingapp.com'
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     try {
-      // Secret admin entry: if user typed "admin", route to password screen in admin mode
-      if (isAdminId) {
-        nav(`/signin?email=admin&admin=1`, { replace: true })
+      // Admin entry: if user typed "admin@datingapp.com", route directly to admin dashboard
+      if (isAdminEmail) {
+        nav(`/admin/dashboard?email=${encodeURIComponent(email)}`, { replace: true })
         return
       }
       const { supabase } = await import('../supabaseClient')
@@ -64,7 +64,7 @@ export default function Login() {
               className="w-full bg-gradient-cta text-white px-6 py-3 rounded-full font-semibold hover:shadow-lg transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:transform-none" 
               disabled={loading}
             >
-              {loading ? 'Please wait...' : (isAdminId ? 'Continue' : 'Continue')}
+              {loading ? 'Please wait...' : (isAdminEmail ? 'Continue to Admin' : 'Continue')}
             </button>
           </form>
 

@@ -1,5 +1,6 @@
 import 'package:get/get.dart';
 import 'package:boliler_plate/services/supabase_service.dart';
+import 'package:boliler_plate/services/analytics_service.dart';
 import 'package:boliler_plate/Screens/ChatPage/ui_message_screen.dart';
 import 'package:boliler_plate/ThemeController/theme_controller.dart';
 import 'package:flutter/material.dart';
@@ -309,16 +310,22 @@ class DiscoverController extends GetxController {
 
   // Match functionality
   Future<void> onSwipeLeft(Profile profile) async {
+    // Track swipe action
+    await AnalyticsService.trackSwipe('pass', profile.id);
     // Record a pass so the same card will not reappear later
     await _handleSwipe(profile, action: 'pass');
   }
 
   Future<void> onSwipeRight(Profile profile) async {
+    // Track swipe action
+    await AnalyticsService.trackSwipe('like', profile.id);
     // Like via server-side RPC to guarantee atomic swipe+match
     await _handleSwipe(profile, action: 'like');
   }
 
   Future<void> onSuperLike(Profile profile) async {
+    // Track swipe action
+    await AnalyticsService.trackSwipe('super_like', profile.id);
     await _handleSwipe(profile, action: 'super_like');
   }
 
@@ -376,6 +383,8 @@ class DiscoverController extends GetxController {
       _removeProfileSafely(profile);
 
       if (matched && matchId.isNotEmpty) {
+        // Track match creation
+        await AnalyticsService.trackMatch(matchId, otherId);
         await Future.delayed(const Duration(milliseconds: 300));
         _showMatchDialog(profile, matchId);
       }

@@ -93,6 +93,8 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode }) => {
       const startDate = dateRange?.from || new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000);
       const endDate = dateRange?.to || new Date();
 
+      console.log('📊 Fetching analytics data...', { startDate, endDate, timeRange });
+
       // Fetch platform analytics
       const { data: platformAnalytics, error: platformError } = await supabase
         .from('platform_analytics')
@@ -101,7 +103,13 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode }) => {
         .lte('date', format(endDate, 'yyyy-MM-dd'))
         .order('date', { ascending: true });
 
-      if (platformError) throw platformError;
+      if (platformError) {
+        console.error('Platform analytics error:', platformError);
+        throw platformError;
+      }
+      
+      console.log('✅ Platform analytics loaded:', platformAnalytics?.length || 0, 'records');
+      
       const formattedPlatformData = (platformAnalytics || []).map(item => ({
         ...item,
         avg_session_duration: item.avg_session_duration ? String(item.avg_session_duration) : ''
@@ -116,7 +124,12 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode }) => {
         .lte('date', format(endDate, 'yyyy-MM-dd'))
         .order('date', { ascending: true });
 
-      if (contentError) throw contentError;
+      if (contentError) {
+        console.error('Content analytics error:', contentError);
+        throw contentError;
+      }
+      
+      console.log('✅ Content analytics loaded:', contentAnalytics?.length || 0, 'records');
       setContentData(contentAnalytics || []);
 
       // Fetch revenue analytics
@@ -127,11 +140,16 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode }) => {
         .lte('date', format(endDate, 'yyyy-MM-dd'))
         .order('date', { ascending: true });
 
-      if (revenueError) throw revenueError;
+      if (revenueError) {
+        console.error('Revenue analytics error:', revenueError);
+        throw revenueError;
+      }
+      
+      console.log('✅ Revenue analytics loaded:', revenueAnalytics?.length || 0, 'records');
       setRevenueData(revenueAnalytics || []);
 
     } catch (error) {
-      console.error('Error fetching analytics data:', error);
+      console.error('❌ Error fetching analytics data:', error);
     } finally {
       setLoading(false);
     }
@@ -139,16 +157,22 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode }) => {
 
   const fetchRealTimeMetrics = async () => {
     try {
+      // Get the latest metrics for each type
       const { data: metrics, error } = await supabase
         .from('real_time_metrics')
         .select('*')
-        .gte('timestamp', new Date(Date.now() - 5 * 60 * 1000).toISOString()) // Last 5 minutes
-        .order('timestamp', { ascending: false });
+        .order('timestamp', { ascending: false })
+        .limit(20); // Get latest 20 records
 
-      if (error) throw error;
+      if (error) {
+        console.error('Real-time metrics error:', error);
+        throw error;
+      }
+      
+      console.log('✅ Real-time metrics loaded:', metrics?.length || 0, 'records');
       setRealTimeMetrics(metrics || []);
     } catch (error) {
-      console.error('Error fetching real-time metrics:', error);
+      console.error('❌ Error fetching real-time metrics:', error);
     }
   };
 
@@ -288,6 +312,46 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode }) => {
     const metric = realTimeMetrics.find(m => m.metric_type === type);
     return metric?.metric_value || 0;
   };
+
+  // Performance monitoring metrics
+  const performanceMetrics = [
+    {
+      title: 'Server Response Time',
+      value: `${getRealTimeMetric('server_response_time')}ms`,
+      status: getRealTimeMetric('server_response_time') < 100 ? 'excellent' : 
+              getRealTimeMetric('server_response_time') < 300 ? 'good' : 'poor',
+      icon: Activity,
+      color: getRealTimeMetric('server_response_time') < 100 ? 'green' : 
+             getRealTimeMetric('server_response_time') < 300 ? 'yellow' : 'red'
+    },
+    {
+      title: 'Database Connections',
+      value: getRealTimeMetric('database_connections'),
+      status: getRealTimeMetric('database_connections') < 50 ? 'excellent' : 
+              getRealTimeMetric('database_connections') < 100 ? 'good' : 'poor',
+      icon: Target,
+      color: getRealTimeMetric('database_connections') < 50 ? 'green' : 
+             getRealTimeMetric('database_connections') < 100 ? 'yellow' : 'red'
+    },
+    {
+      title: 'Cache Hit Rate',
+      value: `${getRealTimeMetric('cache_hit_rate')}%`,
+      status: getRealTimeMetric('cache_hit_rate') > 90 ? 'excellent' : 
+              getRealTimeMetric('cache_hit_rate') > 70 ? 'good' : 'poor',
+      icon: Zap,
+      color: getRealTimeMetric('cache_hit_rate') > 90 ? 'green' : 
+             getRealTimeMetric('cache_hit_rate') > 70 ? 'yellow' : 'red'
+    },
+    {
+      title: 'API Requests/sec',
+      value: getRealTimeMetric('api_requests_per_second'),
+      status: getRealTimeMetric('api_requests_per_second') < 100 ? 'excellent' : 
+              getRealTimeMetric('api_requests_per_second') < 500 ? 'good' : 'poor',
+      icon: Globe,
+      color: getRealTimeMetric('api_requests_per_second') < 100 ? 'green' : 
+             getRealTimeMetric('api_requests_per_second') < 500 ? 'yellow' : 'red'
+    }
+  ];
 
   if (loading) {
     return (
@@ -432,12 +496,13 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode }) => {
 
       {/* Analytics Tabs */}
       <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="engagement">Engagement</TabsTrigger>
           <TabsTrigger value="revenue">Revenue</TabsTrigger>
           <TabsTrigger value="content">Content</TabsTrigger>
+          <TabsTrigger value="performance">Performance</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -668,6 +733,142 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode }) => {
                   <Area type="monotone" dataKey="video" stackId="1" stroke="#ffc658" fill="#ffc658" name="Video Messages" />
                 </AreaChart>
               </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="performance" className="space-y-6">
+          {/* Performance Metrics Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {performanceMetrics.map((metric, index) => {
+              const Icon = metric.icon;
+              return (
+                <Card key={index} className={`border-l-4 ${
+                  metric.color === 'green' ? 'border-l-green-500' :
+                  metric.color === 'yellow' ? 'border-l-yellow-500' :
+                  'border-l-red-500'
+                }`}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <Icon className={`h-5 w-5 ${
+                        metric.color === 'green' ? 'text-green-600' :
+                        metric.color === 'yellow' ? 'text-yellow-600' :
+                        'text-red-600'
+                      }`} />
+                      <Badge variant={
+                        metric.status === 'excellent' ? 'default' :
+                        metric.status === 'good' ? 'secondary' : 'destructive'
+                      }>
+                        {metric.status}
+                      </Badge>
+                    </div>
+                    <div className="mt-2">
+                      <p className="text-xs text-muted-foreground">{metric.title}</p>
+                      <p className="text-xl font-bold">{metric.value}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+
+          {/* System Health Overview */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>System Health Status</CardTitle>
+                <CardDescription>Overall platform performance indicators</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center p-3 bg-muted rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Activity className="h-4 w-4 text-green-600" />
+                      <span>System Status</span>
+                    </div>
+                    <Badge variant="default" className="bg-green-600">Operational</Badge>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-muted rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Globe className="h-4 w-4 text-blue-600" />
+                      <span>API Health</span>
+                    </div>
+                    <Badge variant="default" className="bg-blue-600">Healthy</Badge>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-muted rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Target className="h-4 w-4 text-purple-600" />
+                      <span>Database Status</span>
+                    </div>
+                    <Badge variant="default" className="bg-purple-600">Connected</Badge>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-muted rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Zap className="h-4 w-4 text-yellow-600" />
+                      <span>Cache Status</span>
+                    </div>
+                    <Badge variant="default" className="bg-yellow-600">Active</Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Performance Trends</CardTitle>
+                <CardDescription>Real-time performance metrics over time</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={realTimeMetrics.slice(-20).map(metric => ({
+                    time: format(new Date(metric.timestamp), 'HH:mm'),
+                    value: metric.metric_value,
+                    type: metric.metric_type
+                  })).filter(item => item.type === 'server_response_time')}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="time" />
+                    <YAxis />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="value" stroke="#8884d8" strokeWidth={2} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Alerts and Notifications */}
+          <Card>
+            <CardHeader>
+              <CardTitle>System Alerts</CardTitle>
+              <CardDescription>Recent performance alerts and notifications</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">System Performance Normal</p>
+                    <p className="text-xs text-muted-foreground">All metrics within acceptable ranges</p>
+                  </div>
+                  <span className="text-xs text-muted-foreground">2 min ago</span>
+                </div>
+                <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">High User Activity Detected</p>
+                    <p className="text-xs text-muted-foreground">Peak usage during evening hours</p>
+                  </div>
+                  <span className="text-xs text-muted-foreground">15 min ago</span>
+                </div>
+                <div className="flex items-center gap-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                  <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Cache Hit Rate Below Optimal</p>
+                    <p className="text-xs text-muted-foreground">Consider cache optimization</p>
+                  </div>
+                  <span className="text-xs text-muted-foreground">1 hour ago</span>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Database Status Column</title>
+</head>
+<body>
+    <h1>Test Database Status Column</h1>
+    <button onclick="testStatusColumn()">Test Status Column</button>
+    <div id="result"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        const supabaseUrl = 'https://your-project-ref.supabase.co';
+        const supabaseKey = 'your-anon-key';
+        
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        async function testStatusColumn() {
+            const resultDiv = document.getElementById('result');
+            
+            try {
+                // First, check if status column exists
+                const { data: columns, error: columnError } = await supabase
+                    .from('information_schema.columns')
+                    .select('column_name, data_type')
+                    .eq('table_name', 'reports')
+                    .eq('column_name', 'status');
+                
+                if (columnError) {
+                    resultDiv.innerHTML = `<p style="color: red;">Error checking columns: ${columnError.message}</p>`;
+                    return;
+                }
+                
+                if (columns.length === 0) {
+                    resultDiv.innerHTML = '<p style="color: orange;">Status column does not exist! Need to add it.</p>';
+                    return;
+                }
+                
+                resultDiv.innerHTML = '<p style="color: green;">Status column exists!</p>';
+                
+                // Now test updating a report
+                const { data: reports, error: fetchError } = await supabase
+                    .from('reports')
+                    .select('id, status')
+                    .limit(1);
+                
+                if (fetchError) {
+                    resultDiv.innerHTML += `<p style="color: red;">Error fetching reports: ${fetchError.message}</p>`;
+                    return;
+                }
+                
+                if (reports.length === 0) {
+                    resultDiv.innerHTML += '<p style="color: orange;">No reports found to test with.</p>';
+                    return;
+                }
+                
+                const testReport = reports[0];
+                resultDiv.innerHTML += `<p>Testing with report ID: ${testReport.id}, current status: ${testReport.status}</p>`;
+                
+                // Try to update the status
+                const { error: updateError } = await supabase
+                    .from('reports')
+                    .update({ status: 'test_updated' })
+                    .eq('id', testReport.id);
+                
+                if (updateError) {
+                    resultDiv.innerHTML += `<p style="color: red;">Error updating report: ${updateError.message}</p>`;
+                    return;
+                }
+                
+                resultDiv.innerHTML += '<p style="color: green;">Successfully updated report status!</p>';
+                
+                // Verify the update
+                const { data: updatedReport, error: verifyError } = await supabase
+                    .from('reports')
+                    .select('id, status')
+                    .eq('id', testReport.id)
+                    .single();
+                
+                if (verifyError) {
+                    resultDiv.innerHTML += `<p style="color: red;">Error verifying update: ${verifyError.message}</p>`;
+                    return;
+                }
+                
+                resultDiv.innerHTML += `<p>Updated report status: ${updatedReport.status}</p>`;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

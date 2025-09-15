@@ -34,4 +34,19 @@ body {
   background: linear-gradient(180deg, #000000 0%, #1E3A8A 50%, #000000 100%);
 }
 
+/* Override Sheet component width for Communication Logs */
+[data-radix-sheet-content] {
+  width: 95vw !important;
+  max-width: 95vw !important;
+  min-width: 95vw !important;
+}
+
+@media (min-width: 640px) {
+  [data-radix-sheet-content] {
+    width: 1200px !important;
+    max-width: 1200px !important;
+    min-width: 1200px !important;
+  }
+}
+
 

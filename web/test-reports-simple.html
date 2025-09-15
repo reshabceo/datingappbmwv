@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Add Sample Reports</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>Add Sample Reports to Database</h1>
+    <button onclick="addSampleReports()">Add Sample Reports</button>
+    <div id="output"></div>
+
+    <script>
+        // Replace these with your actual Supabase credentials
+        const SUPABASE_URL = 'YOUR_SUPABASE_URL_HERE';
+        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY_HERE';
+        
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        async function addSampleReports() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<p>Adding sample reports...</p>';
+            
+            try {
+                // Get user IDs
+                const { data: profiles } = await supabase
+                    .from('profiles')
+                    .select('id, name')
+                    .limit(3);
+                
+                if (!profiles || profiles.length === 0) {
+                    output.innerHTML = '<p style="color: red;">No profiles found. Please create some users first.</p>';
+                    return;
+                }
+                
+                output.innerHTML += `<p>Found ${profiles.length} profiles</p>`;
+                
+                // Create sample reports
+                const sampleReports = [
+                    {
+                        reporter_id: profiles[0].id,
+                        reported_id: profiles[1]?.id || profiles[0].id,
+                        type: 'inappropriate_content',
+                        reason: 'Inappropriate photos',
+                        description: 'User posted inappropriate photos in their profile',
+                        status: 'pending',
+                        priority: 'high',
+                        auto_flagged: false,
+                        created_at: new Date().toISOString()
+                    },
+                    {
+                        reporter_id: profiles[1]?.id || profiles[0].id,
+                        reported_id: profiles[2]?.id || profiles[0].id,
+                        type: 'harassment',
+                        reason: 'Harassment',
+                        description: 'User sent inappropriate messages',
+                        status: 'pending',
+                        priority: 'medium',
+                        auto_flagged: true,
+                        created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+                    },
+                    {
+                        reporter_id: profiles[2]?.id || profiles[0].id,
+                        reported_id: profiles[0].id,
+                        type: 'spam',
+                        reason: 'Spam',
+                        description: 'User is sending spam messages',
+                        status: 'resolved',
+                        priority: 'low',
+                        auto_flagged: false,
+                        created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
+                    }
+                ];
+                
+                const { data: insertedReports, error } = await supabase
+                    .from('reports')
+                    .insert(sampleReports)
+                    .select();
+                
+                if (error) {
+                    output.innerHTML += `<p style="color: red;">Error inserting reports: ${error.message}</p>`;
+                } else {
+                    output.innerHTML += `<p style="color: green;">Sample reports added successfully! Added ${insertedReports.length} reports.</p>`;
+                    output.innerHTML += '<p><a href="http://localhost:5173/admin/dashboard" target="_blank">Go to Admin Dashboard</a></p>';
+                }
+                
+            } catch (error) {
+                output.innerHTML += `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

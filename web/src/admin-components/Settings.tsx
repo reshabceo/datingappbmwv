@@ -17,7 +17,7 @@ import {
   Edit, Trash2, Plus, TestTube, Clock, Palette, Lock
 } from 'lucide-react';
 import { supabase } from "../admin-integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "./ui/use-toast";
 
 interface SettingsProps {
   isDarkMode: boolean;

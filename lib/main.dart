@@ -3,13 +3,16 @@ import 'package:boliler_plate/Screens/WelcomePage/welcome_screen.dart';
 import 'package:boliler_plate/global_data.dart';
 import 'package:boliler_plate/shared_prefrence_helper.dart';
 import 'package:boliler_plate/services/supabase_service.dart';
+import 'package:boliler_plate/services/analytics_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 
 import 'ThemeController/theme_controller.dart';
-// Firebase temporarily disabled to resolve build; re-enable when configured
+// Firebase Analytics
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'Screens/BottomBarPage/bottombar_screen.dart';
 import 'Screens/ProfileFormPage/multi_step_profile_form.dart';
 import 'dart:async';
@@ -20,11 +23,17 @@ Future<void> main() async {
   
   // Initialize Supabase
   await SupabaseService.initialize();
+  
   // Initialize Firebase
-  // try {
-  //   await Firebase.initializeApp();
-  //   await _initPush();
-  // } catch (_) {}
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    await AnalyticsService.initialize();
+    print('✅ Firebase Analytics initialized');
+  } catch (e) {
+    print('❌ Firebase initialization failed: $e');
+  }
   
   // Initialize SharedPreferences
   await SharedPreferenceHelper.init();
@@ -119,6 +128,9 @@ class _AuthGateState extends State<_AuthGate> {
             _hasProfile = profile != null && profile.isNotEmpty && profile['name'] != null;
             _checkingProfile = false;
           });
+          
+          // Start analytics session for authenticated user
+          await AnalyticsService.startSession();
         } else {
           setState(() {
             _ready = true;
@@ -135,6 +147,9 @@ class _AuthGateState extends State<_AuthGate> {
           _hasProfile = false;
           _checkingProfile = false;
         });
+        
+        // Start analytics session even if profile check fails
+        await AnalyticsService.startSession();
       }
     } else {
       setState(() {

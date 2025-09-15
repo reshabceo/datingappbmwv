@@ -10,11 +10,12 @@ import { toast } from 'sonner';
 
 interface AdminLoginProps {
   onLogin: (adminData: { id: string; email: string; full_name: string; role: string }) => void;
+  preFilledEmail?: string;
 }
 
-const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin }) => {
+const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, preFilledEmail = '' }) => {
   const [credentials, setCredentials] = useState({
-    username: '',
+    username: preFilledEmail,
     password: ''
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -25,41 +26,53 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin }) => {
     setIsLoading(true);
     
     try {
-      // For demo purposes, check against the sample admin user
-      // In production, you'd implement proper password hashing and verification
-      const { data: adminUser, error } = await supabase
-        .from('admin_users')
-        .select('*')
-        .eq('email', credentials.username)
-        .eq('is_active', true)
-        .single();
+      console.log('=== ADMIN LOGIN DEBUG ===');
+      console.log('Attempting admin login with:', credentials.username);
+      
+      // First, try to sign in with Supabase
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: credentials.username,
+        password: credentials.password
+      });
 
-      if (error || !adminUser) {
-        toast.error('Invalid credentials');
+      console.log('Supabase auth response:', { authData, authError });
+
+      if (authError) {
+        console.error('Supabase auth failed:', authError);
+        toast.error(`Authentication failed: ${authError.message}`);
         setIsLoading(false);
         return;
       }
 
-      // In a real implementation, verify password hash here
-      // For demo, using simple password check
-      if (credentials.password === 'admin123') {
-        // Update last login
-        await supabase
-          .from('admin_users')
-          .update({ last_login: new Date().toISOString() })
-          .eq('id', adminUser.id);
-
-        onLogin({
-          id: adminUser.id,
-          email: adminUser.email,
-          full_name: adminUser.full_name || 'Admin User',
-          role: adminUser.role
-        });
-
-        toast.success('Login successful!');
-      } else {
-        toast.error('Invalid credentials');
+      if (!authData.user) {
+        console.error('No user returned from Supabase');
+        toast.error('Authentication failed: No user returned');
+        setIsLoading(false);
+        return;
       }
+
+      console.log('✅ Supabase authentication successful');
+      console.log('User ID:', authData.user.id);
+      console.log('User email:', authData.user.email);
+
+      // Create admin user data for the session
+      const adminUser = {
+        id: authData.user.id,
+        email: authData.user.email || credentials.username,
+        full_name: authData.user.user_metadata?.full_name || 'Admin User',
+        role: 'admin'
+      };
+
+      // Store admin session in localStorage
+      localStorage.setItem('adminSession', JSON.stringify({
+        ...adminUser,
+        loginTime: new Date().toISOString(),
+        supabaseSession: authData.session
+      }));
+
+      onLogin(adminUser);
+      toast.success('Login successful!');
+      console.log('=== END ADMIN LOGIN DEBUG ===');
     } catch (error) {
       console.error('Login error:', error);
       toast.error('Login failed. Please try again.');

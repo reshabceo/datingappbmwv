@@ -5,6 +5,7 @@ import 'package:boliler_plate/Screens/DiscoverPage/ui_discover_screen.dart';
 import 'package:boliler_plate/Screens/ProfilePage/ui_profile_screen.dart';
 import 'package:boliler_plate/Screens/StoriesPage/ui_stories_screen.dart';
 import 'package:boliler_plate/services/supabase_service.dart';
+import 'package:boliler_plate/services/analytics_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -26,6 +27,9 @@ class BottomBarController extends GetxController {
         // Update last seen when opening chat tab
         SupabaseService.updateLastSeen();
       }
+      
+      // Track feature usage for tab navigation
+      _trackTabUsage(idx);
     });
   }
 
@@ -40,6 +44,17 @@ class BottomBarController extends GetxController {
       }
     } catch (e) {
       print('Error checking profile completion: $e');
+    }
+  }
+  
+  // Track tab usage for analytics
+  void _trackTabUsage(int tabIndex) {
+    final tabNames = ['discover', 'stories', 'chat', 'profile'];
+    if (tabIndex >= 0 && tabIndex < tabNames.length) {
+      AnalyticsService.trackFeatureUsage('tab_navigation', {
+        'tab_name': tabNames[tabIndex],
+        'tab_index': tabIndex,
+      });
     }
   }
 

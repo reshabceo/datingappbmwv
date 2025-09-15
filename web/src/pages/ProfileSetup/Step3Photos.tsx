@@ -34,8 +34,7 @@ export default function Step3Photos() {
       const existing = await getMyProfile(user.id)
       const payload: any = {
         id: user.id,
-        photos,
-        image_urls: photos as any,
+        image_urls: photos,
         name: existing?.name ?? 'EMPTY',
         age: existing?.age ?? 18,
       }

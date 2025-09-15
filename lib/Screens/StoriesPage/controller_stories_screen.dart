@@ -1,5 +1,6 @@
 import 'package:get/get.dart';
 import '../../services/supabase_service.dart';
+import '../../services/analytics_service.dart';
 import '../../utils/string_utils.dart';
 
 class StoriesController extends GetxController {
@@ -150,11 +151,17 @@ class StoriesController extends GetxController {
       if (uid == null) return;
       
       final expiresAt = DateTime.now().add(const Duration(hours: 24)).toIso8601String();
-      await SupabaseService.client.from('stories').insert({
+      final result = await SupabaseService.client.from('stories').insert({
         'user_id': uid,
         'media_url': mediaUrl,
         'expires_at': expiresAt,
-      });
+      }).select().single();
+      
+      // Track story posted analytics
+      await AnalyticsService.trackStoryPosted(
+        result['id'].toString(),
+        'image', // Assuming image for now
+      );
       
       await loadStories();
     } catch (e) {
@@ -168,6 +175,15 @@ class StoriesController extends GetxController {
       await loadStories();
     } catch (e) {
       print('Error deleting story: $e');
+    }
+  }
+  
+  // Track story view
+  Future<void> trackStoryView(String storyId, String storyUserId) async {
+    try {
+      await AnalyticsService.trackStoryViewed(storyId, storyUserId);
+    } catch (e) {
+      print('Error tracking story view: $e');
     }
   }
 

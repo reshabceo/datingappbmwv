@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Check Database Tables</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>Database Tables Check</h1>
+    <div id="results"></div>
+
+    <script>
+        const supabaseUrl = 'https://your-project.supabase.co';
+        const supabaseKey = 'your-anon-key';
+        
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        async function checkTables() {
+            const resultsDiv = document.getElementById('results');
+            
+            try {
+                // Check what tables exist by querying information_schema
+                const { data, error } = await supabase.rpc('exec_sql', {
+                    sql: `
+                        SELECT table_name, table_schema 
+                        FROM information_schema.tables 
+                        WHERE table_schema = 'public' 
+                        ORDER BY table_name;
+                    `
+                });
+                
+                if (error) {
+                    resultsDiv.innerHTML = `<p>Error: ${error.message}</p>`;
+                    return;
+                }
+                
+                let html = '<h2>Available Tables:</h2><ul>';
+                data.forEach(table => {
+                    html += `<li><strong>${table.table_name}</strong> (${table.table_schema})</li>`;
+                });
+                html += '</ul>';
+                
+                resultsDiv.innerHTML = html;
+                
+            } catch (err) {
+                resultsDiv.innerHTML = `<p>Error: ${err.message}</p>`;
+            }
+        }
+
+        // Run the check
+        checkTables();
+    </script>
+</body>
+</html>

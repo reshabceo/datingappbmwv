@@ -109,14 +109,10 @@ const ContentModeration: React.FC<ContentModerationProps> = ({ isDarkMode }) => 
     try {
       setIsLoading(true);
 
-      // Fetch moderation queue with user data
+      // Fetch reports data first
       const { data: queueData, error: queueError } = await supabase
-        .from('content_moderation_queue')
-        .select(`
-          *,
-          reported_user:profiles!reported_user_id(name),
-          reporter_user:profiles!reporter_user_id(name)
-        `)
+        .from('reports')
+        .select('*')
         .order('created_at', { ascending: false })
         .limit(100);
 
@@ -126,6 +122,8 @@ const ContentModeration: React.FC<ContentModerationProps> = ({ isDarkMode }) => 
         return;
       }
 
+      console.log('Fetched reports data:', queueData);
+      console.log('Number of reports:', queueData?.length || 0);
       setModerationQueue(queueData || []);
 
       // Fetch banned users
@@ -147,20 +145,22 @@ const ContentModeration: React.FC<ContentModerationProps> = ({ isDarkMode }) => 
       // Calculate statistics
       const pendingReports = queueData?.filter(item => item.status === 'pending').length || 0;
       const autoFlagged = queueData?.filter(item => item.auto_flagged && item.status === 'pending').length || 0;
+      const resolvedReports = queueData?.filter(item => item.status === 'resolved' || item.status === 'approved' || item.status === 'banned').length || 0;
+      const bannedReports = queueData?.filter(item => item.status === 'banned').length || 0;
       
-      // Get resolved today count
-      const today = new Date().toISOString().split('T')[0];
-      const { count: resolvedCount } = await supabase
-        .from('content_moderation_queue')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'resolved')
-        .gte('updated_at', `${today}T00:00:00Z`);
+      console.log('Stats calculation:', {
+        totalReports: queueData?.length || 0,
+        pendingReports,
+        autoFlagged,
+        resolvedReports,
+        bannedReports
+      });
 
       setStats({
         pendingReports,
         autoFlagged,
-        resolvedToday: resolvedCount || 0,
-        bannedUsers: bannedData?.length || 0
+        resolvedToday: resolvedReports, // Use resolved count from current data
+        bannedUsers: bannedReports // Now showing banned reports count instead of unique banned users
       });
 
     } catch (error) {
@@ -179,8 +179,12 @@ const ContentModeration: React.FC<ContentModerationProps> = ({ isDarkMode }) => 
     switch (status) {
       case 'pending':
         return <Badge variant="outline" className="text-yellow-600 border-yellow-200">Pending</Badge>;
+      case 'approved':
+        return <Badge className="bg-green-100 text-green-600">Approved</Badge>;
       case 'resolved':
         return <Badge className="bg-green-100 text-green-600">Resolved</Badge>;
+      case 'banned':
+        return <Badge className="bg-red-100 text-red-600">Banned</Badge>;
       case 'dismissed':
         return <Badge variant="secondary">Dismissed</Badge>;
       case 'in_review':
@@ -221,74 +225,186 @@ const ContentModeration: React.FC<ContentModerationProps> = ({ isDarkMode }) => 
     }
   };
 
-  const handleModerationAction = async (queueItemId: string, action: 'approve' | 'remove' | 'ban' | 'dismiss') => {
+  const handleModerationAction = async (queueItemId: string, action: 'approve' | 'remove' | 'ban' | 'unban' | 'dismiss') => {
     try {
       setIsActionLoading(true);
       
+      console.log('Handling action:', action, 'for report ID:', queueItemId);
+      
       const queueItem = moderationQueue.find(item => item.id === queueItemId);
-      if (!queueItem) return;
-
-      // Update moderation queue status
-      let newStatus = 'resolved';
-      if (action === 'dismiss') {
-        newStatus = 'dismissed';
-      }
-
-      const { error: updateError } = await supabase
-        .from('content_moderation_queue')
-        .update({
-          status: newStatus,
-          reviewed_at: new Date().toISOString(),
-          resolution_notes: `Action: ${action}`
-        })
-        .eq('id', queueItemId);
-
-      if (updateError) {
-        console.error('Error updating queue item:', updateError);
-        toast.error('Failed to update report status');
+      if (!queueItem) {
+        console.error('Report not found:', queueItemId);
+        toast.error('Report not found');
         return;
       }
 
-      // Create moderation action record
-      const { error: actionError } = await supabase
-        .from('moderation_actions')
-        .insert({
-          queue_item_id: queueItemId,
-          admin_id: 'admin-temp', // In real app, use actual admin ID
-          action_type: action === 'approve' ? 'approve' : 
-                      action === 'remove' ? 'remove_content' :
-                      action === 'ban' ? 'ban_user' : 'dismiss',
-          target_user_id: queueItem.reported_user_id,
-          reason: `Report ${action}ed: ${queueItem.reason}`
+      // Update moderation queue status
+      let newStatus = 'resolved';
+      if (action === 'approve') {
+        newStatus = 'approved';
+      } else if (action === 'dismiss') {
+        newStatus = 'dismissed';
+      } else if (action === 'ban') {
+        newStatus = 'banned'; // Ban user and mark report as banned
+      } else if (action === 'unban') {
+        newStatus = 'resolved'; // Unban user and mark report as resolved
+      }
+
+      console.log('Updating report status to:', newStatus);
+
+      // Simple update to reports table
+      console.log('=== DATABASE UPDATE DEBUG ===');
+      console.log('Report ID to update:', queueItemId);
+      console.log('New status to set:', newStatus);
+      console.log('Attempting to update report in database...');
+      
+      const { data: updateData, error: updateError } = await supabase
+        .from('reports')
+        .update({
+          status: newStatus
+        })
+        .eq('id', queueItemId)
+        .select();
+
+      console.log('Supabase response - data:', updateData);
+      console.log('Supabase response - error:', updateError);
+
+      if (updateError) {
+        console.error('❌ DATABASE UPDATE FAILED:', updateError);
+        console.error('Error details:', {
+          message: updateError.message,
+          details: updateError.details,
+          hint: updateError.hint,
+          code: updateError.code
         });
-
-      if (actionError) {
-        console.error('Error creating moderation action:', actionError);
+        toast.error(`Failed to update report: ${updateError.message}`);
+        return;
       }
 
-      // If banning user, add to banned_users table
+      if (!updateData || updateData.length === 0) {
+        console.error('❌ NO DATA RETURNED - Report not found or not updated');
+        toast.error('Report not found or not updated');
+        return;
+      }
+
+      console.log('✅ DATABASE UPDATE SUCCESSFUL');
+      console.log('Updated report data:', updateData[0]);
+      console.log('=== END DATABASE UPDATE DEBUG ===');
+
+      // Handle ban user action
       if (action === 'ban') {
-        const { error: banError } = await supabase
-          .from('banned_users')
-          .insert({
-            user_id: queueItem.reported_user_id,
-            banned_by: 'admin-temp', // In real app, use actual admin ID
-            ban_type: 'permanent',
-            reason: queueItem.reason,
-            description: queueItem.description
-          });
+        console.log('=== BAN USER DEBUG ===');
+        console.log('Banning user:', queueItem.reported_id);
+        
+        try {
+          // Get current user ID from Supabase session
+          const { data: { user } } = await supabase.auth.getUser();
+          const adminUserId = user?.id || '00000000-0000-0000-0000-000000000000';
+          
+          console.log('Using admin user ID for ban:', adminUserId);
+          
+          // Insert into banned_users table
+          const { data: banData, error: banError } = await supabase
+            .from('banned_users')
+            .insert({
+              user_id: queueItem.reported_id,
+              banned_by: adminUserId, // Use actual admin UUID
+              ban_type: 'permanent',
+              reason: queueItem.reason,
+              description: queueItem.description,
+              is_active: true
+            })
+            .select();
 
-        if (banError) {
-          console.error('Error banning user:', banError);
+          console.log('Ban user response:', { banData, banError });
+
+          if (banError) {
+            console.error('❌ BAN USER FAILED:', banError);
+            toast.error(`Failed to ban user: ${banError.message}`);
+            // Don't return here - still update the report status
+          } else {
+            console.log('✅ USER BANNED SUCCESSFULLY');
+            toast.success('User banned successfully');
+          }
+        } catch (banError) {
+          console.error('❌ BAN USER ERROR:', banError);
           toast.error('Failed to ban user');
-          return;
         }
+        console.log('=== END BAN USER DEBUG ===');
       }
+
+      // Handle unban user action
+      if (action === 'unban') {
+        console.log('=== UNBAN USER DEBUG ===');
+        console.log('Unbanning user:', queueItem.reported_id);
+        
+        try {
+          const { data: unbanData, error: unbanError } = await supabase
+            .from('banned_users')
+            .update({ is_active: false })
+            .eq('user_id', queueItem.reported_id)
+            .select();
+
+          console.log('Unban user response:', { unbanData, unbanError });
+
+          if (unbanError) {
+            console.error('❌ UNBAN USER FAILED:', unbanError);
+            toast.error(`Failed to unban user: ${unbanError.message}`);
+          } else {
+            console.log('✅ USER UNBANNED SUCCESSFULLY');
+            toast.success('User unbanned successfully');
+          }
+        } catch (unbanError) {
+          console.error('❌ UNBAN USER ERROR:', unbanError);
+          toast.error('Failed to unban user');
+        }
+        console.log('=== END UNBAN USER DEBUG ===');
+      }
+
+      // Update local state immediately for better UX
+      setModerationQueue(prev => {
+        console.log('Before update - moderationQueue:', prev);
+        console.log('Looking for item with ID:', queueItemId);
+        
+        const updated = prev.map(item => {
+          if (item.id === queueItemId) {
+            console.log('Found item to update:', item);
+            const updatedItem = { ...item, status: newStatus };
+            console.log('Updated item:', updatedItem);
+            return updatedItem;
+          }
+          return item;
+        });
+        
+        console.log('After update - moderationQueue:', updated);
+        return updated;
+      });
+
+      // Update selectedReport if it's the same report
+      if (selectedReport && selectedReport.id === queueItemId) {
+        console.log('Updating selectedReport status to:', newStatus);
+        setSelectedReport(prev => ({
+          ...prev,
+          status: newStatus
+        }));
+      }
+
+      // Update stats based on new status
+      setStats(prev => {
+        const newStats = {
+          ...prev,
+          pendingReports: (newStatus === 'resolved' || newStatus === 'dismissed' || newStatus === 'approved' || newStatus === 'banned') ? prev.pendingReports - 1 : prev.pendingReports,
+          resolvedToday: (newStatus === 'resolved' || newStatus === 'approved' || newStatus === 'banned') ? prev.resolvedToday + 1 : prev.resolvedToday,
+          bannedUsers: newStatus === 'banned' ? prev.bannedUsers + 1 : (action === 'unban' ? Math.max(0, prev.bannedUsers - 1) : prev.bannedUsers)
+        };
+        console.log('Updated stats:', newStats);
+        return newStats;
+      });
 
       toast.success(`Report ${action}ed successfully`);
       
-      // Refresh data
-      fetchModerationData();
+      // Don't refresh data immediately - let the local state update show first
+      // await fetchModerationData();
 
     } catch (error) {
       console.error('Error handling moderation action:', error);
@@ -479,8 +595,8 @@ const ContentModeration: React.FC<ContentModerationProps> = ({ isDarkMode }) => 
                           <TableRow key={report.id}>
                             <TableCell>
                               <div className="flex items-center gap-2">
-                                {getContentTypeIcon(report.content_type)}
-                                <span className="capitalize">{report.content_type}</span>
+                                {getContentTypeIcon(report.type)}
+                                <span className="capitalize">{report.type}</span>
                                 {report.auto_flagged && (
                                   <Badge variant="outline" className="text-orange-600">
                                     Auto
@@ -501,10 +617,10 @@ const ContentModeration: React.FC<ContentModerationProps> = ({ isDarkMode }) => 
                             <TableCell>
                               <div>
                                 <div className="font-medium">
-                                  {report.reported_user?.name || 'Unknown User'}
+                                  User ID: {report.reported_id.slice(0, 8)}...
                                 </div>
                                 <div className="text-sm text-gray-500">
-                                  ID: {report.reported_user_id.slice(0, 8)}...
+                                  Reporter: {report.reporter_id.slice(0, 8)}...
                                 </div>
                               </div>
                             </TableCell>
@@ -512,6 +628,7 @@ const ContentModeration: React.FC<ContentModerationProps> = ({ isDarkMode }) => 
                               {getPriorityBadge(report.priority)}
                             </TableCell>
                             <TableCell>
+                              {console.log('Rendering status for report:', report.id, 'status:', report.status)}
                               {getStatusBadge(report.status)}
                             </TableCell>
                             <TableCell>
@@ -532,10 +649,10 @@ const ContentModeration: React.FC<ContentModerationProps> = ({ isDarkMode }) => 
                                       <Eye className="h-4 w-4" />
                                     </Button>
                                   </SheetTrigger>
-                                  <SheetContent className="min-w-[600px]">
+                                  <SheetContent className="min-w-[600px] bg-gray-900/95 backdrop-blur-md border-gray-700">
                                     <SheetHeader>
-                                      <SheetTitle>Report Details</SheetTitle>
-                                      <SheetDescription>
+                                      <SheetTitle className="text-white">Report Details</SheetTitle>
+                                      <SheetDescription className="text-gray-300">
                                         Review and take action on this content report
                                       </SheetDescription>
                                     </SheetHeader>
@@ -544,84 +661,95 @@ const ContentModeration: React.FC<ContentModerationProps> = ({ isDarkMode }) => 
                                       <div className="space-y-6 mt-6">
                                         <div className="grid grid-cols-2 gap-4">
                                           <div>
-                                            <h4 className="font-medium">Content Type</h4>
-                                            <p className="text-sm text-gray-600 mt-1 capitalize">
-                                              {selectedReport.content_type}
+                                            <h4 className="font-medium text-white">Content Type</h4>
+                                            <p className="text-sm text-gray-300 mt-1 capitalize">
+                                              {selectedReport.type || 'Unknown'}
                                             </p>
                                           </div>
                                           <div>
-                                            <h4 className="font-medium">Reported User</h4>
-                                            <p className="text-sm text-gray-600 mt-1">
-                                              {selectedReport.reported_user?.name || 'Unknown User'}
+                                            <h4 className="font-medium text-white">Reported User</h4>
+                                            <p className="text-sm text-gray-300 mt-1">
+                                              User ID: {selectedReport.reported_id?.slice(0, 8)}...
+                                            </p>
+                                            <p className="text-xs text-gray-400">
+                                              Reporter: {selectedReport.reporter_id?.slice(0, 8)}...
                                             </p>
                                           </div>
                                         </div>
 
                                         <div>
-                                          <h4 className="font-medium">Reason</h4>
-                                          <p className="text-sm text-gray-600 mt-1">{selectedReport.reason}</p>
+                                          <h4 className="font-medium text-white">Reason</h4>
+                                          <p className="text-sm text-gray-300 mt-1">{selectedReport.reason}</p>
                                         </div>
 
                                         {selectedReport.description && (
                                           <div>
-                                            <h4 className="font-medium">Description</h4>
-                                            <p className="text-sm text-gray-600 mt-1">{selectedReport.description}</p>
+                                            <h4 className="font-medium text-white">Description</h4>
+                                            <p className="text-sm text-gray-300 mt-1">{selectedReport.description}</p>
                                           </div>
                                         )}
 
                                         <div className="grid grid-cols-3 gap-4">
                                           <div>
-                                            <h4 className="font-medium">Priority</h4>
+                                            <h4 className="font-medium text-white">Priority</h4>
                                             <div className="mt-1">{getPriorityBadge(selectedReport.priority)}</div>
                                           </div>
                                           <div>
-                                            <h4 className="font-medium">Status</h4>
+                                            <h4 className="font-medium text-white">Status</h4>
                                             <div className="mt-1">{getStatusBadge(selectedReport.status)}</div>
                                           </div>
                                           <div>
-                                            <h4 className="font-medium">Auto-flagged</h4>
-                                            <p className="text-sm text-gray-600 mt-1">
+                                            <h4 className="font-medium text-white">Auto-flagged</h4>
+                                            <p className="text-sm text-gray-300 mt-1">
                                               {selectedReport.auto_flagged ? 'Yes' : 'No'}
                                             </p>
                                           </div>
                                         </div>
 
-                                        {selectedReport.status === 'pending' && (
-                                          <div className="flex gap-2 pt-4 border-t">
+                                        <div className="pt-4 border-t border-gray-600">
+                                          <h4 className="font-medium text-white mb-3">Actions</h4>
+                                          <div className="grid grid-cols-2 gap-3">
                                             <Button 
-                                              className="bg-green-600 hover:bg-green-700"
+                                              className={selectedReport.status === 'approved' 
+                                                ? "bg-gray-600 hover:bg-gray-700 text-white" 
+                                                : "bg-green-600 hover:bg-green-700 text-white"
+                                              }
                                               onClick={() => handleModerationAction(selectedReport.id, 'approve')}
-                                              disabled={isActionLoading}
+                                              disabled={isActionLoading || selectedReport.status === 'approved' || selectedReport.status === 'banned'}
                                             >
                                               <CheckCircle className="h-4 w-4 mr-2" />
-                                              Approve Content
+                                              {selectedReport.status === 'approved' ? 'Approved' : 'Approve Content'}
                                             </Button>
                                             <Button 
                                               variant="destructive"
                                               onClick={() => handleModerationAction(selectedReport.id, 'remove')}
-                                              disabled={isActionLoading}
+                                              disabled={isActionLoading || selectedReport.status === 'banned'}
                                             >
                                               <XCircle className="h-4 w-4 mr-2" />
                                               Remove Content
                                             </Button>
                                             <Button 
-                                              variant="outline"
-                                              onClick={() => handleModerationAction(selectedReport.id, 'ban')}
+                                              className={selectedReport.status === 'banned' 
+                                                ? "bg-orange-600 hover:bg-orange-700 text-white" 
+                                                : "bg-red-600 hover:bg-red-700 text-white"
+                                              }
+                                              onClick={() => handleModerationAction(selectedReport.id, selectedReport.status === 'banned' ? 'unban' : 'ban')}
                                               disabled={isActionLoading}
                                             >
                                               <Ban className="h-4 w-4 mr-2" />
-                                              Ban User
+                                              {selectedReport.status === 'banned' ? 'Unban User' : 'Ban User'}
                                             </Button>
                                             <Button 
                                               variant="secondary"
+                                              className="bg-gray-700 hover:bg-gray-600 text-gray-300"
                                               onClick={() => handleModerationAction(selectedReport.id, 'dismiss')}
-                                              disabled={isActionLoading}
+                                              disabled={isActionLoading || selectedReport.status === 'banned'}
                                             >
                                               <EyeOff className="h-4 w-4 mr-2" />
                                               Dismiss
                                             </Button>
                                           </div>
-                                        )}
+                                        </div>
                                       </div>
                                     )}
                                   </SheetContent>
@@ -700,8 +828,8 @@ const ContentModeration: React.FC<ContentModerationProps> = ({ isDarkMode }) => 
                           <TableRow key={report.id}>
                             <TableCell>
                               <div className="flex items-center gap-2">
-                                {getContentTypeIcon(report.content_type)}
-                                <span className="capitalize">{report.content_type}</span>
+                                {getContentTypeIcon(report.type)}
+                                <span className="capitalize">{report.type}</span>
                               </div>
                             </TableCell>
                             <TableCell>{report.reason}</TableCell>

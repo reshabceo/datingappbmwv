@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../services/supabase_service.dart';
+import '../../services/analytics_service.dart';
 import '../../shared_prefrence_helper.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -55,6 +56,9 @@ class MessageController extends GetxController {
       // Send to server
       await SupabaseService.sendMessage(matchId: matchId, content: text.trim());
       textController.clear();
+      
+      // Track message sent
+      await AnalyticsService.trackMessageSent(matchId, 'text');
       
       print('DEBUG: Message sent to server: ${text.trim()}');
     } on PostgrestException catch (e) {

@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Sample Communication Data</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>Add Sample Communication Data</h1>
+    <div id="status"></div>
+    <button onclick="addSampleData()">Add Sample Data</button>
+    <button onclick="checkTables()">Check Tables</button>
+    
+    <script>
+        // Replace with your actual Supabase credentials
+        const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        async function checkTables() {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = 'Checking tables...';
+            
+            try {
+                // Check if tables exist
+                const { data: conversations, error: convError } = await supabase
+                    .from('conversation_metadata')
+                    .select('count')
+                    .limit(1);
+                
+                const { data: analytics, error: analyticsError } = await supabase
+                    .from('message_analytics')
+                    .select('count')
+                    .limit(1);
+                
+                const { data: messages, error: messagesError } = await supabase
+                    .from('messages')
+                    .select('count')
+                    .limit(1);
+                
+                const { data: matches, error: matchesError } = await supabase
+                    .from('matches')
+                    .select('count')
+                    .limit(1);
+                
+                statusDiv.innerHTML = `
+                    <h3>Table Status:</h3>
+                    <p>conversation_metadata: ${convError ? '❌ Error: ' + convError.message : '✅ Exists'}</p>
+                    <p>message_analytics: ${analyticsError ? '❌ Error: ' + analyticsError.message : '✅ Exists'}</p>
+                    <p>messages: ${messagesError ? '❌ Error: ' + messagesError.message : '✅ Exists'}</p>
+                    <p>matches: ${matchesError ? '❌ Error: ' + matchesError.message : '✅ Exists'}</p>
+                `;
+            } catch (error) {
+                statusDiv.innerHTML = 'Error checking tables: ' + error.message;
+            }
+        }
+        
+        async function addSampleData() {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = 'Adding sample data...';
+            
+            try {
+                // First, get some existing matches to work with
+                const { data: existingMatches, error: matchesError } = await supabase
+                    .from('matches')
+                    .select('id, user_id_1, user_id_2')
+                    .limit(5);
+                
+                if (matchesError) {
+                    throw new Error('Failed to fetch matches: ' + matchesError.message);
+                }
+                
+                if (!existingMatches || existingMatches.length === 0) {
+                    statusDiv.innerHTML = 'No existing matches found. Please create some matches first.';
+                    return;
+                }
+                
+                console.log('Found matches:', existingMatches);
+                
+                // Add conversation metadata
+                const conversationData = existingMatches.map((match, index) => ({
+                    match_id: match.id,
+                    last_activity: new Date(Date.now() - (index * 24 * 60 * 60 * 1000)).toISOString(),
+                    message_count: Math.floor(Math.random() * 50) + 5,
+                    is_flagged: index === 0, // Flag the first conversation
+                    flagged_reason: index === 0 ? 'Inappropriate language detected' : null,
+                    risk_score: Math.floor(Math.random() * 100)
+                }));
+                
+                const { data: convData, error: convError } = await supabase
+                    .from('conversation_metadata')
+                    .insert(conversationData)
+                    .select();
+                
+                if (convError) {
+                    throw new Error('Failed to insert conversation metadata: ' + convError.message);
+                }
+                
+                console.log('Added conversation metadata:', convData);
+                
+                // Add sample messages for each conversation
+                const messageData = [];
+                const sampleMessages = [
+                    "Hey! How's your day going?",
+                    "I'm doing great, thanks for asking!",
+                    "Want to grab coffee sometime?",
+                    "That sounds lovely! When are you free?",
+                    "How about this weekend?",
+                    "Perfect! I'll see you then 😊",
+                    "Looking forward to it!",
+                    "Me too! Have a great day!",
+                    "You too! Talk soon!",
+                    "Hey, I had a great time yesterday!",
+                    "So did I! We should do it again soon",
+                    "Absolutely! Maybe next week?",
+                    "Sounds perfect!",
+                    "Great! I'll text you the details",
+                    "Thanks! Talk to you soon!"
+                ];
+                
+                for (let i = 0; i < existingMatches.length; i++) {
+                    const match = existingMatches[i];
+                    const messageCount = Math.floor(Math.random() * 10) + 3;
+                    
+                    for (let j = 0; j < messageCount; j++) {
+                        const isUser1 = Math.random() > 0.5;
+                        const senderId = isUser1 ? match.user_id_1 : match.user_id_2;
+                        const messageText = sampleMessages[Math.floor(Math.random() * sampleMessages.length)];
+                        
+                        messageData.push({
+                            match_id: match.id,
+                            sender_id: senderId,
+                            content: messageText,
+                            message_type: Math.random() > 0.8 ? 'media' : 'text',
+                            is_flagged: Math.random() > 0.9, // 10% chance of being flagged
+                            flagged_reason: Math.random() > 0.9 ? 'Inappropriate content' : null,
+                            created_at: new Date(Date.now() - (j * 60 * 60 * 1000)).toISOString()
+                        });
+                    }
+                }
+                
+                const { data: msgData, error: msgError } = await supabase
+                    .from('messages')
+                    .insert(messageData)
+                    .select();
+                
+                if (msgError) {
+                    throw new Error('Failed to insert messages: ' + msgError.message);
+                }
+                
+                console.log('Added messages:', msgData);
+                
+                // Add daily analytics for the last 7 days
+                const analyticsData = [];
+                for (let i = 0; i < 7; i++) {
+                    const date = new Date();
+                    date.setDate(date.getDate() - i);
+                    
+                    analyticsData.push({
+                        date: date.toISOString().split('T')[0],
+                        total_messages: Math.floor(Math.random() * 100) + 20,
+                        flagged_messages: Math.floor(Math.random() * 5),
+                        active_conversations: Math.floor(Math.random() * 20) + 5,
+                        new_conversations: Math.floor(Math.random() * 10) + 2
+                    });
+                }
+                
+                const { data: analyticsDataResult, error: analyticsError } = await supabase
+                    .from('message_analytics')
+                    .insert(analyticsData)
+                    .select();
+                
+                if (analyticsError) {
+                    throw new Error('Failed to insert analytics: ' + analyticsError.message);
+                }
+                
+                console.log('Added analytics:', analyticsDataResult);
+                
+                statusDiv.innerHTML = `
+                    <h3>✅ Sample data added successfully!</h3>
+                    <p>Added ${convData.length} conversations</p>
+                    <p>Added ${msgData.length} messages</p>
+                    <p>Added ${analyticsDataResult.length} analytics records</p>
+                `;
+                
+            } catch (error) {
+                console.error('Error adding sample data:', error);
+                statusDiv.innerHTML = 'Error: ' + error.message;
+            }
+        }
+        
+        // Check tables on page load
+        window.onload = checkTables;
+    </script>
+</body>
+</html>

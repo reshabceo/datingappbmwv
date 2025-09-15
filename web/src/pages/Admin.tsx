@@ -1,16 +1,31 @@
 import React, { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
+import AdminLogin from '../admin-components/AdminLogin'
 
 export default function Admin() {
   const [users, setUsers] = useState<any[]>([])
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [searchParams] = useSearchParams()
+  const preFilledEmail = searchParams.get('email') || ''
 
   useEffect(() => {
-    const load = async () => {
-      const { data } = await supabase.from('profiles').select('id,name,email,created_at,is_active')
-      setUsers(data || [])
+    if (isAuthenticated) {
+      const load = async () => {
+        const { data } = await supabase.from('profiles').select('id,name,email,created_at,is_active')
+        setUsers(data || [])
+      }
+      load()
     }
-    load()
-  }, [])
+  }, [isAuthenticated])
+
+  const handleLogin = (adminData: { id: string; email: string; full_name: string; role: string }) => {
+    setIsAuthenticated(true)
+  }
+
+  if (!isAuthenticated) {
+    return <AdminLogin onLogin={handleLogin} preFilledEmail={preFilledEmail} />
+  }
 
   const toggleActive = async (id: string, current: boolean) => {
     if (!confirm('Confirm?')) return

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Check Existing Data</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>Check Existing Data</h1>
+    <div id="status"></div>
+    <button onclick="checkAllData()">Check All Data</button>
+    
+    <script>
+        // Replace with your actual Supabase credentials
+        const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        async function checkAllData() {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = 'Checking existing data...';
+            
+            try {
+                let results = '<h2>Existing Data Summary:</h2>';
+                
+                // Check matches
+                const { data: matches, error: matchesError } = await supabase
+                    .from('matches')
+                    .select('*')
+                    .limit(10);
+                
+                results += `<h3>Matches (${matches?.length || 0}):</h3>`;
+                if (matchesError) {
+                    results += `<p>❌ Error: ${matchesError.message}</p>`;
+                } else if (matches && matches.length > 0) {
+                    results += `<p>✅ Found ${matches.length} matches</p>`;
+                    results += '<ul>';
+                    matches.forEach(match => {
+                        results += `<li>Match ID: ${match.id} - Users: ${match.user_id_1?.slice(0,8)}... & ${match.user_id_2?.slice(0,8)}... (Status: ${match.status})</li>`;
+                    });
+                    results += '</ul>';
+                } else {
+                    results += '<p>No matches found</p>';
+                }
+                
+                // Check messages
+                const { data: messages, error: messagesError } = await supabase
+                    .from('messages')
+                    .select('*')
+                    .limit(10);
+                
+                results += `<h3>Messages (${messages?.length || 0}):</h3>`;
+                if (messagesError) {
+                    results += `<p>❌ Error: ${messagesError.message}</p>`;
+                } else if (messages && messages.length > 0) {
+                    results += `<p>✅ Found ${messages.length} messages</p>`;
+                    results += '<ul>';
+                    messages.forEach(msg => {
+                        results += `<li>Message ID: ${msg.id} - Match: ${msg.match_id?.slice(0,8)}... - Sender: ${msg.sender_id?.slice(0,8)}... - Content: "${msg.content?.substring(0, 50)}..."</li>`;
+                    });
+                    results += '</ul>';
+                } else {
+                    results += '<p>No messages found</p>';
+                }
+                
+                // Check profiles
+                const { data: profiles, error: profilesError } = await supabase
+                    .from('profiles')
+                    .select('id, name, email')
+                    .limit(10);
+                
+                results += `<h3>Profiles (${profiles?.length || 0}):</h3>`;
+                if (profilesError) {
+                    results += `<p>❌ Error: ${profilesError.message}</p>`;
+                } else if (profiles && profiles.length > 0) {
+                    results += `<p>✅ Found ${profiles.length} profiles</p>`;
+                    results += '<ul>';
+                    profiles.forEach(profile => {
+                        results += `<li>Profile ID: ${profile.id} - Name: ${profile.name || 'No name'} - Email: ${profile.email || 'No email'}</li>`;
+                    });
+                    results += '</ul>';
+                } else {
+                    results += '<p>No profiles found</p>';
+                }
+                
+                // Check conversation_metadata (if exists)
+                const { data: conversations, error: convError } = await supabase
+                    .from('conversation_metadata')
+                    .select('*')
+                    .limit(10);
+                
+                results += `<h3>Conversation Metadata (${conversations?.length || 0}):</h3>`;
+                if (convError) {
+                    results += `<p>❌ Table doesn't exist or error: ${convError.message}</p>`;
+                } else if (conversations && conversations.length > 0) {
+                    results += `<p>✅ Found ${conversations.length} conversation records</p>`;
+                    results += '<ul>';
+                    conversations.forEach(conv => {
+                        results += `<li>Conv ID: ${conv.id} - Match: ${conv.match_id?.slice(0,8)}... - Messages: ${conv.message_count} - Flagged: ${conv.is_flagged}</li>`;
+                    });
+                    results += '</ul>';
+                } else {
+                    results += '<p>No conversation metadata found</p>';
+                }
+                
+                // Check message_analytics (if exists)
+                const { data: analytics, error: analyticsError } = await supabase
+                    .from('message_analytics')
+                    .select('*')
+                    .limit(10);
+                
+                results += `<h3>Message Analytics (${analytics?.length || 0}):</h3>`;
+                if (analyticsError) {
+                    results += `<p>❌ Table doesn't exist or error: ${analyticsError.message}</p>`;
+                } else if (analytics && analytics.length > 0) {
+                    results += `<p>✅ Found ${analytics.length} analytics records</p>`;
+                    results += '<ul>';
+                    analytics.forEach(analytics => {
+                        results += `<li>Date: ${analytics.date} - Total Messages: ${analytics.total_messages} - Flagged: ${analytics.flagged_messages}</li>`;
+                    });
+                    results += '</ul>';
+                } else {
+                    results += '<p>No analytics data found</p>';
+                }
+                
+                // Check banned_users
+                const { data: bannedUsers, error: bannedError } = await supabase
+                    .from('banned_users')
+                    .select('*')
+                    .limit(10);
+                
+                results += `<h3>Banned Users (${bannedUsers?.length || 0}):</h3>`;
+                if (bannedError) {
+                    results += `<p>❌ Error: ${bannedError.message}</p>`;
+                } else if (bannedUsers && bannedUsers.length > 0) {
+                    results += `<p>✅ Found ${bannedUsers.length} banned users</p>`;
+                    results += '<ul>';
+                    bannedUsers.forEach(banned => {
+                        results += `<li>User ID: ${banned.user_id?.slice(0,8)}... - Active: ${banned.is_active} - Reason: ${banned.reason}</li>`;
+                    });
+                    results += '</ul>';
+                } else {
+                    results += '<p>No banned users found</p>';
+                }
+                
+                statusDiv.innerHTML = results;
+                
+            } catch (error) {
+                console.error('Error checking data:', error);
+                statusDiv.innerHTML = 'Error: ' + error.message;
+            }
+        }
+        
+        // Check data on page load
+        window.onload = checkAllData;
+    </script>
+</body>
+</html>

@@ -20,9 +20,9 @@ export default function Step1Gender() {
         return
       }
       setSaving(true)
-      console.log('[Step1Gender] Upserting profile', { id: user.id, gender, name: '', age: 18, hobbies: [], photos: [] })
+      console.log('[Step1Gender] Upserting profile', { id: user.id, name: '', age: 18, hobbies: [], image_urls: [] })
       // Satisfy possible NOT NULL constraints on initial insert
-      await upsertMyProfile({ id: user.id, gender, name: '', age: 18, hobbies: [], photos: [] })
+      await upsertMyProfile({ id: user.id, name: '', age: 18, hobbies: [], image_urls: [] })
       console.log('[Step1Gender] Upsert success → navigating to step 2')
       nav('/profile/setup/2')
     } catch (e: any) {

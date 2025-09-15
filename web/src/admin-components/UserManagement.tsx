@@ -44,6 +44,7 @@ interface User {
   photos?: any[];
   hobbies?: string[];
   distance?: string;
+  profile_picture?: string;
   subscription?: {
     status: string;
     plan_name: string;
@@ -78,12 +79,12 @@ const UserManagement: React.FC<UserManagementProps> = ({ isDarkMode }) => {
     try {
       setIsLoading(true);
       
-      // Get users with subscription info
+      // Get users with optional subscription info and photos
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select(`
           *,
-          user_subscriptions!inner(
+          user_subscriptions(
             status,
             subscription_plans(name)
           )
@@ -93,31 +94,43 @@ const UserManagement: React.FC<UserManagementProps> = ({ isDarkMode }) => {
 
       if (profilesError) {
         console.error('Error fetching profiles:', profilesError);
+        toast.error('Failed to fetch profiles: ' + profilesError.message);
         return;
       }
 
-      // Transform data to match User interface
-      const transformedUsers: User[] = profilesData?.map((profile: any) => ({
-        id: profile.id,
-        name: profile.name || 'Unknown User',
-        age: profile.age || 0,
-        gender: profile.gender || 'Not specified',
-        location: profile.location || 'Not specified',
-        description: profile.description || '',
-        created_at: profile.created_at,
-        is_active: profile.is_active || false,
-        last_seen: profile.last_seen || profile.created_at,
-        photos: profile.photos || [],
-        hobbies: profile.hobbies || [],
-        distance: profile.distance || 'Unknown',
-        subscription: {
-          status: profile.user_subscriptions?.[0]?.status || 'inactive',
-          plan_name: profile.user_subscriptions?.[0]?.subscription_plans?.name || 'Free'
-        },
-        matches_count: 0, // Will be fetched separately if needed
-        reports_count: 0  // Will be fetched separately if needed
-      })) || [];
+      console.log('Fetched profiles data:', profilesData);
 
+      // Transform data to match User interface
+      const transformedUsers: User[] = profilesData?.map((profile: any) => {
+        // Get the first photo as profile picture
+        const profilePicture = profile.photos && profile.photos.length > 0 
+          ? profile.photos[0] 
+          : null;
+
+        return {
+          id: profile.id,
+          name: profile.name || 'Unknown User',
+          age: profile.age || 0,
+          gender: profile.gender || 'Not specified',
+          location: profile.location || 'Not specified',
+          description: profile.description || '',
+          created_at: profile.created_at,
+          is_active: profile.is_active || false,
+          last_seen: profile.last_seen || profile.created_at,
+          photos: profile.photos || [],
+          hobbies: profile.hobbies || [],
+          distance: profile.distance || 'Unknown',
+          profile_picture: profilePicture,
+          subscription: {
+            status: profile.user_subscriptions?.[0]?.status || 'inactive',
+            plan_name: profile.user_subscriptions?.[0]?.subscription_plans?.name || 'Free'
+          },
+          matches_count: 0, // Will be fetched separately if needed
+          reports_count: 0  // Will be fetched separately if needed
+        };
+      }) || [];
+
+      console.log('Transformed users:', transformedUsers);
       setUsers(transformedUsers);
 
       // Get user statistics
@@ -334,9 +347,30 @@ const UserManagement: React.FC<UserManagementProps> = ({ isDarkMode }) => {
                     <TableRow key={user.id}>
                       <TableCell>
                         <div className="flex items-center">
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 flex items-center justify-center text-white font-semibold">
-                            {user.name.slice(0, 2).toUpperCase()}
-                          </div>
+                          {user.profile_picture ? (
+                            <img 
+                              src={user.profile_picture} 
+                              alt={user.name}
+                              className="w-10 h-10 rounded-full object-cover"
+                              onError={(e) => {
+                                // Fallback to initials if image fails to load
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                                const parent = target.parentElement;
+                                if (parent) {
+                                  parent.innerHTML = `
+                                    <div class="w-10 h-10 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 flex items-center justify-center text-white font-semibold">
+                                      ${user.name.slice(0, 2).toUpperCase()}
+                                    </div>
+                                  `;
+                                }
+                              }}
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 flex items-center justify-center text-white font-semibold">
+                              {user.name.slice(0, 2).toUpperCase()}
+                            </div>
+                          )}
                           <div className="ml-3">
                             <p className="font-medium">{user.name}</p>
                             <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -397,9 +431,30 @@ const UserManagement: React.FC<UserManagementProps> = ({ isDarkMode }) => {
                                 <div className="mt-6 space-y-6">
                                   {/* User Profile Section */}
                                   <div className="flex items-center space-x-4">
-                                    <div className="w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 flex items-center justify-center text-white font-bold text-xl">
-                                      {selectedUser.name.slice(0, 2).toUpperCase()}
-                                    </div>
+                                    {selectedUser.profile_picture ? (
+                                      <img 
+                                        src={selectedUser.profile_picture} 
+                                        alt={selectedUser.name}
+                                        className="w-16 h-16 rounded-full object-cover"
+                                        onError={(e) => {
+                                          // Fallback to initials if image fails to load
+                                          const target = e.target as HTMLImageElement;
+                                          target.style.display = 'none';
+                                          const parent = target.parentElement;
+                                          if (parent) {
+                                            parent.innerHTML = `
+                                              <div class="w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 flex items-center justify-center text-white font-bold text-xl">
+                                                ${selectedUser.name.slice(0, 2).toUpperCase()}
+                                              </div>
+                                            `;
+                                          }
+                                        }}
+                                      />
+                                    ) : (
+                                      <div className="w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 flex items-center justify-center text-white font-bold text-xl">
+                                        {selectedUser.name.slice(0, 2).toUpperCase()}
+                                      </div>
+                                    )}
                                     <div>
                                       <h3 className="text-lg font-semibold">{selectedUser.name}</h3>
                                       <p className="text-gray-500">{selectedUser.age} years, {selectedUser.gender}</p>
@@ -438,6 +493,27 @@ const UserManagement: React.FC<UserManagementProps> = ({ isDarkMode }) => {
                                       </span>
                                     </div>
                                   </div>
+
+                                  {/* Photos Section */}
+                                  {selectedUser.photos && selectedUser.photos.length > 0 && (
+                                    <div className="space-y-3">
+                                      <h4 className="font-medium">Profile Photos</h4>
+                                      <div className="grid grid-cols-3 gap-2">
+                                        {selectedUser.photos.map((photo, index) => (
+                                          <img
+                                            key={index}
+                                            src={photo}
+                                            alt={`${selectedUser.name} photo ${index + 1}`}
+                                            className="w-full h-20 object-cover rounded-lg"
+                                            onError={(e) => {
+                                              const target = e.target as HTMLImageElement;
+                                              target.style.display = 'none';
+                                            }}
+                                          />
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
 
                                   {/* Action Buttons */}
                                   <div className="flex space-x-2 pt-4">

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Reports Query</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>Test Reports Query</h1>
+    <button onclick="testQuery()">Test Query</button>
+    <div id="output"></div>
+
+    <script>
+        // Replace with your actual Supabase credentials
+        const SUPABASE_URL = 'YOUR_SUPABASE_URL_HERE';
+        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY_HERE';
+        
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        async function testQuery() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<p>Testing query...</p>';
+            
+            try {
+                // Test 1: Simple count
+                const { count, error: countError } = await supabase
+                    .from('reports')
+                    .select('*', { count: 'exact', head: true });
+                
+                if (countError) {
+                    output.innerHTML += `<p style="color: red;">Count Error: ${countError.message}</p>`;
+                } else {
+                    output.innerHTML += `<p style="color: green;">Total reports: ${count}</p>`;
+                }
+
+                // Test 2: Fetch all reports
+                const { data: reports, error: reportsError } = await supabase
+                    .from('reports')
+                    .select('*')
+                    .limit(5);
+                
+                if (reportsError) {
+                    output.innerHTML += `<p style="color: red;">Reports Error: ${reportsError.message}</p>`;
+                } else {
+                    output.innerHTML += `<p style="color: green;">Fetched ${reports.length} reports</p>`;
+                    output.innerHTML += `<pre>${JSON.stringify(reports, null, 2)}</pre>`;
+                }
+
+                // Test 3: Check if columns exist
+                const { data: sampleReport } = await supabase
+                    .from('reports')
+                    .select('id, type, priority, auto_flagged, status')
+                    .limit(1)
+                    .single();
+                
+                if (sampleReport) {
+                    output.innerHTML += `<p style="color: green;">Sample report columns: ${JSON.stringify(sampleReport)}</p>`;
+                } else {
+                    output.innerHTML += `<p style="color: orange;">No sample report found or columns missing</p>`;
+                }
+                
+            } catch (error) {
+                output.innerHTML += `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>
