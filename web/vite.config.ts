@@ -10,7 +10,18 @@ export default defineConfig(async () => {
         '@': path.resolve(__dirname, './src'),
       },
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: undefined,
+        },
+      },
+    },
+    server: {
+      historyApiFallback: true,
+    },
+    preview: {
+      historyApiFallback: true,
+    },
   }
 })
-
-
