@@ -83,10 +83,10 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center justify-center gap-8">
-            <div className="w-64 h-80 rounded-3xl overflow-hidden shadow-2xl bg-white/10 border border-border-white-10">
+            <div className="w-96 h-[28rem] rounded-3xl overflow-hidden shadow-2xl bg-white/10 border border-border-white-10">
               <img src="/assets/home/hero-1.jpg" alt="Happy couple" className="w-full h-full object-cover" />
             </div>
-            <div className="w-56 h-72 rounded-3xl overflow-hidden shadow-2xl bg-white/10 border border-border-white-10 hidden sm:block">
+            <div className="w-80 h-96 rounded-3xl overflow-hidden shadow-2xl bg-white/10 border border-border-white-10 hidden sm:block">
               <img src="/assets/home/hero-2.jpg" alt="Romantic date" className="w-full h-full object-cover" />
             </div>
           </div>
@@ -113,8 +113,8 @@ export default function Home() {
         <div className="grid md:grid-cols-3 gap-8">
           {stories.map((s) => (
             <div key={s.title} className="rounded-2xl overflow-hidden bg-gradient-card-pink border border-pink-30 backdrop-blur-md">
-              <div className="h-56 bg-black/20">
-                <img src={s.img} alt={s.title} className="w-full h-full object-cover" />
+              <div className="h-72 bg-black/20">
+                <img src={s.img} alt={s.title} className="w-full h-full object-cover object-[center_20%]" />
               </div>
               <div className="p-5">
                 <div className="font-semibold text-xl mb-2">{s.title}</div>
@@ -125,22 +125,41 @@ export default function Home() {
         </div>
       </Section>
 
-      {/* App Promo */}
+      {/* App Download Section */}
       <Section>
-        <div className="grid md:grid-cols-2 gap-10 items-center rounded-2xl p-6 md:p-10 bg-gradient-to-r from-appbar-3/60 to-appbar-2/60 border border-border-white-10">
-          <div>
-            <h3 className="text-2xl md:text-3xl font-bold mb-3">Take Love On The Go</h3>
-            <p className="text-light-white mb-5">
-              Download our mobile app and find love anywhere, anytime. Get exclusive features and instant
-              notifications when someone likes you.
-            </p>
-            <div className="flex gap-3">
-              <a href="#" className="px-4 py-2 rounded-xl bg-white/90 text-gray-800 text-sm font-medium">Get it on Google Play</a>
-              <a href="#" className="px-4 py-2 rounded-xl bg-white/90 text-gray-800 text-sm font-medium">Download on the App Store</a>
+        <div className="rounded-2xl p-6 md:p-8 bg-gradient-card-pink border border-pink-30 backdrop-blur-md">
+          <div className="grid md:grid-cols-2 gap-8 items-center">
+            <div>
+              <h3 className="text-2xl md:text-3xl font-bold mb-3 text-white">Take Love On The Go</h3>
+              <p className="text-light-white mb-5 text-base">
+                Download our mobile app and find love anywhere, anytime. Get exclusive features and instant notifications when someone likes you.
+              </p>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <button className="px-5 py-3 bg-gradient-to-r from-pink-500 to-purple-500 border border-pink-300 rounded-xl text-white font-semibold hover:from-pink-600 hover:to-purple-600 transition-all duration-300 flex items-center justify-center gap-2 shadow-lg text-sm">
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M3.609 1.814L13.792 12L3.609 22.186a.996.996 0 0 1-.61-.92V2.734a1 1 0 0 1 .609-.92zm10.89 10.893l2.302 2.302-10.937 6.333 8.635-8.635zm3.199-3.198l2.807 1.626a1 1 0 0 1 0 1.73l-2.808 1.626L13.5 12l4.199-2.491zM5.864 2.658L16.802 8.99l-2.302 2.302-8.636-8.634z"/>
+                    </svg>
+                    Get it on Google Play
+                  </button>
+                  <button className="px-5 py-3 bg-gradient-to-r from-pink-500 to-purple-500 border border-pink-300 rounded-xl text-white font-semibold hover:from-pink-600 hover:to-purple-600 transition-all duration-300 flex items-center justify-center gap-2 shadow-lg text-sm">
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+                    </svg>
+                    Download on the App Store
+                  </button>
+                </div>
             </div>
-          </div>
-          <div className="rounded-2xl overflow-hidden bg-white/10 border border-border-white-10 h-64">
-            <img src="/assets/home/app-mock.png" alt="Love Bug app mobile interface" className="w-full h-full object-cover" />
+            <div className="flex justify-center">
+              <img 
+                src="/assets/c59fc0b8-2284-413f-9ed0-e97cebdddd89.png" 
+                alt="Love Bug app mobile interface" 
+                className="max-w-[200px] h-auto rounded-xl shadow-2xl"
+                onError={(e) => {
+                  console.log('Image failed to load, trying alternative path');
+                  e.currentTarget.src = '/assets/c59fc0b8-2284-413f-9ed0-e97cebdddd89.png';
+                }}
+              />
+            </div>
           </div>
         </div>
       </Section>
@@ -188,43 +207,6 @@ export default function Home() {
         </div>
       </Section>
 
-      {/* Footer */}
-      <footer className="w-screen relative left-1/2 -translate-x-1/2 py-12 border-t border-border-white-10">
-        <div className="max-w-6xl mx-auto px-4 grid md:grid-cols-4 gap-8 text-light-white">
-          <div>
-            <div className="text-white font-bold text-xl mb-2">Love Bug</div>
-            <p>Finding your perfect match has never been easier. Join millions of singles looking for love.</p>
-          </div>
-          <div>
-            <div className="text-white font-semibold mb-3">Company</div>
-            <ul className="space-y-2 text-sm">
-              <li><a href="#">About Us</a></li>
-              <li><a href="#">Careers</a></li>
-              <li><a href="#">Press</a></li>
-              <li><a href="#">Blog</a></li>
-            </ul>
-          </div>
-          <div>
-            <div className="text-white font-semibold mb-3">Support</div>
-            <ul className="space-y-2 text-sm">
-              <li><a href="#">Help Center</a></li>
-              <li><a href="#">Safety Tips</a></li>
-              <li><a href="#">Contact Us</a></li>
-              <li><a href="#">Community Guidelines</a></li>
-            </ul>
-          </div>
-          <div>
-            <div className="text-white font-semibold mb-3">Legal</div>
-            <ul className="space-y-2 text-sm">
-              <li><a href="#">Privacy Policy</a></li>
-              <li><a href="#">Terms of Service</a></li>
-              <li><a href="#">Cookie Policy</a></li>
-              <li><a href="#">Accessibility</a></li>
-            </ul>
-          </div>
-        </div>
-        <div className="max-w-6xl mx-auto px-4 mt-8 text-center text-xs text-light-white">© 2025 Love Bug. All rights reserved.</div>
-      </footer>
     </div>
   )
 }

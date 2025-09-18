@@ -11,28 +11,28 @@ export default function Footer() {
         <div>
           <div className="text-white font-semibold mb-3">Company</div>
           <ul className="space-y-2 text-sm">
-            <li><a href="#">About Us</a></li>
-            <li><a href="#">Careers</a></li>
-            <li><a href="#">Press</a></li>
-            <li><a href="#">Blog</a></li>
+            <li><a href="/about-us">About Us</a></li>
+            <li><a href="/careers">Careers</a></li>
+            <li><a href="/press">Press</a></li>
+            <li><a href="/blog">Blog</a></li>
           </ul>
         </div>
         <div>
           <div className="text-white font-semibold mb-3">Support</div>
           <ul className="space-y-2 text-sm">
-            <li><a href="#">Help Center</a></li>
-            <li><a href="#">Safety Tips</a></li>
-            <li><a href="#">Contact Us</a></li>
-            <li><a href="#">Community Guidelines</a></li>
+            <li><a href="/safety-tips">Safety Tips</a></li>
+            <li><a href="/contact-us">Contact Us</a></li>
+            <li><a href="/community-guidelines">Community Guidelines</a></li>
           </ul>
         </div>
         <div>
           <div className="text-white font-semibold mb-3">Legal</div>
           <ul className="space-y-2 text-sm">
-            <li><a href="#">Privacy Policy</a></li>
-            <li><a href="#">Terms of Service</a></li>
-            <li><a href="#">Cookie Policy</a></li>
-            <li><a href="#">Accessibility</a></li>
+            <li><a href="/privacy-policy">Privacy Policy</a></li>
+            <li><a href="/terms-of-service">Terms of Service</a></li>
+            <li><a href="/cookie-policy">Cookie Policy</a></li>
+            <li><a href="/accessibility">Accessibility</a></li>
+            <li><a href="/refund-policy">Refund Policy</a></li>
           </ul>
         </div>
       </div>

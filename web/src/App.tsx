@@ -28,6 +28,20 @@ import Step5Interests from './pages/ProfileSetup/Step5Interests'
 import Step6Location from './pages/ProfileSetup/Step6Location'
 import AdminEmbed from './pages/AdminEmbed'
 import AdminDashboard from './pages/AdminDashboard'
+import CommunityGuidelines from './pages/CommunityGuidelines'
+import SafetyTips from './pages/SafetyTips'
+import CookiePolicy from './pages/CookiePolicy'
+import ContactUs from './pages/ContactUs'
+import AboutUs from './pages/AboutUs'
+import Accessibility from './pages/Accessibility'
+import PrivacyPolicy from './pages/PrivacyPolicy'
+import TermsOfService from './pages/TermsOfService'
+import RefundPolicy from './pages/RefundPolicy'
+import Careers from './pages/Careers'
+import Press from './pages/Press'
+import Blog from './pages/Blog'
+import SubscriptionPlansAdmin from './pages/admin/SubscriptionPlansAdmin'
+import OffersAdmin from './pages/admin/OffersAdmin'
 
 export default function App() {
   const { user, signOut } = useAuth()
@@ -40,8 +54,7 @@ export default function App() {
         <header className="sticky top-0 z-50 bg-gradient-card-pink backdrop-blur border-b border-pink-30">
         <div className="w-full px-8 xl:px-12 py-3 flex items-center justify-between">
           <Link to="/" className="flex items-center space-x-2">
-            <img src="/assets/images/logolight.png" alt="Logo" className="h-8 w-auto" />
-            <span className="font-bold text-lg text-white">Love Bug</span>
+            <img src="/assets/5347d249-47bc-4b25-8053-83255e59a1f0.png" alt="Love Bug Logo" className="h-12 w-auto" />
           </Link>
           <nav className="flex items-center gap-8 text-white">
             <Link to="/" className="inline-flex items-center gap-2 text-sm hover:text-light-white transition-colors">
@@ -82,6 +95,8 @@ export default function App() {
           <Routes>
             <Route path="/" element={<ProtectedRoute adminRequired={true}><Admin /></ProtectedRoute>} />
             <Route path="/subscriptions" element={<ProtectedRoute adminRequired={true}><AdminSubscriptions /></ProtectedRoute>} />
+            <Route path="/subscription-plans" element={<ProtectedRoute adminRequired={true}><SubscriptionPlansAdmin /></ProtectedRoute>} />
+            <Route path="/offers" element={<ProtectedRoute adminRequired={true}><OffersAdmin /></ProtectedRoute>} />
             <Route path="/embed" element={<AdminEmbed />} />
             <Route path="/dashboard" element={<AdminDashboard />} />
           </Routes>
@@ -112,6 +127,18 @@ export default function App() {
                 <Route path="/profile/setup/5" element={<ProtectedRoute><Step5Interests /></ProtectedRoute>} />
                 <Route path="/profile/setup/6" element={<ProtectedRoute><Step6Location /></ProtectedRoute>} />
                 <Route path="/browse" element={<ProtectedRoute><RequireProfile><Profiles /></RequireProfile></ProtectedRoute>} />
+                <Route path="/community-guidelines" element={<CommunityGuidelines />} />
+                <Route path="/safety-tips" element={<SafetyTips />} />
+                <Route path="/cookie-policy" element={<CookiePolicy />} />
+                <Route path="/contact-us" element={<ContactUs />} />
+                <Route path="/about-us" element={<AboutUs />} />
+                <Route path="/accessibility" element={<Accessibility />} />
+                <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                <Route path="/terms-of-service" element={<TermsOfService />} />
+                <Route path="/refund-policy" element={<RefundPolicy />} />
+                <Route path="/careers" element={<Careers />} />
+                <Route path="/press" element={<Press />} />
+                <Route path="/blog" element={<Blog />} />
               </Routes>
             </main>
             <Footer />
