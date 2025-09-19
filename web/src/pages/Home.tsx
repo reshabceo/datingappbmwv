@@ -34,20 +34,20 @@ export default function Home() {
 
   const stories = [
     {
-      img: '/assets/home/story1.jpg',
-      title: 'Sarah & Michael',
+      img: '/assets/d83d12e7-0a5f-4215-a0df-b60f86de7707.JPG',
+      title: 'Adam & Aaliya',
       quote:
         "\"Love Bug helped us find each other when we least expected it. Now we're planning our wedding!\"",
     },
     {
-      img: '/assets/home/story2.jpg',
-      title: 'Emma & James',
+      img: '/assets/cd2a694f-ba7e-4bc9-acb6-555f0ecc9f71.JPG',
+      title: 'Gurpreet & Simran',
       quote:
         '"We matched on Love Bug and instantly connected. Six months later, we\'re moving in together!"',
     },
     {
-      img: '/assets/home/story3.jpg',
-      title: 'Lisa & David',
+      img: '/assets/986045b9-9a2a-47ed-b970-2cec35b53359.JPG',
+      title: 'Vihaan & Lakshmi',
       quote:
         '"The algorithm is amazing! We have so much in common and couldn\'t be happier together."',
     },
@@ -82,12 +82,9 @@ export default function Home() {
               <a href="#why-choose" className="px-7 py-4 rounded-full bg-white/10 border border-border-white-10">Learn More</a>
             </div>
           </div>
-          <div className="flex items-center justify-center gap-8">
-            <div className="w-96 h-[28rem] rounded-3xl overflow-hidden shadow-2xl bg-white/10 border border-border-white-10">
-              <img src="/assets/home/hero-1.jpg" alt="Happy couple" className="w-full h-full object-cover" />
-            </div>
-            <div className="w-80 h-96 rounded-3xl overflow-hidden shadow-2xl bg-white/10 border border-border-white-10 hidden sm:block">
-              <img src="/assets/home/hero-2.jpg" alt="Romantic date" className="w-full h-full object-cover" />
+          <div className="flex items-center justify-center">
+            <div className="w-[32rem] h-[20rem] rounded-3xl overflow-hidden shadow-2xl bg-white/10 border border-border-white-10">
+              <img src="/assets/5eab84d3-8fdc-40ac-87cb-1609d42f5228.JPG" alt="Happy couple" className="w-full h-full object-cover" />
             </div>
           </div>
         </div>

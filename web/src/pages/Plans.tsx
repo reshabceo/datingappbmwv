@@ -126,7 +126,7 @@ export default function Plans() {
                 price: 2250,
                 original_price: 3000,
                 discount_percentage: 25,
-                is_popular: true,
+                is_popular: false,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
               },
@@ -137,7 +137,7 @@ export default function Plans() {
                 price: 3750,
                 original_price: 5000,
                 discount_percentage: 25,
-                is_popular: false,
+                is_popular: true,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
               }
@@ -254,7 +254,7 @@ export default function Plans() {
                       key={option.id}
                       className={`p-3 rounded-lg border-2 cursor-pointer transition-all text-center ${
                         selectedPlan === plan.id ? 'border-pink/50 bg-pink/10' : 'border-white/20 hover:border-pink/30'
-                      } ${option.is_popular ? 'ring-2 ring-pink-400/50' : ''}`}
+                      } ${option.is_popular ? 'ring-2 ring-pink-400/50 animate-pulse shadow-lg shadow-pink-500/25' : ''}`}
                       onClick={() => setSelectedPlan(plan.id)}
                     >
                       <div className="text-white font-semibold text-sm mb-1">
@@ -272,7 +272,7 @@ export default function Plans() {
                         </div>
                       )}
                       {option.is_popular && (
-                        <div className="text-xs text-pink-400 font-semibold mt-1">
+                        <div className="text-xs text-white font-semibold mt-1">
                           ⭐ Popular
                         </div>
                       )}

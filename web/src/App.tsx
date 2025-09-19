@@ -114,10 +114,10 @@ export default function App() {
                 <Route path="/signup" element={<SignUp />} />
                 <Route path="/signin" element={<SignIn />} />
                 <Route path="/auth/verify-email" element={<EmailCodeVerify />} />
-                <Route path="/stories" element={<Stories />} />
-                <Route path="/story/:id" element={<StoryDetail />} />
-                <Route path="/profile/:id" element={<ProfileDetail />} />
-                <Route path="/profile/edit" element={<ProfileEdit />} />
+                <Route path="/stories" element={<ProtectedRoute><Stories /></ProtectedRoute>} />
+                <Route path="/story/:id" element={<ProtectedRoute><StoryDetail /></ProtectedRoute>} />
+                <Route path="/profile/:id" element={<ProtectedRoute><ProfileDetail /></ProtectedRoute>} />
+                <Route path="/profile/edit" element={<ProtectedRoute><ProfileEdit /></ProtectedRoute>} />
                 <Route path="/plans" element={<Plans />} />
                 {/* Profile setup wizard */}
                 <Route path="/profile/setup/1" element={<ProtectedRoute><Step1Gender /></ProtectedRoute>} />
