@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Routes, Route, Link, useLocation } from 'react-router-dom'
 import Login from './pages/Login'
 import Profiles from './pages/Profiles'
@@ -47,16 +47,19 @@ export default function App() {
   const { user, signOut } = useAuth()
   const location = useLocation()
   const isAdminRoute = location.pathname.startsWith('/admin')
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   return (
     <div className="min-h-screen font-app">
       {!isAdminRoute && (
         <header className="sticky top-0 z-50 bg-gradient-card-pink backdrop-blur border-b border-pink-30">
-        <div className="w-full px-8 xl:px-12 py-3 flex items-center justify-between">
+        <div className="w-full px-4 sm:px-6 md:px-8 xl:px-12 py-3 flex items-center justify-between">
           <Link to="/" className="flex items-center space-x-2">
-            <img src="/assets/5347d249-47bc-4b25-8053-83255e59a1f0.png" alt="Love Bug Logo" className="h-12 w-auto" />
+            <img src="/assets/5347d249-47bc-4b25-8053-83255e59a1f0.png" alt="Love Bug Logo" className="h-10 sm:h-12 w-auto" />
           </Link>
-          <nav className="flex items-center gap-8 text-white">
+          
+          {/* Desktop Navigation */}
+          <nav className="hidden md:flex items-center gap-6 lg:gap-8 text-white">
             <Link to="/" className="inline-flex items-center gap-2 text-sm hover:text-light-white transition-colors">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9.5L12 3l9 6.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1V9.5z"/></svg>
               <span>Home</span>
@@ -85,7 +88,85 @@ export default function App() {
               <button onClick={() => signOut()} className="text-sm text-red-300 hover:text-red-200 transition-colors">Sign out</button>
             )}
           </nav>
+
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="md:hidden p-2 text-white hover:text-light-white transition-colors"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              {isMobileMenuOpen ? (
+                <path d="M18 6L6 18M6 6l12 12"/>
+              ) : (
+                <path d="M3 12h18M3 6h18M3 18h18"/>
+              )}
+            </svg>
+          </button>
         </div>
+
+        {/* Mobile Dropdown Menu */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden bg-gradient-card-pink border-t border-pink-30 backdrop-blur-md">
+            <div className="px-4 py-4 space-y-3">
+              <Link 
+                to="/" 
+                className="flex items-center gap-3 text-white hover:text-light-white transition-colors py-2"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9.5L12 3l9 6.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1V9.5z"/></svg>
+                <span>Home</span>
+              </Link>
+              <Link 
+                to="/browse" 
+                className="flex items-center gap-3 text-white hover:text-light-white transition-colors py-2"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <span>Discover</span>
+              </Link>
+              <Link 
+                to="/plans" 
+                className="flex items-center gap-3 text-white hover:text-light-white transition-colors py-2"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M21 7v6l-9 4-9-4V7"/></svg>
+                <span>Plans</span>
+              </Link>
+              {!user && (
+                <Link 
+                  to="/login" 
+                  className="flex items-center gap-3 text-white hover:text-light-white transition-colors py-2"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  <span>Sign In</span>
+                </Link>
+              )}
+              {user && (
+                <Link 
+                  to="/profile/edit" 
+                  className="flex items-center gap-3 text-white hover:text-light-white transition-colors py-2"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.24 12.24l-8.48 8.48H7v-4.76l8.48-8.48z"/><path d="M18 2l4 4"/></svg>
+                  <span>Edit profile</span>
+                </Link>
+              )}
+              {user && (
+                <button 
+                  onClick={() => {
+                    signOut()
+                    setIsMobileMenuOpen(false)
+                  }} 
+                  className="flex items-center gap-3 text-red-300 hover:text-red-200 transition-colors py-2 w-full text-left"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                  <span>Sign out</span>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </header>
       )}
 
@@ -105,7 +186,7 @@ export default function App() {
         {/* Main app routes - with header/footer */}
         <Route path="/*" element={
           <>
-            <main className="w-full px-8 xl:px-12 py-4">
+            <main className="w-full px-4 sm:px-6 md:px-8 xl:px-12 py-4">
               <Routes>
                 <Route path="/" element={<Home />} />
                 <Route path="/login" element={<Login />} />

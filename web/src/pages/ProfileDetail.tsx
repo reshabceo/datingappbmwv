@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import api from '../services/api'
-import { Heart, MapPin, Calendar, Camera, Star } from 'lucide-react'
+import { Heart, MapPin, Calendar, Camera, Star, ArrowLeft, User } from 'lucide-react'
 
 type Profile = {
   id: string
@@ -43,6 +43,16 @@ export default function ProfileDetail() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
+        {/* Back Button */}
+        <div className="fixed top-20 left-4 z-50">
+          <button
+            onClick={() => navigate(-1)}
+            className="w-12 h-12 bg-black/60 backdrop-blur-sm border border-white/20 rounded-full flex items-center justify-center text-white hover:bg-black/80 hover:scale-105 transition-all duration-200 shadow-lg"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+        </div>
+        
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-pink border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-white/70">Loading profile...</p>
@@ -85,6 +95,16 @@ export default function ProfileDetail() {
 
   return (
     <div className="min-h-screen">
+      {/* Back Button */}
+      <div className="fixed top-20 left-4 z-50">
+        <button
+          onClick={() => navigate(-1)}
+          className="w-12 h-12 bg-black/60 backdrop-blur-sm border border-white/20 rounded-full flex items-center justify-center text-white hover:bg-black/80 hover:scale-105 transition-all duration-200 shadow-lg"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+      </div>
+
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-6 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">

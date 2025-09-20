@@ -6,10 +6,10 @@ import GlassCardPink from '../components/ui/GlassCardPink'
 type SectionProps = { children: React.ReactNode; className?: string; id?: string; innerClass?: string }
 const Section: React.FC<SectionProps> = ({ children, className = '', id, innerClass = '' }) => (
   <section id={id} className={`w-full ${className}`}>
-    <div className={`max-w-[1800px] 2xl:max-w-[1920px] mx-auto px-8 xl:px-12 py-20 md:py-24 ${innerClass}`}>
+    <div className={`max-w-[1800px] 2xl:max-w-[1920px] mx-auto px-4 sm:px-6 md:px-8 xl:px-12 py-12 sm:py-16 md:py-20 lg:py-24 ${innerClass}`}>
       {children}
     </div>
-    <div className="w-screen relative left-1/2 -translate-x-1/2 border-t border-border-white-10" />
+    <div className="w-full border-t border-border-white-10" />
   </section>
 )
 
@@ -63,27 +63,27 @@ export default function Home() {
   return (
     <div className="text-white">
       {/* Hero */}
-      <Section innerClass="min-h-[calc(100vh-72px)] flex items-center">
-        <div className="grid md:grid-cols-2 gap-12 items-center">
-          <div>
-            <h1 className="text-5xl md:text-6xl xl:text-7xl font-bold leading-tight">
+      <Section innerClass="min-h-screen flex items-center">
+        <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-center w-full">
+          <div className="text-center md:text-left">
+            <h1 className="text-4xl sm:text-5xl md:text-6xl xl:text-7xl font-bold leading-tight">
               Find Your Perfect Match
               <br />
               <span className="text-light-pink">With Love Bug</span>
             </h1>
-            <p className="mt-5 text-light-white max-w-3xl text-lg md:text-xl">
+            <p className="mt-5 text-light-white max-w-3xl text-base sm:text-lg md:text-xl mx-auto md:mx-0">
               Experience modern dating with a touch of magic. Connect with like-minded individuals and
               start your journey to meaningful relationships.
             </p>
-            <div className="mt-9 flex gap-4">
+            <div className="mt-9 flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
               <Link to="/browse">
-                <PinkGradientButton className="px-8 py-4 text-base">Start Matching Now</PinkGradientButton>
+                <PinkGradientButton className="px-8 py-4 text-base w-full sm:w-auto">Start Matching Now</PinkGradientButton>
               </Link>
-              <a href="#why-choose" className="px-7 py-4 rounded-full bg-white/10 border border-border-white-10">Learn More</a>
+              <a href="#why-choose" className="px-7 py-4 rounded-full bg-white/10 border border-border-white-10 text-center w-full sm:w-auto">Learn More</a>
             </div>
           </div>
-          <div className="flex items-center justify-center">
-            <div className="w-[32rem] h-[20rem] rounded-3xl overflow-hidden shadow-2xl bg-white/10 border border-border-white-10">
+          <div className="flex items-center justify-center mt-8 md:mt-0">
+            <div className="w-full max-w-sm sm:max-w-md md:w-[32rem] h-64 sm:h-80 md:h-[20rem] rounded-3xl overflow-hidden shadow-2xl bg-white/10 border border-border-white-10">
               <img src="/assets/5eab84d3-8fdc-40ac-87cb-1609d42f5228.JPG" alt="Happy couple" className="w-full h-full object-cover" />
             </div>
           </div>
@@ -191,15 +191,15 @@ export default function Home() {
               alert('Thanks for subscribing!')
               input.value = ''
             }}
-            className="mx-auto max-w-2xl flex gap-4"
+            className="mx-auto max-w-2xl flex flex-col sm:flex-row gap-4"
           >
             <input
               type="email"
               required
               placeholder="Enter your email"
-              className="flex-1 px-5 py-4 rounded-xl bg-white/90 text-gray-800 placeholder-gray-500 text-base"
+              className="flex-1 px-5 py-4 rounded-xl bg-white/90 text-gray-800 placeholder-gray-500 text-base min-w-0"
             />
-            <PinkGradientButton className="rounded-xl px-6 py-4 text-base">Subscribe</PinkGradientButton>
+            <PinkGradientButton className="rounded-xl px-6 py-4 text-base w-full sm:w-auto whitespace-nowrap">Subscribe</PinkGradientButton>
           </form>
         </div>
       </Section>
