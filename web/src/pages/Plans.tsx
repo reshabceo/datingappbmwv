@@ -253,6 +253,11 @@ export default function Plans() {
                           <div className="text-3xl font-bold text-white mb-1">
                             {subscriptionPlansService.formatPrice(displayPrice)}
                           </div>
+                          {override && (
+                            <div className="text-sm mb-1" style={{ color: '#ec4899', textDecoration: 'line-through' }}>
+                              {subscriptionPlansService.formatPrice(override.original)}
+                            </div>
+                          )}
                           <div className="text-white font-semibold mb-1">
                             {option.duration_months}-Month Plan
                           </div>

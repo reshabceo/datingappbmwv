@@ -83,8 +83,13 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center justify-center mt-8 md:mt-0">
-            <div className="w-full max-w-sm sm:max-w-md md:w-[32rem] h-64 sm:h-80 md:h-[20rem] rounded-3xl overflow-hidden shadow-2xl bg-white/10 border border-border-white-10">
-              <img src="/assets/5eab84d3-8fdc-40ac-87cb-1609d42f5228.JPG" alt="Happy couple" className="w-full h-full object-cover" />
+            <div className="w-full max-w-sm sm:max-w-md md:w-[32rem] space-y-3">
+              <div className="h-48 sm:h-56 md:h-64 rounded-3xl overflow-hidden shadow-2xl bg-white/10 border border-border-white-10">
+                <img src="/assets/5eab84d3-8fdc-40ac-87cb-1609d42f5228.JPG" alt="Happy couple" className="w-full h-full object-cover" />
+              </div>
+              <div className="h-32 sm:h-40 md:h-48 rounded-3xl overflow-hidden shadow-2xl bg-white/10 border border-border-white-10">
+                <img src="/assets/e211327b-455f-420e-b86e-d890498e4734.JPG" alt="Happy couple" className="w-full h-full object-cover" />
+              </div>
             </div>
           </div>
         </div>
