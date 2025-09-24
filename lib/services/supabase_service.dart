@@ -13,6 +13,15 @@ class SupabaseService {
     );
   }
   
+  // OAuth provider sign-in
+  static Future<void> signInWithProvider(Provider provider) async {
+    await client.auth.signInWithOAuth(
+      provider: provider,
+      // On mobile, use external browser to avoid in-app webview issues
+      authScreenLaunchMode: LaunchMode.externalApplication,
+    );
+  }
+  
   // Authentication methods
   static Future<AuthResponse> signUpWithEmail({
     required String email,

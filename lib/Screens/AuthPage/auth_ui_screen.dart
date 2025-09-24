@@ -538,11 +538,11 @@ class AuthScreen extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (!hideProviders) glassyButton(title: 'continue_google'.tr, onTap: () {}),
+                  if (!hideProviders) glassyButton(title: 'continue_google'.tr, onTap: () { controller.continueWithGoogle(); }),
                   if (!hideProviders) heightBox(20),
                   if (!hideProviders)
                     glassyButton(
-                      onTap: () {},
+                      onTap: () { controller.continueWithApple(); },
                       title: 'continue_apple'.tr,
                       imagePath: AppAssets.appleLogo,
                     ),

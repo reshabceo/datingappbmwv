@@ -4,6 +4,7 @@ import 'package:boliler_plate/global_data.dart';
 import 'package:boliler_plate/shared_prefrence_helper.dart';
 import 'package:boliler_plate/services/supabase_service.dart';
 import 'package:boliler_plate/services/analytics_service.dart';
+import 'package:boliler_plate/services/payment_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -23,6 +24,9 @@ Future<void> main() async {
   
   // Initialize Supabase
   await SupabaseService.initialize();
+  
+  // Initialize Payment Service
+  await PaymentService.initialize();
   
   // Initialize Firebase
   try {

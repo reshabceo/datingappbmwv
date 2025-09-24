@@ -265,7 +265,7 @@ export const offersService = {
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('gender')
-        .eq('user_id', userId)
+        .eq('id', userId)
         .single()
 
       if (profileError) {

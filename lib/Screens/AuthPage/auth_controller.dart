@@ -397,6 +397,30 @@ class AuthController extends GetxController {
     }
   }
 
+  Future<void> continueWithGoogle() async {
+    try {
+      isLoading.value = true;
+      await SupabaseService.signInWithProvider(Provider.google);
+      await _checkUserProfileAndNavigate();
+    } catch (e) {
+      Get.snackbar('Google sign-in failed', e.toString());
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  Future<void> continueWithApple() async {
+    try {
+      isLoading.value = true;
+      await SupabaseService.signInWithProvider(Provider.apple);
+      await _checkUserProfileAndNavigate();
+    } catch (e) {
+      Get.snackbar('Apple sign-in failed', e.toString());
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   Future<void> _checkUserProfileAndNavigate() async {
     try {
       // Wait a moment for the session to be established

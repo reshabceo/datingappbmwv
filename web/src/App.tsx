@@ -15,11 +15,15 @@ import StoryViewer from './components/StoryViewer'
 import StoryDetail from './pages/StoryDetail'
 import ProfileEdit from './pages/ProfileEdit'
 import Plans from './pages/Plans'
+import PremiumPlans from './pages/PremiumPlans'
+import PaymentTest from './pages/PaymentTest'
+import OrderHistory from './pages/OrderHistory'
 import AdminSubscriptions from './pages/AdminSubscriptions'
 import { useAuth } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Footer from './components/Footer'
 import RequireProfile from './components/RequireProfile'
+import PremiumStatusWidget from './components/PremiumStatusWidget'
 import Step1Gender from './pages/ProfileSetup/Step1Gender'
 import Step2Basic from './pages/ProfileSetup/Step2Basic'
 import Step3Photos from './pages/ProfileSetup/Step3Photos'
@@ -79,10 +83,16 @@ export default function App() {
               </Link>
             )}
             {user && (
-              <Link to="/profile/edit" className="inline-flex items-center gap-2 text-sm hover:text-light-white transition-colors">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.24 12.24l-8.48 8.48H7v-4.76l8.48-8.48z"/><path d="M18 2l4 4"/></svg>
-                <span>Edit profile</span>
-              </Link>
+              <>
+                <Link to="/profile/edit" className="inline-flex items-center gap-2 text-sm hover:text-light-white transition-colors">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.24 12.24l-8.48 8.48H7v-4.76l8.48-8.48z"/><path d="M18 2l4 4"/></svg>
+                  <span>Edit profile</span>
+                </Link>
+                <Link to="/order-history" className="inline-flex items-center gap-2 text-sm hover:text-light-white transition-colors">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10,9 9,9 8,9"/></svg>
+                  <span>Orders</span>
+                </Link>
+              </>
             )}
             {user && (
               <button onClick={() => signOut()} className="text-sm text-red-300 hover:text-red-200 transition-colors">Sign out</button>
@@ -187,6 +197,7 @@ export default function App() {
         <Route path="/*" element={
           <>
             <main className="w-full px-4 sm:px-6 md:px-8 xl:px-12 py-4">
+              <PremiumStatusWidget />
               <Routes>
                 <Route path="/" element={<Home />} />
                 <Route path="/login" element={<Login />} />
@@ -200,6 +211,9 @@ export default function App() {
                 <Route path="/profile/:id" element={<ProtectedRoute><ProfileDetail /></ProtectedRoute>} />
                 <Route path="/profile/edit" element={<ProtectedRoute><ProfileEdit /></ProtectedRoute>} />
                 <Route path="/plans" element={<Plans />} />
+                <Route path="/premium-plans" element={<PremiumPlans />} />
+                <Route path="/payment-test" element={<PaymentTest />} />
+                <Route path="/order-history" element={<ProtectedRoute><OrderHistory /></ProtectedRoute>} />
                 {/* Profile setup wizard */}
                 <Route path="/profile/setup/1" element={<ProtectedRoute><Step1Gender /></ProtectedRoute>} />
                 <Route path="/profile/setup/2" element={<ProtectedRoute><Step2Basic /></ProtectedRoute>} />

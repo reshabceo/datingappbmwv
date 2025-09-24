@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import GlassCardPink from '../components/ui/GlassCardPink'
 import PinkGradientButton from '../components/ui/PinkGradientButton'
-import { subscriptionPlansService, PlanWithPricing, PricingOption } from '../services/subscriptionPlans'
+import { subscriptionPlansService, PlanWithPricing } from '../services/subscriptionPlans'
 import { offersService, DiscountedPricing } from '../services/offersService'
 import { useAuth } from '../context/AuthContext'
 import { Crown, Star, Zap, CheckCircle } from 'lucide-react'
@@ -20,19 +20,17 @@ function CheckItem({ children, muted = false }: { children: React.ReactNode; mut
 
 export default function Plans() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [plans, setPlans] = useState<PlanWithPricing[]>([])
-  const [discountedPricing, setDiscountedPricing] = useState<{ [key: string]: DiscountedPricing[] }>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [selectedPlan, setSelectedPlan] = useState<string | null>(null)
   const [isWomenFree, setIsWomenFree] = useState(false)
 
   // UI-only overrides to ensure the display matches client-approved pricing
-  // Does not affect backend values or actions
   const uiPricingOverrides: Record<number, { original: number; price: number; discountPct: number; savings: number }> = {
-    1: { original: 2000, price: 1500, discountPct: 25, savings: 500 },
-    3: { original: 4500, price: 2250, discountPct: 50, savings: 2250 },
-    6: { original: 9000, price: 3600, discountPct: 60, savings: 5400 },
+    1: { original: 200000, price: 100, discountPct: 99, savings: 199900 }, // ₹1 for testing
+    3: { original: 450000, price: 225000, discountPct: 50, savings: 225000 },
+    6: { original: 900000, price: 360000, discountPct: 60, savings: 540000 },
   }
 
   useEffect(() => {
@@ -40,6 +38,7 @@ export default function Plans() {
       try {
         setLoading(true)
         setError(null)
+        
         const plansData = await subscriptionPlansService.getPlansWithPricing()
         setPlans(plansData)
         
@@ -49,42 +48,7 @@ export default function Plans() {
           console.log('User is eligible for women free:', isEligible)
           setIsWomenFree(isEligible)
         } else {
-          // For testing purposes, set to true if no user (you can remove this later)
-          console.log('No user logged in, setting women free to false')
           setIsWomenFree(false)
-        }
-        
-        // Get discounted pricing for each plan
-        if (user) {
-          const pricingMap: { [key: string]: DiscountedPricing[] } = {}
-          for (const plan of plansData) {
-            if (plan.name !== 'Free') {
-              const durations = [1, 3, 6] // Standard durations
-              const allPricing: DiscountedPricing[] = []
-              
-              for (const duration of durations) {
-                try {
-                  const discountedPricing = await offersService.getPricingWithOffers(
-                    user.id,
-                    plan.id,
-                    duration
-                  )
-                  allPricing.push(...discountedPricing)
-                } catch (err) {
-                  console.error(`Error fetching offers for ${plan.name} ${duration} month:`, err)
-                }
-              }
-              
-              pricingMap[plan.id] = allPricing
-            }
-          }
-          setDiscountedPricing(pricingMap)
-        }
-        
-        // Set first paid plan as selected by default
-        const firstPaidPlan = plansData.find(plan => plan.name !== 'Free')
-        if (firstPaidPlan) {
-          setSelectedPlan(firstPaidPlan.id)
         }
       } catch (error) {
         console.error('Error fetching plans:', error)
@@ -120,8 +84,8 @@ export default function Plans() {
                 id: 'premium-1m',
                 plan_id: 'premium-static',
                 duration_months: 1,
-                price: 1500,
-                original_price: 2000,
+                price: 150000,
+                original_price: 200000,
                 discount_percentage: 25,
                 is_popular: false,
                 created_at: new Date().toISOString(),
@@ -131,8 +95,8 @@ export default function Plans() {
                 id: 'premium-3m',
                 plan_id: 'premium-static',
                 duration_months: 3,
-                price: 2250,
-                original_price: 4500,
+                price: 225000,
+                original_price: 450000,
                 discount_percentage: 50,
                 is_popular: false,
                 created_at: new Date().toISOString(),
@@ -142,8 +106,8 @@ export default function Plans() {
                 id: 'premium-6m',
                 plan_id: 'premium-static',
                 duration_months: 6,
-                price: 3600,
-                original_price: 9000,
+                price: 360000,
+                original_price: 900000,
                 discount_percentage: 60,
                 is_popular: true,
                 created_at: new Date().toISOString(),
@@ -160,26 +124,18 @@ export default function Plans() {
     fetchPlans()
   }, [])
 
+
   const renderPricingCard = (plan: PlanWithPricing) => {
     const isFree = plan.name === 'Free'
-    const isPopular = plan.pricing_options?.some(option => option.is_popular) || false
-    const planDiscountedPricing = discountedPricing[plan.id] || []
-    
-    // Check if this plan has special offers
-    const hasOffers = planDiscountedPricing.some(pricing => pricing.savings > 0)
-    const isWomenFreeForPlan = isWomenFree && !isFree
     
     return (
       <div key={plan.id} className="relative">
-        {/* Removed header 'Most Popular' badge as requested */}
-        
         {/* Pre-launch Offer Banner */}
         {!isFree && (
           <div className="absolute -top-3 left-4 bg-gradient-to-r from-orange-500 to-red-500 text-white text-xs font-bold px-4 py-2 rounded-full flex items-center gap-1 z-10 shadow-lg animate-pulse">
             🚀 Pre-Launch Offer
           </div>
         )}
-        
         
         <GlassCardPink className="h-full">
           <div className="flex items-center gap-3 mb-4">
@@ -218,7 +174,7 @@ export default function Plans() {
             </Link>
           ) : (
             <div className="space-y-4">
-              {/* Pricing Options - Enhanced Layout */}
+              {/* Show the small duration cards for information */}
               <div className="space-y-3">
                 <div className="text-center mb-4">
                   <h3 className="text-lg font-bold text-white mb-2">Choose Your Plan</h3>
@@ -236,10 +192,9 @@ export default function Plans() {
                     return (
                       <div
                         key={option.id}
-                        className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all bg-gradient-to-b from-white/5 to-transparent ${
-                          selectedPlan === plan.id ? 'border-pink/50 shadow-lg shadow-pink-500/20' : 'border-white/20 hover:border-pink/30 hover:shadow-md hover:shadow-pink-500/10 hover:-translate-y-0.5'
-                        } ${option.is_popular ? 'ring-2 ring-pink-400/40' : ''}`}
-                        onClick={() => setSelectedPlan(plan.id)}
+                        className={`relative p-4 rounded-xl border-2 bg-gradient-to-b from-white/5 to-transparent ${
+                          option.is_popular ? 'ring-2 ring-pink-400/40' : ''
+                        } border-white/20`}
                       >
                         {/* Popular Badge */}
                         {option.is_popular && (
@@ -248,7 +203,7 @@ export default function Plans() {
                           </div>
                         )}
                         
-                        {/* Plan Card Content (override for display only) */}
+                        {/* Plan Card Content (display only) */}
                         <div className="text-center">
                           <div className="text-3xl font-bold text-white mb-1">
                             {subscriptionPlansService.formatPrice(displayPrice)}
@@ -273,9 +228,15 @@ export default function Plans() {
 
               <PinkGradientButton 
                 className="w-full rounded-xl py-3"
-                onClick={() => alert('Checkout integration coming soon')}
+                onClick={() => {
+                  if (!user) {
+                    alert('Please login first')
+                    return
+                  }
+                  navigate('/premium-plans')
+                }}
               >
-                Upgrade to {plan.name}
+                Upgrade to Premium
               </PinkGradientButton>
             </div>
           )}
@@ -331,7 +292,7 @@ export default function Plans() {
           {/* Removed the top green savings banner per client request */}
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-            {plans.map(renderPricingCard)}
+            {plans.filter(plan => plan.name === 'Free' || plan.name === 'Premium').map(renderPricingCard)}
           </div>
         </div>
         <div className="w-full border-t border-border-white-10" />
