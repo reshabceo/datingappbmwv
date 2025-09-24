@@ -12,7 +12,7 @@ const RAZORPAY_KEY_ID = 'rzp_test_1DP5mmOlF5G5ag'; // Replace with your Razorpay
 export const subscriptionPlans = {
   '1_month': {
     name: 'Premium - 1 Month',
-    price: 150000, // ₹1.50 (in paise) - Testing price
+    price: 150000, // ₹1,500 (in paise)
     duration_months: 1,
     description: 'Premium features for 1 month'
   },

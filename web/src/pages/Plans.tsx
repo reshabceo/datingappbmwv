@@ -28,9 +28,9 @@ export default function Plans() {
 
   // UI-only overrides to ensure the display matches client-approved pricing
   const uiPricingOverrides: Record<number, { original: number; price: number; discountPct: number; savings: number }> = {
-    1: { original: 200000, price: 100, discountPct: 99, savings: 199900 }, // ₹1 for testing
-    3: { original: 450000, price: 225000, discountPct: 50, savings: 225000 },
-    6: { original: 900000, price: 360000, discountPct: 60, savings: 540000 },
+    1: { original: 2000, price: 1500, discountPct: 25, savings: 500 }, // ₹1500 for 1 month
+    3: { original: 4500, price: 2250, discountPct: 50, savings: 2250 },
+    6: { original: 9000, price: 3600, discountPct: 60, savings: 5400 },
   }
 
   useEffect(() => {

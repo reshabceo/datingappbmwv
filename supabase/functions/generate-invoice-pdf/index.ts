@@ -267,7 +267,7 @@ function generateInvoiceHTML(data: InvoiceData): string {
           
           .features-grid {
               display: grid;
-              grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+              grid-template-columns: 1fr 1fr;
               gap: 15px;
           }
           
@@ -431,47 +431,54 @@ function generateInvoiceHTML(data: InvoiceData): string {
                   <div class="features-title">🎉 Premium Features Unlocked</div>
                   <div class="features-grid">
                       <div class="feature-item">
-                          <div class="feature-icon">👀</div>
-                          <span>See who liked you</span>
+                          <div class="feature-icon">♾️</div>
+                          <span>Unlimited matches</span>
                       </div>
                       <div class="feature-item">
-                          <div class="feature-icon">⭐</div>
-                          <span>Priority visibility</span>
+                          <div class="feature-icon">💬</div>
+                          <span>Sending messages in chat</span>
+                      </div>
+                      <div class="feature-item">
+                          <div class="feature-icon">👀</div>
+                          <span>See who likes you</span>
                       </div>
                       <div class="feature-item">
                           <div class="feature-icon">🔍</div>
                           <span>Advanced filters</span>
                       </div>
                       <div class="feature-item">
-                          <div class="feature-icon">💬</div>
+                          <div class="feature-icon">⭐</div>
+                          <span>Priority visibility</span>
+                      </div>
+                      <div class="feature-item">
+                          <div class="feature-icon">✓</div>
                           <span>Read receipts</span>
                       </div>
                       <div class="feature-item">
-                          <div class="feature-icon">♾️</div>
-                          <span>Unlimited matches</span>
+                          <div class="feature-icon">🛡️</div>
+                          <span>Profile verification</span>
                       </div>
                       <div class="feature-item">
-                          <div class="feature-icon">💖</div>
-                          <span>Super likes</span>
-                      </div>
-                      <div class="feature-item">
-                          <div class="feature-icon">🚀</div>
-                          <span>Profile boost</span>
+                          <div class="feature-icon">👑</div>
+                          <span>VIP support</span>
                       </div>
                   </div>
               </div>
               
               <div class="divider"></div>
               
-              <div style="text-align: center; color: #64748b; font-size: 14px;">
+              <div style="text-align: center; color: #64748b; font-size: 14px; margin-bottom: 20px;">
                   <p>Thank you for choosing DatingApp BMWV! Your premium subscription is now active.</p>
-                  <p>If you have any questions, please contact our support team.</p>
+                  <div style="margin-top: 20px;">
+                      <a href="https://www.lovebug.live/" style="display: inline-block; background: linear-gradient(135deg, #ec4899 0%, #be185d 100%); color: white; padding: 12px 24px; border-radius: 25px; text-decoration: none; font-weight: bold; font-size: 16px; box-shadow: 0 4px 15px rgba(236, 72, 153, 0.3);">Visit Website</a>
+                  </div>
               </div>
           </div>
           
           <div class="footer">
               <div class="footer-links">
-                  <a href="#">Support</a>
+                  <a href="https://www.lovebug.live/">Visit Website</a>
+                  <a href="https://www.lovebug.live/">Support</a>
               </div>
               
               <div class="divider"></div>

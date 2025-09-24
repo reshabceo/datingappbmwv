@@ -34,9 +34,9 @@ export default function PremiumPlans() {
 
   // UI-only overrides to ensure the display matches client-approved pricing
   const uiPricingOverrides: Record<number, { original: number; price: number; discountPct: number; savings: number }> = {
-    1: { original: 200000, price: 150000, discountPct: 25, savings: 50000 },
-    3: { original: 450000, price: 225000, discountPct: 50, savings: 225000 },
-    6: { original: 900000, price: 360000, discountPct: 60, savings: 540000 },
+    1: { original: 2000, price: 1500, discountPct: 25, savings: 500 },
+    3: { original: 4500, price: 2250, discountPct: 50, savings: 2250 },
+    6: { original: 9000, price: 3600, discountPct: 60, savings: 5400 },
   }
 
   useEffect(() => {
@@ -77,8 +77,8 @@ export default function PremiumPlans() {
                 id: 'premium-1m',
                 plan_id: 'premium-static',
                 duration_months: 1,
-                price: 150000,
-                original_price: 200000,
+                price: 1500,
+                original_price: 2000,
                 discount_percentage: 25,
                 is_popular: false,
                 created_at: new Date().toISOString(),
@@ -88,8 +88,8 @@ export default function PremiumPlans() {
                 id: 'premium-3m',
                 plan_id: 'premium-static',
                 duration_months: 3,
-                price: 225000,
-                original_price: 450000,
+                price: 2250,
+                original_price: 4500,
                 discount_percentage: 50,
                 is_popular: false,
                 created_at: new Date().toISOString(),
@@ -99,8 +99,8 @@ export default function PremiumPlans() {
                 id: 'premium-6m',
                 plan_id: 'premium-static',
                 duration_months: 6,
-                price: 360000,
-                original_price: 900000,
+                price: 3600,
+                original_price: 9000,
                 discount_percentage: 60,
                 is_popular: true,
                 created_at: new Date().toISOString(),

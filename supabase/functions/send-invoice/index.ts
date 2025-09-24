@@ -399,6 +399,12 @@ function generateInvoiceHTML(data: InvoiceData): string {
           </div>
           
           <div style="padding: 40px 30px;">
+              <!-- Welcome Message Section - Moved to top -->
+              <div style="background: #f8fafc; border-radius: 15px; padding: 30px; margin-bottom: 30px; border-left: 4px solid #ec4899;">
+                  <h3 style="color: #1e293b; font-size: 20px; margin-bottom: 15px;">🎉 Congratulations, ${data.userName}!</h3>
+                  <p style="color: #64748b; font-size: 16px; margin-bottom: 20px;">Welcome to the exclusive world of Love Bug Premium! Your new premium plan is now active.</p>
+              </div>
+              
               <div style="text-align: center; margin-bottom: 30px;">
                   <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 40px; color: white; margin-bottom: 20px;">✓</div>
                   <div style="font-size: 24px; font-weight: bold; color: #10b981; text-align: center; margin-bottom: 30px;">Payment Successful!</div>
@@ -452,49 +458,56 @@ function generateInvoiceHTML(data: InvoiceData): string {
               
               <div style="background: #f1f5f9; border-radius: 15px; padding: 25px; margin: 30px 0;">
                   <div style="font-size: 18px; font-weight: bold; color: #1e293b; margin-bottom: 20px; text-align: center;">🎉 Premium Features Unlocked</div>
-                  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                       <div style="display: flex; align-items: center; padding: 10px; background: white; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                          <div style="width: 20px; height: 20px; background: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 10px; font-size: 12px; color: white;">👀</div>
-                          <span>See who liked you</span>
+                          <div style="width: 20px; height: 20px; background: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 10px; font-size: 12px; color: white;">♾️</div>
+                          <span>Unlimited matches</span>
                       </div>
                       <div style="display: flex; align-items: center; padding: 10px; background: white; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                          <div style="width: 20px; height: 20px; background: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 10px; font-size: 12px; color: white;">⭐</div>
-                          <span>Priority visibility</span>
+                          <div style="width: 20px; height: 20px; background: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 10px; font-size: 12px; color: white;">💬</div>
+                          <span>Sending messages in chat</span>
+                      </div>
+                      <div style="display: flex; align-items: center; padding: 10px; background: white; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                          <div style="width: 20px; height: 20px; background: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 10px; font-size: 12px; color: white;">👀</div>
+                          <span>See who likes you</span>
                       </div>
                       <div style="display: flex; align-items: center; padding: 10px; background: white; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
                           <div style="width: 20px; height: 20px; background: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 10px; font-size: 12px; color: white;">🔍</div>
                           <span>Advanced filters</span>
                       </div>
                       <div style="display: flex; align-items: center; padding: 10px; background: white; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                          <div style="width: 20px; height: 20px; background: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 10px; font-size: 12px; color: white;">💬</div>
+                          <div style="width: 20px; height: 20px; background: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 10px; font-size: 12px; color: white;">⭐</div>
+                          <span>Priority visibility</span>
+                      </div>
+                      <div style="display: flex; align-items: center; padding: 10px; background: white; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                          <div style="width: 20px; height: 20px; background: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 10px; font-size: 12px; color: white;">✓</div>
                           <span>Read receipts</span>
                       </div>
                       <div style="display: flex; align-items: center; padding: 10px; background: white; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                          <div style="width: 20px; height: 20px; background: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 10px; font-size: 12px; color: white;">♾️</div>
-                          <span>Unlimited matches</span>
+                          <div style="width: 20px; height: 20px; background: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 10px; font-size: 12px; color: white;">🛡️</div>
+                          <span>Profile verification</span>
                       </div>
                       <div style="display: flex; align-items: center; padding: 10px; background: white; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                          <div style="width: 20px; height: 20px; background: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 10px; font-size: 12px; color: white;">💖</div>
-                          <span>Super likes</span>
-                      </div>
-                      <div style="display: flex; align-items: center; padding: 10px; background: white; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                          <div style="width: 20px; height: 20px; background: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 10px; font-size: 12px; color: white;">🚀</div>
-                          <span>Profile boost</span>
+                          <div style="width: 20px; height: 20px; background: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 10px; font-size: 12px; color: white;">👑</div>
+                          <span>VIP support</span>
                       </div>
                   </div>
               </div>
               
               <div style="height: 2px; background: linear-gradient(90deg, transparent, #ec4899, transparent); margin: 20px 0;"></div>
               
-              <div style="text-align: center; color: #64748b; font-size: 14px;">
+              <div style="text-align: center; color: #64748b; font-size: 14px; margin-bottom: 20px;">
                   <p>Thank you for choosing LOVE BUG! Your premium subscription is now active.</p>
-                  <p>If you have any questions, please contact our support team.</p>
+                  <div style="margin-top: 20px;">
+                      <a href="https://www.lovebug.live/" style="display: inline-block; background: linear-gradient(135deg, #ec4899 0%, #be185d 100%); color: white; padding: 12px 24px; border-radius: 25px; text-decoration: none; font-weight: bold; font-size: 16px; box-shadow: 0 4px 15px rgba(236, 72, 153, 0.3);">Visit Website</a>
+                  </div>
               </div>
           </div>
           
           <div style="background: #1e293b; color: white; padding: 30px; text-align: center;">
               <div style="margin: 20px 0;">
-                  <a href="#" style="color: #ec4899; text-decoration: none; margin: 0 15px;">Support</a>
+                  <a href="https://www.lovebug.live/" style="color: #ec4899; text-decoration: none; margin: 0 15px;">Visit Website</a>
+                  <a href="https://www.lovebug.live/" style="color: #ec4899; text-decoration: none; margin: 0 15px;">Support</a>
               </div>
               
               <div style="height: 2px; background: linear-gradient(90deg, transparent, #ec4899, transparent); margin: 20px 0;"></div>
