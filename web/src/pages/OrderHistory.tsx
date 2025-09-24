@@ -122,27 +122,71 @@ export default function OrderHistory() {
     }
   }
 
-  const downloadInvoice = (order: PaymentOrder) => {
-    // Create a simple invoice
-    const invoiceContent = `
-INVOICE
-Order ID: ${order.order_id}
-Date: ${formatDate(order.created_at)}
-Plan: ${order.plan_type.replace('_', ' ').toUpperCase()}
-Amount: ${formatPrice(order.amount)}
-Status: ${order.status.toUpperCase()}
-Payment ID: ${order.payment_id || 'N/A'}
-    `.trim()
-
-    const blob = new Blob([invoiceContent], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `invoice-${order.order_id}.txt`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+  const downloadInvoice = async (order: PaymentOrder) => {
+    try {
+      console.log('📄 Generating PDF invoice for order:', order.order_id)
+      
+      // Get user profile data
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('name')
+        .eq('id', user?.id)
+        .single()
+      
+      const userName = profileData?.name || 'User'
+      
+      // Get subscription data for expiry date
+      const { data: subscriptionData } = await supabase
+        .from('user_subscriptions')
+        .select('end_date')
+        .eq('order_id', order.order_id)
+        .single()
+      
+      // Call Edge Function to generate PDF
+      const { data, error } = await supabase.functions.invoke('genreate-invoice-html', {
+        body: {
+          orderId: order.order_id,
+          paymentId: order.payment_id || 'N/A',
+          amount: order.amount,
+          planType: order.plan_type,
+          userEmail: order.user_email,
+          userName: userName,
+          paymentDate: order.created_at,
+          expiryDate: subscriptionData?.end_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+        }
+      })
+      
+      if (error) {
+        console.error('❌ PDF generation error:', error)
+        alert('Failed to generate PDF invoice. Please try again.')
+        return
+      }
+      
+      if (data?.success && data?.htmlBase64) {
+        // Convert base64 to HTML and download (handle UTF-8 encoding)
+        const htmlData = decodeURIComponent(escape(atob(data.htmlBase64)))
+        
+        const blob = new Blob([htmlData], { type: 'text/html' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = data.filename || `invoice-${order.order_id}.html`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+        
+        console.log('✅ HTML invoice downloaded successfully')
+        alert('Invoice downloaded! You can open it in your browser and print to PDF.')
+      } else {
+        console.error('❌ Invalid response from invoice generation')
+        alert('Failed to generate invoice. Please try again.')
+      }
+      
+    } catch (error) {
+      console.error('❌ Error downloading invoice:', error)
+      alert('Failed to download invoice. Please try again.')
+    }
   }
 
 

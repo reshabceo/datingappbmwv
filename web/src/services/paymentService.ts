@@ -172,6 +172,58 @@ export class PaymentService {
       try {
         await this.createSubscription(orderId);
         console.log('Subscription created successfully');
+        
+        // Send invoice email after successful subscription using Edge Function
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user?.email) {
+            const { data: profileData } = await supabase
+              .from('profiles')
+              .select('name')
+              .eq('id', user.id)
+              .single();
+            
+            const userName = profileData?.name || 'User';
+            const { data: orderData } = await supabase
+              .from('payment_orders')
+              .select('plan_type, amount, created_at')
+              .eq('order_id', orderId)
+              .single();
+            
+            if (orderData) {
+              // Get subscription end date
+              const { data: subscriptionData } = await supabase
+                .from('user_subscriptions')
+                .select('end_date')
+                .eq('order_id', orderId)
+                .single();
+              
+              // Call Edge Function to send invoice
+              const { data: invoiceResult, error: invoiceError } = await supabase.functions.invoke('send-invoice', {
+                body: {
+                  orderId: orderId,
+                  paymentId: paymentId,
+                  amount: orderData.amount,
+                  planType: orderData.plan_type,
+                  userEmail: user.email,
+                  userName: userName,
+                  paymentDate: orderData.created_at,
+                  expiryDate: subscriptionData?.end_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+                }
+              });
+              
+              if (invoiceError) {
+                console.error('❌ Invoice Edge Function Error:', invoiceError);
+              } else {
+                console.log('📧 Invoice sent successfully via Edge Function:', invoiceResult);
+              }
+            }
+          }
+        } catch (invoiceError) {
+          console.error('Error sending invoice email:', invoiceError);
+          // Don't fail the payment process if invoice fails
+        }
+        
       } catch (subscriptionError) {
         console.error('Error creating subscription:', subscriptionError);
         // Continue anyway, don't fail the whole process
