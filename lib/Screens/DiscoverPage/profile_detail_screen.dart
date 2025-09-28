@@ -1,7 +1,7 @@
-import 'package:boliler_plate/Common/text_constant.dart';
-import 'package:boliler_plate/Common/widget_constant.dart';
-import 'package:boliler_plate/Screens/DiscoverPage/controller_discover_screen.dart';
-import 'package:boliler_plate/ThemeController/theme_controller.dart';
+import 'package:lovebug/Common/text_constant.dart';
+import 'package:lovebug/Common/widget_constant.dart';
+import 'package:lovebug/Screens/DiscoverPage/controller_discover_screen.dart';
+import 'package:lovebug/ThemeController/theme_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -13,10 +13,12 @@ import 'package:google_fonts/google_fonts.dart';
 
 class ProfileDetailScreen extends StatefulWidget {
   final Profile profile;
+  final bool isMatched;
 
   const ProfileDetailScreen({
     super.key,
     required this.profile,
+    this.isMatched = false,
   });
 
   @override
@@ -24,24 +26,22 @@ class ProfileDetailScreen extends StatefulWidget {
 }
 
 class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
-  late PageController _pageController;
   int _currentImageIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    _pageController = PageController();
   }
 
   @override
   void dispose() {
-    _pageController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final ThemeController themeController = Get.find<ThemeController>();
+    final images = _getImages();
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
@@ -51,166 +51,95 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
         systemNavigationBarColor: Colors.black,
         systemNavigationBarIconBrightness: Brightness.light,
       ),
-      child: Scaffold(
-        backgroundColor: themeController.blackColor,
-        extendBodyBehindAppBar: true,
-        body: Container(
-          width: Get.width,
-          height: Get.height,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                themeController.blackColor,
-                themeController.bgGradient1,
-                themeController.blackColor,
-              ],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-            ),
+      child: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              themeController.blackColor,
+              themeController.bgGradient1,
+              themeController.blackColor,
+            ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
           ),
-          child: Stack(
-            children: [
-              // Main Content
-              Column(
-                children: [
-                  // Custom App Bar
-                  _buildCustomAppBar(themeController),
-                  
-                  // Scrollable Content
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(20.r),
-                      child: _buildStaggeredBody(themeController),
-                    ),
-                  ),
-                ],
-              ),
+        ),
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          body: SafeArea(
+            child: Column(
+              children: [
+                // Custom App Bar
+                _buildCustomAppBar(themeController),
               
-              // Fixed Action Buttons Overlay
-              _buildActionButtons(themeController),
+              // Main Content with Single Scroll
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      // Image Gallery
+                      _buildImageGallery(themeController, images),
+                      
+                      // Profile Content
+                      _buildProfileContent(themeController),
+                      
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         ),
       ),
-    );
-  }
-
-  // Staggered appearance for sections
-  Widget _buildStaggeredBody(ThemeController themeController) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 450),
-      curve: Curves.easeOut,
-      builder: (context, t, child) {
-        return Opacity(
-          opacity: t,
-          child: Transform.translate(
-            offset: Offset(0, (1 - t) * 20),
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  _buildImageGallery(themeController),
-                  _delayed(t, 0.1, _buildProfileInfo(themeController)),
-                  _delayed(t, 0.2, _buildBioSection(themeController)),
-                  _delayed(t, 0.3, _buildInterestsSection(themeController)),
-                  SizedBox(height: 100.h),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _delayed(double t, double start, Widget child) {
-    final localT = t.clamp(start, 1);
-    final p = (localT - start) / (1 - start);
-    return Opacity(
-      opacity: p,
-      child: Transform.translate(
-        offset: Offset(0, (1 - p) * 16),
-        child: child,
-      ),
+    ),
     );
   }
 
   Widget _buildCustomAppBar(ThemeController themeController) {
     return Container(
-      padding: EdgeInsets.only(
-        top: MediaQuery.of(context).padding.top + 10.h,
-        left: 20.w,
-        right: 20.w,
-        bottom: 10.h,
-      ),
+      padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 10.h),
       child: Row(
         children: [
-          // Back Button
-          GestureDetector(
-            onTap: () => Get.back(),
-            child: Container(
-              width: 40.w,
-              height: 40.w,
-              decoration: BoxDecoration(
-                color: themeController.blackColor.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(20.r),
-                border: Border.all(
-                  color: themeController.lightPinkColor.withValues(alpha: 0.3),
-                  width: 1.w,
-                ),
-              ),
-              child: Icon(
-                Icons.arrow_back_ios_new,
-                color: themeController.whiteColor,
-                size: 20.sp,
-              ),
-            ),
-          ),
-          
-          Spacer(),
-          
-          // Image Counter
           Container(
-            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+            width: 40.w,
+            height: 40.w,
             decoration: BoxDecoration(
-              color: themeController.blackColor.withValues(alpha: 0.5),
+              color: themeController.blackColor.withValues(alpha: 0.6),
               borderRadius: BorderRadius.circular(20.r),
               border: Border.all(
                 color: themeController.lightPinkColor.withValues(alpha: 0.3),
                 width: 1.w,
               ),
             ),
-            child: TextConstant(
-              title: '${_currentImageIndex + 1}/${_getImageCount()}',
-              fontSize: 12.sp,
-              color: themeController.whiteColor,
-              fontWeight: FontWeight.w600,
+            child: IconButton(
+              icon: Icon(
+                Icons.arrow_back_ios_new,
+                color: themeController.whiteColor,
+                size: 20.sp,
+              ),
+              onPressed: () => Get.back(),
             ),
           ),
-          
-          SizedBox(width: 10.w),
-          
-          // More Options Button
-          GestureDetector(
-            onTap: () {
-              // TODO: Add more options menu
-            },
-            child: Container(
-              width: 40.w,
-              height: 40.w,
-              decoration: BoxDecoration(
-                color: themeController.blackColor.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(20.r),
-                border: Border.all(
-                  color: themeController.lightPinkColor.withValues(alpha: 0.3),
-                  width: 1.w,
-                ),
+          Spacer(),
+          Container(
+            width: 40.w,
+            height: 40.w,
+            decoration: BoxDecoration(
+              color: themeController.blackColor.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(20.r),
+              border: Border.all(
+                color: themeController.lightPinkColor.withValues(alpha: 0.3),
+                width: 1.w,
               ),
-              child: Icon(
+            ),
+            child: IconButton(
+              icon: Icon(
                 Icons.more_vert,
                 color: themeController.whiteColor,
                 size: 20.sp,
               ),
+              onPressed: () {},
             ),
           ),
         ],
@@ -218,78 +147,151 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     );
   }
 
-  Widget _buildImageGallery(ThemeController themeController) {
-    final images = _getImages();
+  Widget _buildProfileContent(ThemeController themeController) {
+    print('🔍 Building profile content for: ${widget.profile.name}');
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 20.w),
-      child: AspectRatio(
-        aspectRatio: 3 / 4,
-        child: Stack(
-          children: [
-          // Image PageView
-          PageView.builder(
-            controller: _pageController,
-            onPageChanged: (index) {
-              setState(() {
-                _currentImageIndex = index;
-              });
-            },
-            itemCount: images.length,
-            itemBuilder: (context, index) {
-              return ClipRRect(
-                borderRadius: BorderRadius.circular(20.r),
-                child: Image.network(images[index], fit: BoxFit.cover),
-              );
-            },
-          ),
+      width: double.infinity,
+      constraints: BoxConstraints(
+        minHeight: 200.h,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Profile Info Section
+          _buildProfileInfo(themeController),
           
-          // Image Dots Indicator
-          Positioned(
-            bottom: 20.h,
-            left: 0,
-            right: 0,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(images.length, (index) {
-                return Container(
-                  margin: EdgeInsets.symmetric(horizontal: 4.w),
-                  width: _currentImageIndex == index ? 20.w : 8.w,
-                  height: 8.h,
-                  decoration: BoxDecoration(
-                    color: _currentImageIndex == index
-                        ? themeController.lightPinkColor
-                        : themeController.whiteColor.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(4.r),
-                  ),
-                );
-              }),
+          // Bio Section
+          _buildBioSection(themeController),
+          
+          // Interests Section
+          _buildInterestsSection(themeController),
+          
+          // Action Buttons (only show for non-matched profiles)
+          _buildActionButtons(themeController),
+          
+          // Bottom padding for safe area
+          SizedBox(height: 40.h),
+        ],
+      ),
+    );
+  }
+
+
+
+  Widget _buildImageGallery(ThemeController themeController, List<String> images) {
+    return Container(
+      height: Get.height * 0.6, // 60% of screen height
+      width: double.infinity,
+      child: Stack(
+        children: [
+          // Main Image with swipe functionality
+          if (images.isNotEmpty)
+            GestureDetector(
+              onPanUpdate: (details) {
+                // Handle swipe gestures
+                if (details.delta.dx > 10) {
+                  // Swipe right - previous image
+                  if (_currentImageIndex > 0) {
+                    setState(() {
+                      _currentImageIndex--;
+                    });
+                  }
+                } else if (details.delta.dx < -10) {
+                  // Swipe left - next image
+                  if (_currentImageIndex < images.length - 1) {
+                    setState(() {
+                      _currentImageIndex++;
+                    });
+                  }
+                }
+              },
+              child: Image.network(
+                images[_currentImageIndex],
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: double.infinity,
+                errorBuilder: (context, error, stack) {
+                  return Container(
+                    color: themeController.blackColor,
+                    child: Center(
+                      child: Icon(
+                        Icons.image_not_supported_outlined,
+                        color: themeController.whiteColor.withValues(alpha: 0.6),
+                        size: 48.sp,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            )
+          else
+            Container(
+              color: themeController.blackColor,
+              child: Center(
+                child: Icon(
+                  Icons.image_not_supported_outlined,
+                  color: themeController.whiteColor.withValues(alpha: 0.6),
+                  size: 48.sp,
+                ),
+              ),
             ),
-          ),
-          ],
-        ),
+        
+          // Image indicators (only show if multiple images)
+          if (images.length > 1)
+            Positioned(
+              bottom: 20.h,
+              left: 0,
+              right: 0,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(images.length, (index) {
+                  return Container(
+                    margin: EdgeInsets.symmetric(horizontal: 4.w),
+                    width: _currentImageIndex == index ? 24.w : 8.w,
+                    height: 4.h,
+                    decoration: BoxDecoration(
+                      color: _currentImageIndex == index
+                          ? themeController.lightPinkColor
+                          : themeController.whiteColor.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(2.r),
+                    ),
+                  );
+                }),
+              ),
+            ),
+        
+          // Photo counter (top right)
+          if (images.length > 1)
+            Positioned(
+              top: 20.h,
+              right: 20.w,
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+                decoration: BoxDecoration(
+                  color: themeController.blackColor.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(20.r),
+                  border: Border.all(
+                    color: themeController.lightPinkColor.withValues(alpha: 0.5),
+                    width: 1.w,
+                  ),
+                ),
+                child: TextConstant(
+                  title: '${_currentImageIndex + 1}/${images.length}',
+                  fontSize: 12.sp,
+                  color: themeController.whiteColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
 
   Widget _buildProfileInfo(ThemeController themeController) {
     return Container(
-      margin: EdgeInsets.all(20.w),
+      margin: EdgeInsets.fromLTRB(20.w, 20.h, 20.w, 0),
       padding: EdgeInsets.all(20.w),
-      decoration: BoxDecoration(
-        color: themeController.blackColor.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(20.r),
-        border: Border.all(
-          color: themeController.lightPinkColor.withValues(alpha: 0.3),
-          width: 1.w,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: themeController.lightPinkColor.withValues(alpha: 0.1),
-            blurRadius: 20,
-            offset: Offset(0, 10),
-          ),
-        ],
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -328,7 +330,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
           SizedBox(height: 10.h),
           
           // Location and Distance
-          Row(
+          Wrap(
             children: [
               Icon(
                 Icons.location_on,
@@ -412,7 +414,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
 
   Widget _buildBioSection(ThemeController themeController) {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 20.w),
+      margin: EdgeInsets.fromLTRB(20.w, 16.h, 20.w, 0),
       padding: EdgeInsets.all(20.w),
       decoration: BoxDecoration(
         color: themeController.lightPinkColor.withValues(alpha: 0.1),
@@ -423,6 +425,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
         ),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           TextConstant(
@@ -445,8 +448,9 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
 
   Widget _buildInterestsSection(ThemeController themeController) {
     return Container(
-      margin: EdgeInsets.all(20.w),
+      margin: EdgeInsets.fromLTRB(20.w, 16.h, 20.w, 0),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           TextConstant(
@@ -490,47 +494,88 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
   }
 
   Widget _buildActionButtons(ThemeController themeController) {
-    return Positioned(
-      bottom: 30.h,
-      left: 0,
-      right: 0,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          // Pass Button
-          _buildActionButton(
-            themeController,
-            icon: Icons.close,
-            color: Colors.red,
-            onTap: () {
-              Get.back();
-              // TODO: Implement pass functionality
-            },
-          ),
-          
-          // Super Like Button
-          _buildActionButton(
-            themeController,
-            icon: Icons.star,
-            color: Colors.blue,
-            onTap: () {
-              // TODO: Implement super like functionality
-            },
-          ),
-          
-          // Like Button
-          _buildActionButton(
-            themeController,
-            icon: Icons.favorite,
-            color: themeController.lightPinkColor,
-            onTap: () {
-              Get.back();
-              // TODO: Implement like functionality
-            },
-          ),
-        ],
-      ),
-    );
+    if (widget.isMatched) {
+      // Show different buttons for matched profiles
+      return Container(
+        margin: EdgeInsets.fromLTRB(20.w, 20.h, 20.w, 0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            // Message Button
+            _buildActionButton(
+              themeController,
+              icon: Icons.message,
+              color: themeController.lightPinkColor,
+              onTap: () {
+                Get.back();
+                // TODO: Navigate to chat
+              },
+            ),
+            
+            // Video Call Button
+            _buildActionButton(
+              themeController,
+              icon: Icons.videocam,
+              color: Colors.blue,
+              onTap: () {
+                // TODO: Implement video call
+              },
+            ),
+            
+            // More Options Button
+            _buildActionButton(
+              themeController,
+              icon: Icons.more_horiz,
+              color: Colors.grey,
+              onTap: () {
+                // TODO: Show more options
+              },
+            ),
+          ],
+        ),
+      );
+    } else {
+      // Show regular swipe buttons for non-matched profiles
+      return Container(
+        margin: EdgeInsets.fromLTRB(20.w, 20.h, 20.w, 0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            // Pass Button
+            _buildActionButton(
+              themeController,
+              icon: Icons.close,
+              color: Colors.red,
+              onTap: () {
+                Get.back();
+                // TODO: Implement pass functionality
+              },
+            ),
+            
+            // Super Like Button
+            _buildActionButton(
+              themeController,
+              icon: Icons.star,
+              color: Colors.blue,
+              onTap: () {
+                // TODO: Implement super like functionality
+              },
+            ),
+            
+            // Like Button
+            _buildActionButton(
+              themeController,
+              icon: Icons.favorite,
+              color: themeController.lightPinkColor,
+              onTap: () {
+                Get.back();
+                // TODO: Implement like functionality
+              },
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   Widget _buildActionButton(
@@ -571,8 +616,33 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
   }
 
   List<String> _getImages() {
-    if (widget.profile.photos.isNotEmpty) return widget.profile.photos;
-    return [widget.profile.imageUrl];
+    print('🔍 ProfileDetailScreen DEBUG:');
+    print('  - profile.photos: ${widget.profile.photos}');
+    print('  - profile.photos.length: ${widget.profile.photos.length}');
+    print('  - profile.imageUrl: ${widget.profile.imageUrl}');
+    
+    Set<String> imageSet = <String>{};
+    
+    // Add photos from the photos array
+    if (widget.profile.photos.isNotEmpty) {
+      for (String photo in widget.profile.photos) {
+        if (photo.isNotEmpty) {
+          imageSet.add(photo);
+        }
+      }
+    }
+    
+    // Add imageUrl if it's not empty
+    if (widget.profile.imageUrl.isNotEmpty) {
+      imageSet.add(widget.profile.imageUrl);
+    }
+    
+    List<String> images = imageSet.toList();
+    
+    print('  - Final images array: $images');
+    print('  - Final images count: ${images.length}');
+    
+    return images;
   }
 
   int _getImageCount() {

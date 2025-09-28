@@ -1,13 +1,13 @@
-import 'package:boliler_plate/Common/widget_constant.dart';
-import 'package:boliler_plate/Constant/app_assets.dart';
-import 'package:boliler_plate/Screens/Setting/Controller/setting_controller.dart';
-import 'package:boliler_plate/Screens/Setting/Screens/setting_page.dart';
-import 'package:boliler_plate/ThemeController/theme_controller.dart';
+import 'package:lovebug/Common/widget_constant.dart';
+import 'package:lovebug/Constant/app_assets.dart';
+import 'package:lovebug/Screens/Setting/Controller/setting_controller.dart';
+import 'package:lovebug/Screens/Setting/Screens/setting_page.dart';
+import 'package:lovebug/ThemeController/theme_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
-import 'package:boliler_plate/Screens/DiscoverPage/controller_discover_screen.dart';
+import 'package:lovebug/Screens/DiscoverPage/controller_discover_screen.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class GradientCommonAppBar extends StatelessWidget implements PreferredSizeWidget {
@@ -52,10 +52,11 @@ class GradientCommonAppBar extends StatelessWidget implements PreferredSizeWidge
               : SizedBox.shrink(),
           leadingWidth: showBackButton == true ? null : 0,
           centerTitle: isCenterTitle,
-          title: Obx(() {
-            return Image.asset(
-                themeController.isDarkMode.value ? AppAssets.logolight : AppAssets.logodark, width: 160.w, fit: BoxFit.fitWidth);
-          }),
+          title: Image.asset(
+            'assets/images/lovebug_logo.png', 
+            width: 100.w, 
+            fit: BoxFit.fitWidth
+          ),
           actions: isActionWidget == true
               ? actions ??
               [

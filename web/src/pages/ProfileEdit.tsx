@@ -23,8 +23,8 @@ export default function ProfileEdit() {
   }, [location])
   const [hobbies, setHobbies] = useState<string[]>([])
   const [imageUrls, setImageUrls] = useState<string[]>([])
-  const [newFiles, setNewFiles] = useState<File[]>([])
   const [loading, setLoading] = useState(false)
+  const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
   const [detectingLocation, setDetectingLocation] = useState(false)
   const [locationPermission, setLocationPermission] = useState<'granted' | 'denied' | 'prompt' | 'unknown'>('unknown')
@@ -91,18 +91,62 @@ export default function ProfileEdit() {
     )
   }
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
-    setNewFiles(prev => [...prev, ...files])
+    if (!user) return
+    
+    console.log('📤 [UPLOAD] Files selected:', files.length)
+    
+    // Upload files immediately instead of waiting for save
+    for (const file of files) {
+      const fileId = `${file.name}-${Date.now()}`
+      setUploadingFiles(prev => new Set([...prev, fileId]))
+      
+      try {
+        console.log('📤 [UPLOAD] Starting immediate upload for:', file.name)
+        const url = await api.uploadProfileImage(file, user.id)
+        if (url) {
+          const newImageUrls = [...imageUrls, url]
+          setImageUrls(newImageUrls)
+          console.log('📤 [UPLOAD] Immediate upload successful:', url)
+          
+          // Save to database immediately
+          console.log('💾 [UPLOAD] Saving to database immediately...')
+          const { error: dbError } = await supabase
+            .from('profiles')
+            .update({ image_urls: newImageUrls })
+            .eq('id', user.id)
+          
+          if (dbError) {
+            console.error('💾 [UPLOAD] Database save failed:', dbError)
+            alert(`Image uploaded but failed to save to database: ${dbError.message}`)
+          } else {
+            console.log('💾 [UPLOAD] Database save successful')
+          }
+        } else {
+          console.error('📤 [UPLOAD] Immediate upload failed - no URL returned')
+          alert(`Failed to upload ${file.name}: No URL returned`)
+        }
+      } catch (error: any) {
+        console.error('📤 [UPLOAD] Immediate upload error:', error)
+        alert(`Failed to upload ${file.name}: ${error.message}`)
+      } finally {
+        setUploadingFiles(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(fileId)
+          return newSet
+        })
+      }
+    }
+    
+    // Clear the file input
+    e.target.value = ''
   }
 
   const removeImage = (index: number) => {
     setImageUrls(prev => prev.filter((_, i) => i !== index))
   }
 
-  const removeNewFile = (index: number) => {
-    setNewFiles(prev => prev.filter((_, i) => i !== index))
-  }
 
   const moveImage = (fromIndex: number, toIndex: number) => {
     setImageUrls(prev => {
@@ -214,23 +258,10 @@ export default function ProfileEdit() {
     console.log('  - Location (ref):', locationRef.current)
     console.log('  - Hobbies:', hobbies)
     console.log('  - ImageUrls:', imageUrls)
-    console.log('  - NewFiles:', newFiles.length)
     
     try {
-      // Upload new files
-      const uploadedUrls: string[] = []
-      for (const file of newFiles) {
-        console.log('💾 [DEBUG] Uploading file:', file.name)
-        const url = await api.uploadProfileImage(file, user.id)
-        if (url) {
-          uploadedUrls.push(url)
-          console.log('💾 [DEBUG] File uploaded successfully:', url)
-        }
-      }
-
-      // Combine existing and new images
-      const allImageUrls = [...imageUrls, ...uploadedUrls]
-      console.log('💾 [DEBUG] All image URLs:', allImageUrls)
+      // Images are already uploaded immediately, just use current imageUrls
+      console.log('💾 [DEBUG] Using current image URLs:', imageUrls)
 
       const payload = { 
         id: user.id, 
@@ -239,7 +270,7 @@ export default function ProfileEdit() {
         description: description, // Use description field (actual DB field)
         location: locationRef.current || location, // Use ref value if available
         hobbies: hobbies, // Use hobbies field (actual DB field)
-        image_urls: allImageUrls // Use image_urls field (actual DB field)
+        image_urls: imageUrls // Use current imageUrls (already uploaded)
       }
       
       console.log('💾 [DEBUG] Payload to save:', payload)
@@ -318,12 +349,12 @@ export default function ProfileEdit() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <p className="text-white/70 text-sm">
-                        {imageUrls.length + newFiles.length} photo{imageUrls.length + newFiles.length !== 1 ? 's' : ''}
+                        {imageUrls.length} photo{imageUrls.length !== 1 ? 's' : ''}
                       </p>
-                      {newFiles.length > 0 && (
+                      {uploadingFiles.size > 0 && (
                         <div className="flex items-center gap-1 text-pink-300 text-xs">
                           <div className="w-2 h-2 bg-pink-400 rounded-full animate-pulse"></div>
-                          <span>Uploading...</span>
+                          <span>Uploading {uploadingFiles.size} file{uploadingFiles.size !== 1 ? 's' : ''}...</span>
                         </div>
                       )}
                     </div>
@@ -424,27 +455,6 @@ export default function ProfileEdit() {
                           </div>
                         ))}
                         
-                        {/* New Photos (Pending Upload) */}
-                        {newFiles.map((file, index) => (
-                          <div key={`new-${index}`} className="relative flex-shrink-0 w-24 h-24 rounded-xl overflow-hidden border-2 border-pink/50 shadow-lg">
-                            <img 
-                              src={URL.createObjectURL(file)} 
-                              alt={`New photo ${index + 1}`} 
-                              className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-200" 
-                            />
-                            <button
-                              type="button"
-                              onClick={() => removeNewFile(index)}
-                              className="absolute -top-1 -right-1 w-8 h-8 bg-red-500 rounded-full flex items-center justify-center hover:scale-110 transition-transform shadow-lg border-2 border-white"
-                            >
-                              <X className="w-4 h-4 text-white" />
-                            </button>
-                            {/* Uploading Indicator */}
-                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                              <div className="w-6 h-6 border-2 border-pink border-t-transparent rounded-full animate-spin"></div>
-                            </div>
-                          </div>
-                        ))}
                         
                         {/* Add Photo Button */}
                         <label className="flex-shrink-0 w-24 h-24 rounded-xl border-2 border-dashed border-white/30 flex items-center justify-center cursor-pointer hover:border-pink/50 hover:bg-pink/5 transition-all duration-200 group">
@@ -464,7 +474,7 @@ export default function ProfileEdit() {
                       
                       {/* Scroll Indicators */}
                       <div className="flex justify-center mt-2 space-x-1">
-                        {Array.from({ length: Math.ceil((imageUrls.length + newFiles.length + 1) / 4) }).map((_, i) => (
+                        {Array.from({ length: Math.ceil((imageUrls.length + 1) / 4) }).map((_, i) => (
                           <div key={i} className="w-1.5 h-1.5 bg-white/30 rounded-full"></div>
                         ))}
                       </div>

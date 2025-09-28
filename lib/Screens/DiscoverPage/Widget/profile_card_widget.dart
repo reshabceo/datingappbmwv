@@ -1,8 +1,9 @@
-import 'package:boliler_plate/Common/text_constant.dart';
-import 'package:boliler_plate/Common/widget_constant.dart';
-import 'package:boliler_plate/Screens/DiscoverPage/controller_discover_screen.dart';
-import 'package:boliler_plate/Screens/DiscoverPage/profile_detail_screen.dart';
-import 'package:boliler_plate/ThemeController/theme_controller.dart';
+import 'package:lovebug/Common/text_constant.dart';
+import 'package:lovebug/Common/widget_constant.dart';
+import 'package:lovebug/Screens/DiscoverPage/controller_discover_screen.dart';
+import 'package:lovebug/Screens/DiscoverPage/profile_detail_screen.dart';
+import 'package:lovebug/Screens/DiscoverPage/Widget/image_gallery_widget.dart';
+import 'package:lovebug/ThemeController/theme_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
@@ -33,20 +34,9 @@ class ProfileCard extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              Image.network(
-                profile.imageUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stack) {
-                  return Container(
-                    color: themeController.blackColor,
-                    alignment: Alignment.center,
-                    child: Icon(
-                      Icons.image_not_supported_outlined,
-                      color: themeController.whiteColor.withValues(alpha: 0.6),
-                      size: 36.sp,
-                    ),
-                  );
-                },
+              ImageGalleryWidget(
+                images: profile.photos,
+                themeController: themeController,
               ),
               // Foreground content
               Column(
@@ -75,42 +65,11 @@ class ProfileCard extends StatelessWidget {
             borderWidth: 2,
           ),
           Spacer(),
-          _buildPhotoCountIndicator(),
         ],
       ),
     );
   }
 
-  Widget _buildPhotoCountIndicator() {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
-      decoration: BoxDecoration(
-        color: themeController.blackColor.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(20.r),
-        border: Border.all(
-          color: themeController.lightPinkColor.withValues(alpha: 0.5),
-          width: 1.w,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.photo_library,
-            color: themeController.whiteColor,
-            size: 16.sp,
-          ),
-          SizedBox(width: 4.w),
-          TextConstant(
-            title: profile.photos.length.toString(),
-            fontSize: 12.sp,
-            color: themeController.whiteColor,
-            fontWeight: FontWeight.bold,
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildBottomSection() {
     return Container(

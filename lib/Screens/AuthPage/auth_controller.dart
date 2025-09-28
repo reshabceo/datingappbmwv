@@ -1,5 +1,6 @@
-import 'package:boliler_plate/global_data.dart';
+import 'package:lovebug/global_data.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'auth_service.dart';
@@ -8,6 +9,7 @@ import '../BottomBarPage/bottombar_screen.dart';
 import '../../services/supabase_service.dart';
 import 'email_code_verify_screen.dart';
 import 'auth_ui_screen.dart';
+import '../WelcomePage/welcome_screen.dart';
 
 class AuthController extends GetxController {
   TextEditingController phoneController = TextEditingController();
@@ -397,6 +399,7 @@ class AuthController extends GetxController {
     }
   }
 
+<<<<<<< Updated upstream
   Future<void> continueWithGoogle() async {
     try {
       isLoading.value = true;
@@ -421,6 +424,100 @@ class AuthController extends GetxController {
     }
   }
 
+  void _showAccountDeactivatedDialog(String userId) {
+    Get.dialog(
+      AlertDialog(
+        title: Text('Account Deactivated'),
+        content: Text('Your account has been deactivated. All your data is preserved and will be restored when you reactivate your account.'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Get.back();
+              // Navigate to welcome screen
+              Get.offAll(() => WelcomeScreen());
+            },
+            child: Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Get.back();
+              await _reactivateAccount(userId);
+            },
+            child: Text('Reactivate Account'),
+          ),
+        ],
+      ),
+      barrierDismissible: false,
+    );
+  }
+
+  Future<void> _reactivateAccount(String userId) async {
+    try {
+      // Show loading
+      Get.dialog(
+        Center(
+          child: Container(
+            padding: EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.black,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(color: Colors.pink),
+                SizedBox(height: 10),
+                Text(
+                  'Reactivating account...',
+                  style: TextStyle(color: Colors.white, fontSize: 14),
+                ),
+              ],
+            ),
+          ),
+        ),
+        barrierDismissible: false,
+      );
+
+      // Reactivate the user's account using the stored user ID
+      print('🔄 Reactivating account for user: $userId');
+      final response = await SupabaseService.client
+          .from('profiles')
+          .update({'is_active': true})
+          .eq('id', userId);
+      print('✅ Account reactivated successfully. Response: $response');
+      
+      // Wait a moment for the database to commit the change
+      await Future.delayed(Duration(milliseconds: 500));
+
+      // Close loading dialog
+      Get.back();
+
+      // Show success message
+      Get.snackbar(
+        'Account Reactivated',
+        'Your account has been reactivated successfully! Please log in again.',
+        backgroundColor: Colors.black,
+        colorText: Colors.white,
+        duration: Duration(seconds: 3),
+      );
+
+      // Navigate to welcome screen - the user needs to log in again
+      // This will trigger the normal login flow which should load their real data
+      Get.offAll(() => WelcomeScreen());
+    } catch (e) {
+      print('❌ Error reactivating account: $e');
+      Get.back(); // Close loading dialog
+      Get.snackbar(
+        'Error',
+        'Failed to reactivate account: $e',
+        backgroundColor: Colors.black,
+        colorText: Colors.white,
+        duration: Duration(seconds: 3),
+      );
+>>>>>>> Stashed changes
+    }
+  }
+
   Future<void> _checkUserProfileAndNavigate() async {
     try {
       // Wait a moment for the session to be established
@@ -433,14 +530,28 @@ class AuthController extends GetxController {
       if (user != null) {
         // Check if user has a profile
         try {
+          print('🔄 DEBUG: Fetching profile for user: ${user.id}');
           final profile = await SupabaseService.getProfile(user.id);
-          print('Profile found: ${profile != null}');
+          print('🔄 DEBUG: Profile result: $profile');
+          print('🔄 DEBUG: Profile found: ${profile != null}');
+          print('🔄 DEBUG: Profile is empty: ${profile?.isEmpty}');
           
           if (profile == null || profile.isEmpty) {
             // New user - go to profile creation
-            print('Navigating to profile creation for new user');
+            print('❌ DEBUG: No profile found - navigating to profile creation for new user');
             Get.offAll(() => MultiStepProfileForm());
           } else {
+            // Check if user account is deactivated
+            if (profile['is_active'] == false) {
+              print('🚫 DEBUG: User account is deactivated in auth controller');
+              // Store user ID before signing out
+              final userId = user.id;
+              // Sign out the user and show deactivation message
+              await SupabaseService.signOut();
+              _showAccountDeactivatedDialog(userId);
+              return;
+            }
+            
             // Returning user - go to main app
             print('Navigating to main app for returning user');
             Get.offAll(() => BottombarScreen());

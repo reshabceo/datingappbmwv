@@ -1,20 +1,83 @@
-import 'package:boliler_plate/Common/text_constant.dart';
-import 'package:boliler_plate/Common/widget_constant.dart';
-import 'package:boliler_plate/Screens/StoriesPage/controller_stories_screen.dart';
-import 'package:boliler_plate/Screens/StoriesPage/widget_stories_screen.dart';
-import 'package:boliler_plate/Screens/StoriesPage/ui_instagram_story_viewer.dart';
-import 'package:boliler_plate/ThemeController/theme_controller.dart';
-import 'package:boliler_plate/services/supabase_service.dart';
+import 'package:lovebug/Common/text_constant.dart';
+import 'package:lovebug/Common/widget_constant.dart';
+import 'package:lovebug/Screens/StoriesPage/controller_stories_screen.dart';
+import 'package:lovebug/Screens/StoriesPage/widget_stories_screen.dart';
+import 'package:lovebug/Screens/StoriesPage/ui_instagram_story_viewer.dart';
+import 'package:lovebug/Screens/DiscoverPage/profile_detail_screen.dart';
+import 'package:lovebug/Screens/DiscoverPage/controller_discover_screen.dart';
+import 'package:lovebug/ThemeController/theme_controller.dart';
+import 'package:lovebug/services/supabase_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
+
+class _NoGlowBehavior extends ScrollBehavior {
+  const _NoGlowBehavior();
+
+  @override
+  Widget buildOverscrollIndicator(BuildContext context, Widget child, ScrollableDetails details) {
+    return child;
+  }
+}
 
 class StoriesScreen extends StatelessWidget {
   StoriesScreen({super.key});
 
   final StoriesController controller = Get.put(StoriesController());
   final ThemeController themeController = Get.find<ThemeController>();
+
+  Profile _mapToProfile(Map<String, dynamic> profileData) {
+    final photos = <String>[];
+    if (profileData['photos'] != null) {
+      photos.addAll(List<String>.from(profileData['photos']));
+    }
+    if (profileData['image_urls'] != null) {
+      photos.addAll(List<String>.from(profileData['image_urls']));
+    }
+    
+    final hobbies = <String>[];
+    if (profileData['hobbies'] != null) {
+      hobbies.addAll(List<String>.from(profileData['hobbies']));
+    }
+    if (profileData['interests'] != null) {
+      hobbies.addAll(List<String>.from(profileData['interests']));
+    }
+
+    return Profile(
+      id: profileData['id']?.toString() ?? '',
+      name: profileData['name']?.toString() ?? 'User',
+      age: (profileData['age'] ?? 25) as int,
+      imageUrl: photos.isNotEmpty ? photos.first : '',
+      photos: photos,
+      location: profileData['location']?.toString() ?? 'Unknown',
+      distance: profileData['distance']?.toString() ?? 'Unknown distance',
+      description: profileData['description']?.toString() ?? 
+                  profileData['bio']?.toString() ?? 
+                  'No description available',
+      hobbies: hobbies,
+      isVerified: (profileData['is_verified'] ?? false) as bool,
+      isActiveNow: (profileData['is_active'] ?? false) as bool,
+    );
+  }
+
+  Future<void> _viewProfile(String userId) async {
+    try {
+      // Get the user's profile
+      final profileData = await SupabaseService.getProfile(userId);
+      if (profileData != null) {
+        // Convert Map to Profile object
+        final profile = _mapToProfile(profileData);
+        // Navigate to profile detail screen with isMatched: true
+        Get.to(() => ProfileDetailScreen(profile: profile, isMatched: true));
+      } else {
+        Get.snackbar('Error', 'Profile not found');
+      }
+    } catch (e) {
+      print('Error viewing profile: $e');
+      Get.snackbar('Error', 'Failed to load profile');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,138 +97,143 @@ class StoriesScreen extends StatelessWidget {
             end: Alignment.bottomCenter,
           ),
         ),
-        child: screenPadding(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              heightBox(10),
-              TextConstant(
-                fontSize: 24,
-                title: 'snap_stories'.tr,
-                fontWeight: FontWeight.bold,
-                color: themeController.whiteColor,
-              ),
-              heightBox(10),
-              heightBox(10),
-              Expanded(
-                child: Obx(() {
-                  if (controller.isLoading.value) {
-                    return Center(
-                      child: CircularProgressIndicator(
-                        color: themeController.lightPinkColor,
-                      ),
-                    );
-                  }
-                  
-                  if (controller.storyGroups.isEmpty) {
-                    return SizedBox(
-                          height: Get.height * 0.5,
-                          child: Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.photo_camera_outlined,
-                              size: 64,
-                              color: themeController.lightPinkColor.withValues(alpha: 0.6),
-                            ),
-                            SizedBox(height: 16),
-                            TextConstant(
-                              title: 'No stories yet',
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                              color: themeController.whiteColor,
-                            ),
-                            SizedBox(height: 8),
-                            TextConstant(
-                              title: 'Get matches to see their stories!',
-                              fontSize: 14,
-                              color: themeController.whiteColor.withValues(alpha: 0.7),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }
-                  
-                  return Stack(
-                    children: [
-                      GridView.builder(
-                        padding: EdgeInsets.fromLTRB(0.w, 8.h, 0.w, 80.h), // Align with text start
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          childAspectRatio: 0.65, // Slightly shorter cards for better alignment
-                          crossAxisSpacing: 12.w, // Increased spacing for better alignment
-                          mainAxisSpacing: 12.h,  // Increased spacing
-                        ),
-                        itemCount: controller.storyGroups.length,
-                        itemBuilder: (context, index) {
-                          final storyGroup = controller.storyGroups[index];
-                          return _buildStoryCard(
-                            storyGroup: storyGroup,
-                            onTap: () {
-                              Get.to(() => InstagramStoryViewer(
-                                storyGroups: controller.storyGroups,
-                                initialIndex: index,
-                              ));
-                            },
-                          );
-                        },
-                      ),
+        child: SafeArea(top: false, bottom: false,
+          child: screenPadding(customPadding: EdgeInsets.fromLTRB(15.w, 56.h, 15.w, 0),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  heightBox(0),
+                  TextConstant(
+                    title: 'Stories',
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    color: themeController.whiteColor,
+                  ),
+                  heightBox(8),
+                  Expanded(
+                    child: Obx(() {
+                      if (controller.isLoading.value) {
+                        return Center(
+                          child: CircularProgressIndicator(
+                            color: themeController.lightPinkColor,
+                          ),
+                        );
+                      }
                       
-                      // Floating Add Story Button
-                      Positioned(
-                        bottom: 20.h,
-                        left: 0,
-                        right: 0,
-                        child: Center(
-                          child: GestureDetector(
-                            onTap: _addStory,
-                            child: Container(
-                              width: 56.w,
-                              height: 56.w,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    themeController.lightPinkColor,
-                                    themeController.lightPinkColor.withValues(alpha: 0.9),
-                                    Colors.purple.withValues(alpha: 0.9),
-                                  ],
+                      if (controller.storyGroups.isEmpty) {
+                        return SizedBox(
+                              height: Get.height * 0.5,
+                              child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.photo_camera_outlined,
+                                  size: 64,
+                                  color: themeController.lightPinkColor.withValues(alpha: 0.6),
                                 ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: themeController.lightPinkColor.withValues(alpha: 0.4),
-                                    blurRadius: 16,
-                                    offset: Offset(0, 6),
+                                SizedBox(height: 16),
+                                TextConstant(
+                                  title: 'No stories yet',
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                  color: themeController.whiteColor,
+                                ),
+                                SizedBox(height: 8),
+                                TextConstant(
+                                  title: 'Get matches to see their stories!',
+                                  fontSize: 14,
+                                  color: themeController.whiteColor.withValues(alpha: 0.7),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+                      
+                      return Stack(
+                          children: [
+                            ScrollConfiguration(
+                              behavior: const _NoGlowBehavior(),
+                              child: GridView.builder(
+                                physics: const ClampingScrollPhysics(),
+                                padding: EdgeInsets.fromLTRB(0.w, 0.h, 0.w, 80.h), // Align with header
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              childAspectRatio: 0.65, // Slightly shorter cards for better alignment
+                              crossAxisSpacing: 12.w, // Increased spacing for better alignment
+                              mainAxisSpacing: 12.h,  // Increased spacing
+                            ),
+                            itemCount: controller.storyGroups.length,
+                            itemBuilder: (context, index) {
+                              final storyGroup = controller.storyGroups[index];
+                              return _buildStoryCard(
+                                storyGroup: storyGroup,
+                                onTap: () {
+                                  Get.to(() => InstagramStoryViewer(
+                                    storyGroups: controller.storyGroups,
+                                    initialIndex: index,
+                                  ));
+                                },
+                              );
+                            },
+                            ),
+                          ),
+                          
+                          // Floating Add Story Button
+                          Positioned(
+                            bottom: 20.h,
+                            left: 0,
+                            right: 0,
+                            child: Center(
+                              child: GestureDetector(
+                                onTap: _addStory,
+                                child: Container(
+                                  width: 56.w,
+                                  height: 56.w,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        themeController.lightPinkColor,
+                                        themeController.lightPinkColor.withValues(alpha: 0.9),
+                                        Colors.purple.withValues(alpha: 0.9),
+                                      ],
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: themeController.lightPinkColor.withValues(alpha: 0.4),
+                                        blurRadius: 16,
+                                        offset: Offset(0, 6),
+                                      ),
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.2),
+                                        blurRadius: 8,
+                                        offset: Offset(0, 2),
+                                      ),
+                                    ],
                                   ),
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.2),
-                                    blurRadius: 8,
-                                    offset: Offset(0, 2),
+                                  child: Icon(
+                                    Icons.add,
+                                    color: Colors.white,
+                                    size: 24,
                                   ),
-                                ],
-                              ),
-                              child: Icon(
-                                Icons.add,
-                                color: Colors.white,
-                                size: 24,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      ),
-                    ],
-                  );
-                }),
+                        ],
+                      );
+                    }),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
-      ),
-    );
+      );
   }
 
   Widget _buildStoryCard({
@@ -248,28 +316,31 @@ class StoriesScreen extends StatelessWidget {
               Positioned(
                 top: 6.h,
                 left: 6.w,
-                child: Container(
-                  width: 28.w,
-                  height: 28.w,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: theme.lightPinkColor,
-                      width: 2.5,
+                child: GestureDetector(
+                  onTap: () => _viewProfile(storyGroup.userId),
+                  child: Container(
+                    width: 28.w,
+                    height: 28.w,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: theme.lightPinkColor,
+                        width: 2.5,
+                      ),
                     ),
-                  ),
-                  child: CircleAvatar(
-                    radius: 12.r,
-                    backgroundImage: storyGroup.avatarUrl.isNotEmpty
-                        ? NetworkImage(storyGroup.avatarUrl)
-                        : null,
-                    child: storyGroup.avatarUrl.isEmpty
-                        ? Icon(
-                            Icons.person,
-                            color: theme.whiteColor,
-                            size: 14,
-                          )
-                        : null,
+                    child: CircleAvatar(
+                      radius: 12.r,
+                      backgroundImage: storyGroup.avatarUrl.isNotEmpty
+                          ? NetworkImage(storyGroup.avatarUrl)
+                          : null,
+                      child: storyGroup.avatarUrl.isEmpty
+                          ? Icon(
+                              Icons.person,
+                              color: theme.whiteColor,
+                              size: 14,
+                            )
+                          : null,
+                    ),
                   ),
                 ),
               ),

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Fix Test</title>
+</head>
+<body>
+    <h1>Upload Fix Test</h1>
+    <p>This test verifies that the upload fix is working:</p>
+    
+    <h2>What was fixed:</h2>
+    <ul>
+        <li>✅ <strong>Immediate Upload:</strong> Files now upload immediately when selected, not when saving</li>
+        <li>✅ <strong>Real-time UI:</strong> Shows actual upload progress instead of fake "Uploading" text</li>
+        <li>✅ <strong>Better Error Handling:</strong> Clear error messages if upload fails</li>
+        <li>✅ <strong>Database Sync:</strong> Images are saved to database immediately</li>
+    </ul>
+    
+    <h2>How to test:</h2>
+    <ol>
+        <li>Go to your website profile edit page</li>
+        <li>Select an image file</li>
+        <li>Watch the console for these messages:
+            <ul>
+                <li><code>📤 [UPLOAD] Files selected: 1</code></li>
+                <li><code>📤 [UPLOAD] Starting immediate upload for: filename.jpg</code></li>
+                <li><code>📤 [UPLOAD] Immediate upload successful: https://...</code></li>
+            </ul>
+        </li>
+        <li>Check that the image appears immediately in the UI</li>
+        <li>Refresh the page - the image should still be there</li>
+        <li>Check the database - image_urls should contain the new URL</li>
+    </ol>
+    
+    <h2>Expected behavior:</h2>
+    <ul>
+        <li>✅ Image uploads immediately when selected</li>
+        <li>✅ Shows "Uploading 1 file..." while uploading</li>
+        <li>✅ Image appears in gallery after upload</li>
+        <li>✅ No more "2 photos Uploading" with only 1 in database</li>
+        <li>✅ Images persist after page refresh</li>
+    </ul>
+    
+    <h2>If still not working:</h2>
+    <p>Check the browser console for error messages. The most common issues are:</p>
+    <ul>
+        <li>Authentication errors - make sure user is logged in</li>
+        <li>Storage policy errors - run the storage policy fix SQL</li>
+        <li>Network errors - check internet connection</li>
+    </ul>
+</body>
+</html>
+

@@ -129,6 +129,8 @@ class MessageController extends GetxController {
           storyContent: storyData?['content']?.toString(),
           storyAuthorName: storyData?['user_id']?.toString(), // We'll use user_id for now
           storyCreatedAt: storyData?['created_at'] != null ? DateTime.tryParse(storyData!['created_at'].toString()) : null,
+          isDisappearingPhoto: (r['is_disappearing_photo'] ?? false) as bool,
+          disappearingPhotoId: (r['disappearing_photo_id'] ?? '').toString().isEmpty ? null : (r['disappearing_photo_id'] ?? '').toString(),
         );
         
         // Debug logging for story reply messages
@@ -136,8 +138,24 @@ class MessageController extends GetxController {
           print('DEBUG: Story reply message - Image: ${message.storyImageUrl}, Content: ${message.storyContent}, Author: ${message.storyAuthorName}');
         }
         
+        // Debug logging for regular messages in initial load
+        if (!message.isDisappearingPhoto && !message.isStoryReply) {
+          print('DEBUG: Initial load - Regular message - Text: "${message.text}", isUser: ${message.isUser}, timestamp: ${message.timestamp}');
+        }
+        
         return message;
       }).toList();
+      
+      // Sort by timestamp to ensure correct order
+      loaded.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      
+      // Debug: Print all messages with their timestamps
+      print('DEBUG: Initial load - Messages after sorting:');
+      for (int i = 0; i < loaded.length; i++) {
+        final msg = loaded[i];
+        print('  $i: "${msg.text}" (${msg.isUser ? "User" : "Other"}) - ${msg.timestamp}');
+      }
+      
       messages.assignAll(loaded);
       scrollToBottom();
       print('DEBUG: Initial load - ${loaded.length} messages for match $matchId');
@@ -152,14 +170,14 @@ class MessageController extends GetxController {
             .from('messages')
             .stream(primaryKey: ['id'])
             .eq('match_id', matchId)
-            .order('created_at')
+            .order('created_at', ascending: true)
             .listen((rows) {
               print('DEBUG: Stream received ${rows.length} messages');
               final myId = SupabaseService.currentUser?.id;
               final loaded = rows.map((r) {
                 final storyData = r['stories'] as Map<String, dynamic>?;
                 final profileData = storyData?['profiles'] as Map<String, dynamic>?;
-                return Message(
+                final message = Message(
                   text: (r['content'] ?? '').toString(),
                   isUser: (r['sender_id'] ?? '').toString() == (myId ?? ''),
                   timestamp: DateTime.tryParse((r['created_at'] ?? '').toString()) ?? DateTime.now(),
@@ -170,19 +188,31 @@ class MessageController extends GetxController {
                   storyContent: storyData?['content']?.toString(),
                   storyAuthorName: profileData?['name']?.toString(),
                   storyCreatedAt: storyData?['created_at'] != null ? DateTime.tryParse(storyData!['created_at'].toString()) : null,
+                  isDisappearingPhoto: (r['is_disappearing_photo'] ?? false) as bool,
+                  disappearingPhotoId: (r['disappearing_photo_id'] ?? '').toString().isEmpty ? null : (r['disappearing_photo_id'] ?? '').toString(),
                 );
+                
+                // Debug logging for regular messages
+                if (!message.isDisappearingPhoto && !message.isStoryReply) {
+                  print('DEBUG: Stream - Regular message - Text: "${message.text}", isUser: ${message.isUser}, timestamp: ${message.timestamp}');
+                }
+                
+                return message;
               }).toList();
               // Sort by timestamp to ensure correct order
               loaded.sort((a, b) => a.timestamp.compareTo(b.timestamp));
               
-              // Only update if content actually changed
-              if (loaded.length != messages.length || 
-                  loaded.any((msg) => !messages.any((existing) => 
-                    existing.text == msg.text && existing.isUser == msg.isUser))) {
-                messages.assignAll(loaded);
-                scrollToBottom();
-                print('DEBUG: Messages updated, count: ${loaded.length}');
+              // Debug: Print all messages with their timestamps
+              print('DEBUG: Stream - Messages after sorting:');
+              for (int i = 0; i < loaded.length; i++) {
+                final msg = loaded[i];
+                print('  $i: "${msg.text}" (${msg.isUser ? "User" : "Other"}) - ${msg.timestamp}');
               }
+              
+              // Update messages
+              messages.assignAll(loaded);
+              scrollToBottom();
+              print('DEBUG: Messages updated, count: ${loaded.length}');
             });
     } catch (_) {}
   }
@@ -222,6 +252,8 @@ class Message {
   final String? storyContent;
   final String? storyAuthorName;
   final DateTime? storyCreatedAt;
+  final bool isDisappearingPhoto;
+  final String? disappearingPhotoId;
 
   Message({
     required this.text, 
@@ -234,5 +266,7 @@ class Message {
     this.storyContent,
     this.storyAuthorName,
     this.storyCreatedAt,
+    this.isDisappearingPhoto = false,
+    this.disappearingPhotoId,
   });
 }

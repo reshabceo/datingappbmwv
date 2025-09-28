@@ -2,16 +2,16 @@ import 'package:get/get.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:boliler_plate/Common/glass_butto.dart';
-import 'package:boliler_plate/Constant/app_assets.dart';
-import 'package:boliler_plate/Common/text_constant.dart';
-import 'package:boliler_plate/Common/widget_constant.dart';
-import 'package:boliler_plate/Language/language_model.dart';
+import 'package:lovebug/Common/glass_butto.dart';
+import 'package:lovebug/Constant/app_assets.dart';
+import 'package:lovebug/Common/text_constant.dart';
+import 'package:lovebug/Common/widget_constant.dart';
+import 'package:lovebug/Language/language_model.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:boliler_plate/Common/textfield_constant.dart';
-import 'package:boliler_plate/Screens/AuthPage/auth_controller.dart';
-import 'package:boliler_plate/ThemeController/theme_controller.dart';
-import 'package:boliler_plate/Screens/BottomBarPage/bottombar_screen.dart';
+import 'package:lovebug/Common/textfield_constant.dart';
+import 'package:lovebug/Screens/AuthPage/auth_controller.dart';
+import 'package:lovebug/ThemeController/theme_controller.dart';
+import 'package:lovebug/Screens/BottomBarPage/bottombar_screen.dart';
 
 class AuthScreen extends StatelessWidget {
   final String? startMode; // 'email' or 'phone'
@@ -117,13 +117,11 @@ class AuthScreen extends StatelessWidget {
 
                   Padding(
                     padding: EdgeInsetsGeometry.only(top: 90.h),
-                    child: Obx(() {
-                      return Image.asset(
-                        themeController.isDarkMode.value ? AppAssets.logolight :  AppAssets.logodark,
-                        width: 160.w,
-                        fit: BoxFit.fitWidth,
-                      );
-                    }),
+                    child: Image.asset(
+                      'assets/images/lovebug_logo.png',
+                      width: 160.w,
+                      fit: BoxFit.fitWidth,
+                    ),
                   ),
                   Padding(
                     padding: EdgeInsetsGeometry.only(top: 20.h),
@@ -287,6 +285,8 @@ class AuthScreen extends StatelessWidget {
                               hintFontWeight: FontWeight.bold,
                               keyboardType: TextInputType.emailAddress,
                               controller: controller.emailController,
+                              borderColor: themeController.whiteColor,
+                              textColor: themeController.whiteColor,
                             ),
                             heightBox(16),
                             Obx(() {
@@ -300,6 +300,8 @@ class AuthScreen extends StatelessWidget {
                                       hintFontWeight: FontWeight.bold,
                                       obscureText: true,
                                       controller: controller.passwordController,
+                                      borderColor: themeController.whiteColor,
+                                      textColor: themeController.whiteColor,
                                     ),
                                     heightBox(12),
                                     TextFieldConstant(
@@ -309,6 +311,8 @@ class AuthScreen extends StatelessWidget {
                                       hintFontWeight: FontWeight.bold,
                                       obscureText: true,
                                       controller: controller.confirmPasswordController,
+                                      borderColor: themeController.whiteColor,
+                                      textColor: themeController.whiteColor,
                                     ),
                                   ],
                                 );
@@ -320,6 +324,8 @@ class AuthScreen extends StatelessWidget {
                                   hintFontWeight: FontWeight.bold,
                                   obscureText: true,
                                   controller: controller.passwordController,
+                                  borderColor: themeController.whiteColor,
+                                  textColor: themeController.whiteColor,
                                 );
                               }
                               return SizedBox.shrink();
@@ -437,20 +443,6 @@ class AuthScreen extends StatelessWidget {
                                 style: TextStyle(color: Colors.white70, fontSize: 12),
                               )),
                               heightBox(16),
-                              // Skip Profile Button for Demo
-                              TextButton(
-                                onPressed: () {
-                                  Get.offAll(() => BottombarScreen());
-                                },
-                                child: Text(
-                                  'Skip Profile Creation (Demo)',
-                                  style: TextStyle(
-                                    color: themeController.whiteColor.withOpacity(0.7),
-                                    fontSize: 12.sp,
-                                    decoration: TextDecoration.underline,
-                                  ),
-                                ),
-                              ),
                             ],
                           )
                         : Column(
@@ -496,20 +488,6 @@ class AuthScreen extends StatelessWidget {
                                 ],
                               )),
                           heightBox(16),
-                          // Skip Profile Button for Demo
-                          TextButton(
-                            onPressed: () {
-                              Get.offAll(() => BottombarScreen());
-                            },
-                            child: Text(
-                              'Skip Profile Creation (Demo)',
-                              style: TextStyle(
-                                color: themeController.whiteColor.withOpacity(0.7),
-                                fontSize: 12.sp,
-                                decoration: TextDecoration.underline,
-                              ),
-                            ),
-                          ),
                         ],
                       );
                     }
@@ -553,10 +531,7 @@ class AuthScreen extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 11.sp,
                         fontWeight: FontWeight.w400,
-                        color: Theme
-                            .of(Get.context!)
-                            .colorScheme
-                            .onSurface,
+                        color: themeController.whiteColor,
                       ),
                       children: [
                         TextSpan(text: 'by_continuing'.tr),
@@ -574,10 +549,7 @@ class AuthScreen extends StatelessWidget {
                         TextSpan(
                           text: ' and '.tr,
                           style: TextStyle(
-                            color: Theme
-                                .of(Get.context!)
-                                .colorScheme
-                                .onSurface,
+                            color: themeController.whiteColor,
                           ),
                         ),
                         TextSpan(

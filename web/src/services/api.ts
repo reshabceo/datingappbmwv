@@ -85,17 +85,55 @@ export async function sendMessage(matchId: string, senderId: string, content: st
 }
 
 export async function uploadProfileImage(file: File, userId: string) {
+  console.log('📤 [UPLOAD] Starting upload for user:', userId, 'file:', file.name, 'size:', file.size)
+  
   const bucket = 'profile-photos'
   const safeName = `${Date.now()}_` + file.name
     .toLowerCase()
     .replace(/\s+/g, '_')
     .replace(/[^a-z0-9._-]/g, '')
   const path = `${userId}/${safeName}`
-  const { error } = await supabase.storage.from(bucket).upload(path, file)
-  if (error) throw error
-  const { data } = supabase.storage.from(bucket).getPublicUrl(path)
-  // @ts-ignore
-  return data?.publicUrl ?? null
+  
+  console.log('📤 [UPLOAD] Upload path:', path)
+  
+  try {
+    // Check if user is authenticated
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (!authUser) {
+      throw new Error('User not authenticated')
+    }
+    console.log('📤 [UPLOAD] User authenticated:', authUser.id)
+    
+    // Upload the file
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from(bucket)
+      .upload(path, file, {
+        cacheControl: '3600',
+        upsert: false
+      })
+    
+    if (uploadError) {
+      console.error('📤 [UPLOAD] Upload error:', uploadError)
+      throw new Error(`Upload failed: ${uploadError.message}`)
+    }
+    
+    console.log('📤 [UPLOAD] Upload successful:', uploadData)
+    
+    // Get public URL
+    const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(path)
+    const publicUrl = urlData?.publicUrl
+    
+    if (!publicUrl) {
+      throw new Error('Failed to get public URL')
+    }
+    
+    console.log('📤 [UPLOAD] Public URL generated:', publicUrl)
+    return publicUrl
+    
+  } catch (error: any) {
+    console.error('📤 [UPLOAD] Upload failed:', error)
+    throw new Error(`Upload failed: ${error.message || 'Unknown error'}`)
+  }
 }
 
 export async function isUserAdmin(userId: string) {
@@ -108,6 +146,6 @@ export async function isUserAdmin(userId: string) {
   }
 }
 
-export default { getPublicUrl, fetchProfiles, fetchProfileById, fetchStories }
+export default { getPublicUrl, fetchProfiles, fetchProfileById, fetchStories, uploadProfileImage }
 
 

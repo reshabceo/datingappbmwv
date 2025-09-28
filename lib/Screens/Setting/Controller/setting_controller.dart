@@ -1,5 +1,5 @@
 import 'package:get/get.dart';
-import 'package:boliler_plate/Constant/app_assets.dart';
+import 'package:lovebug/Constant/app_assets.dart';
 
 class SettingsController extends GetxController {
 

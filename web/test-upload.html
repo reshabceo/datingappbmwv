@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>Upload Test</h1>
+    <div id="status">Ready to test upload...</div>
+    <input type="file" id="fileInput" accept="image/*" />
+    <button onclick="testUpload()">Test Upload</button>
+    <div id="result"></div>
+
+    <script>
+        // Initialize Supabase
+        const supabaseUrl = 'YOUR_SUPABASE_URL'
+        const supabaseKey = 'YOUR_SUPABASE_ANON_KEY'
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey)
+
+        async function testUpload() {
+            const fileInput = document.getElementById('fileInput')
+            const file = fileInput.files[0]
+            
+            if (!file) {
+                alert('Please select a file')
+                return
+            }
+
+            const status = document.getElementById('status')
+            const result = document.getElementById('result')
+            
+            status.textContent = 'Testing upload...'
+            result.innerHTML = ''
+
+            try {
+                // Test authentication
+                const { data: { user }, error: authError } = await supabase.auth.getUser()
+                if (authError || !user) {
+                    throw new Error('Not authenticated: ' + (authError?.message || 'No user'))
+                }
+                
+                console.log('User authenticated:', user.id)
+                status.textContent = 'User authenticated: ' + user.id
+
+                // Test upload
+                const bucket = 'profile-photos'
+                const safeName = `${Date.now()}_test_${file.name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9._-]/g, '')}`
+                const path = `${user.id}/${safeName}`
+                
+                console.log('Uploading to path:', path)
+                
+                const { data: uploadData, error: uploadError } = await supabase.storage
+                    .from(bucket)
+                    .upload(path, file, {
+                        cacheControl: '3600',
+                        upsert: false
+                    })
+
+                if (uploadError) {
+                    throw new Error('Upload failed: ' + uploadError.message)
+                }
+
+                console.log('Upload successful:', uploadData)
+                
+                // Get public URL
+                const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(path)
+                const publicUrl = urlData?.publicUrl
+                
+                if (!publicUrl) {
+                    throw new Error('Failed to get public URL')
+                }
+
+                status.textContent = 'Upload successful!'
+                result.innerHTML = `
+                    <h3>Upload Result:</h3>
+                    <p><strong>Path:</strong> ${path}</p>
+                    <p><strong>Public URL:</strong> <a href="${publicUrl}" target="_blank">${publicUrl}</a></p>
+                    <img src="${publicUrl}" alt="Uploaded image" style="max-width: 300px; margin-top: 10px;" />
+                `
+
+            } catch (error) {
+                console.error('Test failed:', error)
+                status.textContent = 'Test failed: ' + error.message
+                result.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`
+            }
+        }
+    </script>
+</body>
+</html>
+

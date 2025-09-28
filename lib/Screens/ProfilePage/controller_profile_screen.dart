@@ -39,16 +39,21 @@ class ProfileController extends GetxController {
   Future<void> loadUserProfile() async {
     try {
       isLoading.value = true;
-      print('Loading user profile...');
+      print('🔄 Loading user profile...');
       final user = SupabaseService.currentUser;
-      print('Current user: ${user?.id}');
-      print('Current user email: ${user?.email}');
+      print('🔄 Current user: ${user?.id}');
+      print('🔄 Current user email: ${user?.email}');
       
       if (user != null) {
-        print('Fetching profile for user ID: ${user.id}');
+        print('🔄 Fetching profile for user ID: ${user.id}');
         final profile = await SupabaseService.getProfile(user.id);
-        print('Profile loaded: $profile');
-        print('Profile is null: ${profile == null}');
+        print('🔄 Profile loaded: $profile');
+        print('🔄 Profile is null: ${profile == null}');
+        
+        // Check if profile is deactivated
+        if (profile != null && profile['is_active'] == false) {
+          print('🚫 Profile is deactivated - this should not happen after reactivation');
+        }
         
         if (profile != null) {
           print('Raw profile data: $profile');
@@ -58,12 +63,16 @@ class ProfileController extends GetxController {
           locationController.text = profile['location'] ?? '';
           // Support both bio/description
           aboutController.text = (profile['bio'] ?? profile['description'] ?? '') as String;
-          // Support photos/image_urls
-          if (profile['photos'] != null) {
-            myPhotos.value = List<String>.from(profile['photos']);
-          } else if (profile['image_urls'] != null) {
-            myPhotos.value = List<String>.from((profile['image_urls'] as List).map((e) => e.toString()));
+          // Support photos/image_urls - prioritize image_urls over photos to avoid duplicates
+          List<String> allPhotos = [];
+          if (profile['image_urls'] != null) {
+            allPhotos.addAll(List<String>.from((profile['image_urls'] as List).map((e) => e.toString())));
+          } else if (profile['photos'] != null) {
+            allPhotos.addAll(List<String>.from(profile['photos']));
           }
+          // Remove duplicates and empty strings
+          myPhotos.value = allPhotos.toSet().where((url) => url.isNotEmpty).toList();
+          print('DEBUG: Loaded ${myPhotos.value.length} unique photos: ${myPhotos.value}');
           // Support interests/hobbies
           if (profile['interests'] != null) {
             myInterestList.value = List<String>.from(profile['interests']);
@@ -77,7 +86,9 @@ class ProfileController extends GetxController {
           print('Description: ${userProfile.value['description']}');
           print('Bio: ${userProfile.value['bio']}');
         } else {
-          print('No profile found for user');
+          print('❌ No profile found for user - this might be the issue!');
+          print('❌ User ID: ${user.id}');
+          print('❌ This could be due to RLS policies or database connection issues');
           // Set default values if no profile exists
           userProfile.value = {
             'name': 'User',
@@ -107,7 +118,11 @@ class ProfileController extends GetxController {
         };
       }
     } catch (e) {
-      print('Error loading profile: $e');
+      print('❌ Error loading profile: $e');
+      print('❌ Error type: ${e.runtimeType}');
+      if (e.toString().contains('RLS') || e.toString().contains('policy')) {
+        print('❌ This looks like an RLS (Row Level Security) policy issue!');
+      }
       Get.snackbar('Error', 'Failed to load profile: $e');
       
       // Set default values on error
@@ -139,14 +154,15 @@ class ProfileController extends GetxController {
           'description': aboutController.text, // Use description instead of bio
           'hobbies': myInterestList.toList(), // Use hobbies instead of interests
           'image_urls': myPhotos.toList(), // Use image_urls instead of photos
-          'updated_at': DateTime.now().toIso8601String(),
         };
 
+        print('DEBUG: Updating profile with data: $profileData');
         await SupabaseService.updateProfile(
           userId: user.id,
           data: profileData,
         );
         
+        print('DEBUG: Profile updated successfully in database');
         userProfile.value = {...userProfile.value, ...profileData};
         Get.snackbar('Success', 'Profile updated successfully!');
       }
@@ -220,10 +236,52 @@ class ProfileController extends GetxController {
   Rx<XFile?> selectedImage = Rx<XFile?>(null);
 
   Future<void> pickImageFromCamera(ImageSource type) async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: type);
-    if (image != null) {
-      selectedImage.value = image;
+    try {
+      // Check if user is authenticated
+      final user = SupabaseService.currentUser;
+      if (user == null) {
+        Get.snackbar('Error', 'Please log in to upload photos');
+        return;
+      }
+      
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(source: type);
+      if (image != null) {
+        selectedImage.value = image;
+        
+        // Read image bytes
+        final bytes = await image.readAsBytes();
+        
+        // Generate unique filename with user ID as folder
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final extension = image.path.split('.').last;
+        final filename = '${user.id}/profile_${timestamp}.$extension';
+        
+        print('DEBUG: Uploading to bucket: profile-photos');
+        print('DEBUG: Uploading to path: $filename');
+        print('DEBUG: User ID: ${user.id}');
+        print('DEBUG: File size: ${bytes.length} bytes');
+        
+        // Upload to Supabase storage
+        final imageUrl = await SupabaseService.uploadFile(
+          bucket: 'profile-photos',
+          path: filename,
+          fileBytes: bytes,
+        );
+        
+        // Add the URL to myPhotos list
+        myPhotos.add(imageUrl);
+        print('Image uploaded successfully: $imageUrl');
+        print('My photos count: ${myPhotos.length}');
+        
+        // Update profile in database
+        await updateProfile();
+        
+        Get.snackbar('Success', 'Photo uploaded successfully!');
+      }
+    } catch (e) {
+      print('Error uploading image: $e');
+      Get.snackbar('Error', 'Failed to upload image: $e');
     }
   }
 

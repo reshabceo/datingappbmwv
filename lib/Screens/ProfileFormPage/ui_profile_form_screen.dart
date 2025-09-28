@@ -6,14 +6,14 @@ import 'package:flutter/foundation.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:dotted_border/dotted_border.dart';
-import 'package:boliler_plate/Common/text_constant.dart';
-import 'package:boliler_plate/Common/widget_constant.dart';
+import 'package:lovebug/Common/text_constant.dart';
+import 'package:lovebug/Common/widget_constant.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:boliler_plate/Common/textfield_constant.dart';
-import 'package:boliler_plate/Common/common_gradient_appbar.dart';
-import 'package:boliler_plate/ThemeController/theme_controller.dart';
-import 'package:boliler_plate/Screens/BottomBarPage/bottombar_screen.dart';
-import 'package:boliler_plate/Screens/ProfileFormPage/controller_profile_form_screen.dart';
+import 'package:lovebug/Common/textfield_constant.dart';
+import 'package:lovebug/Common/common_gradient_appbar.dart';
+import 'package:lovebug/ThemeController/theme_controller.dart';
+import 'package:lovebug/Screens/BottomBarPage/bottombar_screen.dart';
+import 'package:lovebug/Screens/ProfileFormPage/controller_profile_form_screen.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 class ProfileFormScreen extends StatelessWidget {

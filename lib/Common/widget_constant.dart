@@ -1,6 +1,6 @@
 import 'package:auto_size_text/auto_size_text.dart';
-import 'package:boliler_plate/Common/text_constant.dart';
-import 'package:boliler_plate/ThemeController/theme_controller.dart';
+import 'package:lovebug/Common/text_constant.dart';
+import 'package:lovebug/ThemeController/theme_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';

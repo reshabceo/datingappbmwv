@@ -1,9 +1,9 @@
-import 'package:boliler_plate/Common/text_constant.dart';
-import 'package:boliler_plate/Common/widget_constant.dart';
-import 'package:boliler_plate/Constant/app_assets.dart';
-import 'package:boliler_plate/Screens/ChatPage/controller_chat_screen.dart';
-import 'package:boliler_plate/Screens/ChatPage/ui_message_screen.dart';
-import 'package:boliler_plate/ThemeController/theme_controller.dart';
+import 'package:lovebug/Common/text_constant.dart';
+import 'package:lovebug/Common/widget_constant.dart';
+import 'package:lovebug/Constant/app_assets.dart';
+import 'package:lovebug/Screens/ChatPage/controller_chat_screen.dart';
+import 'package:lovebug/Screens/ChatPage/chat_integration_helper.dart';
+import 'package:lovebug/ThemeController/theme_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -28,7 +28,7 @@ class ChatScreen extends StatelessWidget {
             end: Alignment.bottomCenter,
           ),
         ),
-        child: screenPadding(
+        child: screenPadding(customPadding: EdgeInsets.fromLTRB(15.w, 56.h, 15.w, 0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -63,13 +63,10 @@ class ChatScreen extends StatelessWidget {
                             final chat = c.chatList[index];
                               return InkWell(
                                 onTap: () {
-                                  Get.to(
-                                        () =>
-                                        MessageScreen(
-                                          userName: chat.name,
-                                          userImage: chat.avatarUrl,
-                                          matchId: chat.matchId,
-                                        ),
+                                  ChatIntegrationHelper.navigateToChat(
+                                    userName: chat.name,
+                                    userImage: chat.avatarUrl,
+                                    matchId: chat.matchId,
                                   );
                                 },
                                 child: Column(
@@ -142,13 +139,10 @@ class ChatScreen extends StatelessWidget {
                             final chat = c.chatList[index];
                             return InkWell(
                               onTap: () {
-                                Get.to(
-                                      () =>
-                                      MessageScreen(
-                                        userName: chat.name,
-                                        userImage: chat.avatarUrl,
-                                        matchId: chat.matchId,
-                                      ),
+                                ChatIntegrationHelper.navigateToChat(
+                                  userName: chat.name,
+                                  userImage: chat.avatarUrl,
+                                  matchId: chat.matchId,
                                 );
                               },
                               child: Container(

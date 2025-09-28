@@ -1,11 +1,11 @@
-import 'package:boliler_plate/Common/text_constant.dart';
-import 'package:boliler_plate/Common/widget_constant.dart';
-import 'package:boliler_plate/Constant/app_assets.dart';
-import 'package:boliler_plate/Screens/ChatPage/ui_message_screen.dart';
-import 'package:boliler_plate/Screens/DiscoverPage/Widget/profile_card_widget.dart';
-import 'package:boliler_plate/Screens/DiscoverPage/controller_discover_screen.dart';
-import 'package:boliler_plate/Screens/DiscoverPage/profile_detail_screen.dart';
-import 'package:boliler_plate/ThemeController/theme_controller.dart';
+import 'package:lovebug/Common/text_constant.dart';
+import 'package:lovebug/Common/widget_constant.dart';
+import 'package:lovebug/Constant/app_assets.dart';
+import 'package:lovebug/Screens/ChatPage/ui_message_screen.dart';
+import 'package:lovebug/Screens/DiscoverPage/Widget/profile_card_widget.dart';
+import 'package:lovebug/Screens/DiscoverPage/controller_discover_screen.dart';
+import 'package:lovebug/Screens/DiscoverPage/profile_detail_screen.dart';
+import 'package:lovebug/ThemeController/theme_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
@@ -44,7 +44,7 @@ class DiscoverScreen extends StatelessWidget {
               child: SingleChildScrollView(
             child: Column(
                   children: [
-                    heightBox(60), // Pull card upward so it sits just under the name overlay
+                    heightBox(120), // Push cards down to create space above buttons
                     Obx(() {
                           final count = controller.profiles.length;
                           if (count == 0) {
@@ -225,7 +225,7 @@ class DiscoverScreen extends StatelessWidget {
  
   Widget _buildNameOverlay() {
     return Positioned(
-      top: 6.h, // Pull closer to top so it overlaps the card a bit
+      top: 120.h - 52.h, // Nudged ~10px higher above the card
       left: 0,
       right: 0,
       child: Center(
@@ -234,7 +234,7 @@ class DiscoverScreen extends StatelessWidget {
           return Text(
             currentProfile != null ? '${currentProfile.name}, ${currentProfile.age}' : 'No profiles',
           style: GoogleFonts.dancingScript(
-            fontSize: 52.sp,
+            fontSize: 50.sp,
             fontWeight: FontWeight.w700,
             color: themeController.lightPinkColor,
             shadows: [
@@ -263,7 +263,7 @@ class DiscoverScreen extends StatelessWidget {
 
   Widget _buildActionButtonsOverlay() {
     return Positioned(
-      bottom: 20.h, // Position at the very bottom space
+      bottom: 20.h, // Keep buttons at bottom but not overlapping cards
       left: 0,
       right: 0,
       child: Row(

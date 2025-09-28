@@ -1,4 +1,4 @@
-import 'package:boliler_plate/Common/text_constant.dart';
+import 'package:lovebug/Common/text_constant.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -29,6 +29,7 @@ class TextFieldConstant extends StatelessWidget {
     this.onFieldSubmit,
     this.contentPadding,
     this.borderColor,
+    this.textColor,
     this.hintFontWeight,
     this.inputFormatters,
     required this.hintText,
@@ -51,6 +52,7 @@ class TextFieldConstant extends StatelessWidget {
   final double? hintFontSize;
   final Color? borderColor;
   final Color? suffixIconColor;
+  final Color? textColor;
   final void Function()? onTap;
   final InputBorder? enabledBorder;
   final InputBorder? focusedBorder;
@@ -87,7 +89,7 @@ class TextFieldConstant extends StatelessWidget {
       cursorColor: theme.textSelectionTheme.cursorColor,
       cursorOpacityAnimates: true,
       focusNode: focusNode,
-      style: textStyle(fontSize: hintFontSize ?? 14, fontWeight: hintFontWeight, fontStyle: fontStyle ?? FontStyle.normal),
+      style: textStyle(fontSize: hintFontSize ?? 14, fontWeight: hintFontWeight, fontStyle: fontStyle ?? FontStyle.normal, color: textColor),
       decoration: InputDecoration(
         filled: false,
         hintText: hintText,

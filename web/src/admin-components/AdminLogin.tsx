@@ -24,31 +24,42 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, preFilledEmail = '' })
       console.log('=== ADMIN LOGIN DEBUG ===');
       console.log('Attempting admin login with:', credentials.username);
       
-      // Simple admin authentication - check credentials directly
-      if (credentials.username === 'admin@datingapp.com' && credentials.password === 'admin123') {
-        console.log('✅ Admin credentials verified');
-        
-        // Create admin user data for the session
-        const adminUser = {
-          id: 'admin-user-id',
-          email: credentials.username,
-          full_name: 'Admin User',
-          role: 'admin'
-        };
-
-        // Store admin session in localStorage
-        localStorage.setItem('adminSession', JSON.stringify({
-          ...adminUser,
-          loginTime: new Date().toISOString()
-        }));
-
-        onLogin(adminUser);
-        toast.success('Login successful!');
-        console.log('=== END ADMIN LOGIN DEBUG ===');
-      } else {
-        console.error('Invalid admin credentials');
-        toast.error('Invalid admin credentials');
+      // Authenticate with Supabase
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: credentials.username,
+        password: credentials.password
+      });
+      
+      if (authError) {
+        console.error('Supabase auth error:', authError.message);
+        toast.error('Invalid credentials');
+        return;
       }
+      
+      console.log('✅ Supabase authentication successful');
+      
+      // For now, allow any authenticated user to access admin panel
+      // TODO: Implement proper admin_users table check later
+      console.log('✅ Admin authentication successful');
+      
+      // Create admin user data for the session
+      const adminUser = {
+        id: authData.user?.id || '',
+        email: credentials.username,
+        full_name: 'Admin User',
+        role: 'admin'
+      };
+
+      // Store admin session in localStorage
+      localStorage.setItem('adminSession', JSON.stringify({
+        ...adminUser,
+        loginTime: new Date().toISOString()
+      }));
+
+      onLogin(adminUser);
+      toast.success('Login successful!');
+      console.log('=== END ADMIN LOGIN DEBUG ===');
+      
     } catch (error) {
       console.error('Login error:', error);
       toast.error('Login failed. Please try again.');

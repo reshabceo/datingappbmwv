@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:get/get.dart';
-import 'package:boliler_plate/services/supabase_service.dart';
+import 'package:lovebug/services/supabase_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../utils/string_utils.dart';
 

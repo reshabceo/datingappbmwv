@@ -41,98 +41,112 @@ class WelcomeScreen extends StatelessWidget {
           ),
           child: SafeArea(
             child: Padding(
-              padding: EdgeInsets.all(24.w),
+              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 24.h),
               child: Column(
                 children: [
-                  // Top spacing
-                  SizedBox(height: 60.h),
+                  // Top spacing for better balance
+                  SizedBox(height: 80.h),
                 
                   // App Logo
-                  Container(
-                    width: 120.w,
+                  Image.asset(
+                    'assets/images/lovebug_logo.png',
+                    width: 280.w,
                     height: 120.w,
+                    fit: BoxFit.contain,
+                  ),
+                  
+                  SizedBox(height: 40.h),
+                  
+                  // Tagline with better typography
+                  Text(
+                    'Find Your Perfect Match',
+                    style: TextStyle(
+                      fontSize: 32.sp,
+                      fontWeight: FontWeight.w700,
+                      color: themeController.whiteColor,
+                      letterSpacing: 0.5,
+                      height: 1.2,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  
+                  SizedBox(height: 20.h),
+                  
+                  // Description with better spacing
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 20.w),
+                    child: Text(
+                      'Join millions of people finding love every day. Connect with amazing people and start your journey to find true love.',
+                      style: TextStyle(
+                        fontSize: 18.sp,
+                        fontWeight: FontWeight.w400,
+                        color: themeController.whiteColor.withOpacity(0.9),
+                        height: 1.6,
+                        letterSpacing: 0.3,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  
+                  SizedBox(height: 60.h),
+                  
+                  // Get Started Button with enhanced design
+                  Container(
+                    width: double.infinity,
+                    height: 64.h,
+                    margin: EdgeInsets.symmetric(horizontal: 20.w),
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
                       gradient: LinearGradient(
                         colors: [
                           themeController.lightPinkColor,
                           themeController.purpleColor,
                         ],
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                      ),
+                      borderRadius: BorderRadius.circular(32.r),
+                      boxShadow: [
+                        BoxShadow(
+                          color: themeController.lightPinkColor.withOpacity(0.4),
+                          blurRadius: 20.r,
+                          offset: Offset(0, 8.h),
+                        ),
+                      ],
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          Get.to(() => GetStartedAuthScreen());
+                        },
+                        borderRadius: BorderRadius.circular(32.r),
+                        child: Center(
+                          child: Text(
+                            'Get Started',
+                            style: TextStyle(
+                              fontSize: 20.sp,
+                              fontWeight: FontWeight.w700,
+                              color: themeController.whiteColor,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                    child: Center(
-                      child: Text(
-                        '💕',
-                        style: TextStyle(fontSize: 50.sp),
-                      ),
-                    ),
                   ),
                   
-                  SizedBox(height: 40.h),
+                  SizedBox(height: 30.h),
                   
-                  // App Name
-                  Text(
-                    'Love Bug 💕',
-                    style: TextStyle(
-                      fontSize: 36.sp,
-                      fontWeight: FontWeight.bold,
-                      color: themeController.whiteColor,
-                    ),
-                  ),
-                  
-                  SizedBox(height: 16.h),
-                  
-                  // Tagline
-                  Text(
-                    'Find Your Perfect Match',
-                    style: TextStyle(
-                      fontSize: 24.sp,
-                      fontWeight: FontWeight.w600,
-                      color: themeController.whiteColor,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  
-                  SizedBox(height: 16.h),
-                  
-                  // Description
-                  Text(
-                    'Join millions of people finding love every day. Connect with amazing people and start your journey to find true love.',
-                    style: TextStyle(
-                      fontSize: 16.sp,
-                      color: themeController.whiteColor.withOpacity(0.8),
-                      height: 1.5,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  
-                  SizedBox(height: 80.h),
-                  
-                  // Get Started Button
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56.h,
-                    child: elevatedButton(
-                      title: 'Get Started',
-                      textColor: themeController.whiteColor,
-                      borderRadius: 28,
-                      onPressed: () {
-                        Get.to(() => GetStartedAuthScreen());
-                      },
-                    ),
-                  ),
-                  
-                  SizedBox(height: 24.h),
-                  
-                  // Already have account
-                  Wrap(
-                    alignment: WrapAlignment.center,
+                  // Sign In with better styling
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
                         'Already have an account? ',
                         style: TextStyle(
-                          fontSize: 14.sp,
-                          color: themeController.whiteColor.withOpacity(0.7),
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.w400,
+                          color: themeController.whiteColor.withOpacity(0.8),
                         ),
                       ),
                       GestureDetector(
@@ -142,14 +156,19 @@ class WelcomeScreen extends StatelessWidget {
                         child: Text(
                           'Sign In',
                           style: TextStyle(
-                            fontSize: 14.sp,
-                            color: themeController.lightPinkColor,
+                            fontSize: 16.sp,
                             fontWeight: FontWeight.w600,
+                            color: themeController.lightPinkColor,
+                            decoration: TextDecoration.underline,
+                            decorationColor: themeController.lightPinkColor,
                           ),
                         ),
                       ),
                     ],
                   ),
+                  
+                  // Bottom spacing for better balance
+                  SizedBox(height: 40.h),
                 ],
               ),
             ),

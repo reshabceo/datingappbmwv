@@ -79,16 +79,10 @@ const UserManagement: React.FC<UserManagementProps> = ({ isDarkMode }) => {
     try {
       setIsLoading(true);
       
-      // Get users with optional subscription info and photos
+      // Get users with basic profile info
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
-        .select(`
-          *,
-          user_subscriptions(
-            status,
-            subscription_plans(name)
-          )
-        `)
+        .select('*')
         .order('created_at', { ascending: false })
         .limit(100);
 
@@ -122,8 +116,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ isDarkMode }) => {
           distance: profile.distance || 'Unknown',
           profile_picture: profilePicture,
           subscription: {
-            status: profile.user_subscriptions?.[0]?.status || 'inactive',
-            plan_name: profile.user_subscriptions?.[0]?.subscription_plans?.name || 'Free'
+            status: 'inactive',
+            plan_name: 'Free'
           },
           matches_count: 0, // Will be fetched separately if needed
           reports_count: 0  // Will be fetched separately if needed
@@ -143,6 +137,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ isDarkMode }) => {
         .select('*', { count: 'exact', head: true })
         .eq('is_active', true);
 
+      // Get reported users count
       const { count: reportedCount } = await supabase
         .from('reports')
         .select('reported_id', { count: 'exact', head: true });

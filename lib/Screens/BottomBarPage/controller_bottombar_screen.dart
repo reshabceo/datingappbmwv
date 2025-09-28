@@ -1,11 +1,11 @@
-import 'package:boliler_plate/Screens/ActivityPage/ui_activity_screen.dart';
-import 'package:boliler_plate/Screens/ChatPage/ui_chat_screen.dart';
-import 'package:boliler_plate/Screens/ChatPage/controller_chat_screen.dart';
-import 'package:boliler_plate/Screens/DiscoverPage/ui_discover_screen.dart';
-import 'package:boliler_plate/Screens/ProfilePage/ui_profile_screen.dart';
-import 'package:boliler_plate/Screens/StoriesPage/ui_stories_screen.dart';
-import 'package:boliler_plate/services/supabase_service.dart';
-import 'package:boliler_plate/services/analytics_service.dart';
+import 'package:lovebug/Screens/ActivityPage/ui_activity_screen.dart';
+import 'package:lovebug/Screens/ChatPage/ui_chat_screen.dart';
+import 'package:lovebug/Screens/ChatPage/controller_chat_screen.dart';
+import 'package:lovebug/Screens/DiscoverPage/ui_discover_screen.dart';
+import 'package:lovebug/Screens/ProfilePage/ui_profile_screen.dart';
+import 'package:lovebug/Screens/StoriesPage/ui_stories_screen.dart';
+import 'package:lovebug/services/supabase_service.dart';
+import 'package:lovebug/services/analytics_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 

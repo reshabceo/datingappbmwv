@@ -1,10 +1,10 @@
-import 'package:boliler_plate/Common/common_gradient_appbar.dart';
-import 'package:boliler_plate/Common/text_constant.dart';
-import 'package:boliler_plate/Common/widget_constant.dart';
-import 'package:boliler_plate/Constant/app_assets.dart';
-import 'package:boliler_plate/Screens/BottomBarPage/controller_bottombar_screen.dart';
-import 'package:boliler_plate/ThemeController/theme_controller.dart';
-import 'package:boliler_plate/Screens/ProfileFormPage/multi_step_profile_form.dart';
+import 'package:lovebug/Common/common_gradient_appbar.dart';
+import 'package:lovebug/Common/text_constant.dart';
+import 'package:lovebug/Common/widget_constant.dart';
+import 'package:lovebug/Constant/app_assets.dart';
+import 'package:lovebug/Screens/BottomBarPage/controller_bottombar_screen.dart';
+import 'package:lovebug/ThemeController/theme_controller.dart';
+import 'package:lovebug/Screens/ProfileFormPage/multi_step_profile_form.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -69,7 +69,7 @@ class BottombarScreen extends StatelessWidget {
               Positioned.fill(
                 child: Column(
                   children: [
-                    SizedBox(height: kToolbarHeight + 8.h),
+                    SizedBox(height: kToolbarHeight),
                     Expanded(
                       child: Obx(() {
                         return IndexedStack(

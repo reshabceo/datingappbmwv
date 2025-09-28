@@ -1,10 +1,10 @@
-import 'package:boliler_plate/Common/setting_tile_widget.dart';
-import 'package:boliler_plate/Common/text_constant.dart';
-import 'package:boliler_plate/Common/widget_constant.dart';
-import 'package:boliler_plate/Screens/AuthPage/auth_ui_screen.dart';
-import 'package:boliler_plate/services/supabase_service.dart';
-import 'package:boliler_plate/Screens/Setting/Controller/setting_controller.dart';
-import 'package:boliler_plate/ThemeController/theme_controller.dart';
+import 'package:lovebug/Common/setting_tile_widget.dart';
+import 'package:lovebug/Common/text_constant.dart';
+import 'package:lovebug/Common/widget_constant.dart';
+import 'package:lovebug/Screens/AuthPage/auth_ui_screen.dart';
+import 'package:lovebug/services/supabase_service.dart';
+import 'package:lovebug/Screens/Setting/Controller/setting_controller.dart';
+import 'package:lovebug/ThemeController/theme_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';

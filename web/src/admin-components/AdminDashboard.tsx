@@ -26,6 +26,8 @@ interface AdminDashboardProps {
 
 interface DashboardStats {
   totalUsers: number;
+  activeUsers: number;
+  inactiveUsers: number;
   activeSubscriptions: number;
   totalRevenue: number;
   reportedContent: number;
@@ -41,6 +43,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [language, setLanguage] = useState("english");
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
     totalUsers: 0,
+    activeUsers: 0,
+    inactiveUsers: 0,
     activeSubscriptions: 0,
     totalRevenue: 0,
     reportedContent: 0,
@@ -171,6 +175,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
         .from('profiles')
         .select('*', { count: 'exact', head: true });
 
+      // Get active users count
+      const { count: activeUsers } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_active', true);
+
+      // Get inactive users count
+      const { count: inactiveUsers } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_active', false);
+
       // Get active subscriptions count from REAL table
       const { count: activeSubscriptions } = await supabase
         .from('user_subscriptions')
@@ -204,6 +220,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
       setDashboardStats({
         totalUsers: totalUsers || 0,
+        activeUsers: activeUsers || 0,
+        inactiveUsers: inactiveUsers || 0,
         activeSubscriptions: activeSubscriptions || 0, // Use REAL subscriptions data
         totalRevenue,
         reportedContent: pendingReports || 0,
@@ -597,7 +615,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           {activeModule === 'dashboard' && (
             <div>
               {/* Stats Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 lg:gap-6 mb-6">
                 <Card className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
                   <CardContent className="p-4 lg:p-6">
                     <div className="flex justify-between items-center">

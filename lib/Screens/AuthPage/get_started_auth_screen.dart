@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:boliler_plate/ThemeController/theme_controller.dart';
-import 'package:boliler_plate/Common/widget_constant.dart';
-import 'package:boliler_plate/Common/text_constant.dart';
-import 'package:boliler_plate/Common/textfield_constant.dart';
-import 'package:boliler_plate/Common/glass_butto.dart';
-import 'package:boliler_plate/Constant/app_assets.dart';
+import 'package:lovebug/ThemeController/theme_controller.dart';
+import 'package:lovebug/Common/widget_constant.dart';
+import 'package:lovebug/Common/text_constant.dart';
+import 'package:lovebug/Common/textfield_constant.dart';
+import 'package:lovebug/Common/glass_butto.dart';
+import 'package:lovebug/Constant/app_assets.dart';
 import 'auth_ui_screen.dart';
 import 'auth_controller.dart';
 
@@ -32,26 +32,27 @@ class GetStartedAuthScreen extends StatelessWidget {
           ),
         ),
         child: SafeArea(
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 16.h),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                heightBox(12),
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 16.h),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                heightBox(40),
                 TextConstant(
                   title: 'Log in or sign up',
                   fontSize: 32,
                   fontWeight: FontWeight.w700,
                   color: theme.whiteColor,
                 ),
-                heightBox(12),
+                heightBox(20),
                 TextConstant(
                   title: "You'll get smarter responses and can upload files, images, and more.",
-                  fontSize: 14,
-                  color: theme.whiteColor.withValues(alpha: 0.7),
-                  height: 1.4,
+                  fontSize: 16,
+                  color: theme.whiteColor.withValues(alpha: 0.8),
+                  height: 1.5,
                 ),
-                heightBox(24),
+                heightBox(40),
 
                 // Email field (styled with existing component)
                 TextFieldConstant(
@@ -61,6 +62,8 @@ class GetStartedAuthScreen extends StatelessWidget {
                   hintFontWeight: FontWeight.bold,
                   controller: emailController,
                   keyboardType: TextInputType.emailAddress,
+                  borderColor: theme.whiteColor,
+                  textColor: theme.whiteColor,
                 ),
 
                 heightBox(16),
@@ -91,43 +94,198 @@ class GetStartedAuthScreen extends StatelessWidget {
                   ),
                 ),
 
-                heightBox(16),
+                heightBox(24),
 
                 Row(
                   children: [
                     Expanded(child: Divider(color: theme.whiteColor.withValues(alpha: 0.2))),
                     Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 12.w),
+                      padding: EdgeInsets.symmetric(horizontal: 16.w),
                       child: TextConstant(
                         title: 'OR',
                         color: theme.whiteColor.withValues(alpha: 0.7),
                         fontWeight: FontWeight.w600,
+                        fontSize: 14,
                       ),
                     ),
                     Expanded(child: Divider(color: theme.whiteColor.withValues(alpha: 0.2))),
                   ],
                 ),
 
-                heightBox(16),
+                heightBox(24),
 
-                glassyButton(title: 'Continue with Google', onTap: () {}),
-                heightBox(12),
-                glassyButton(title: 'Continue with Microsoft Account', onTap: () {}),
-                heightBox(12),
-                glassyButton(
-                  title: 'Continue with Apple',
-                  imagePath: AppAssets.appleLogo,
-                  onTap: () {},
+                // Social login buttons with chat bubble gradient style
+                Container(
+                  width: double.infinity,
+                  height: 56.h,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        theme.lightPinkColor.withValues(alpha: 0.15),
+                        theme.purpleColor.withValues(alpha: 0.1),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    border: Border.all(
+                      color: theme.lightPinkColor.withValues(alpha: 0.3),
+                      width: 1.w,
+                    ),
+                    borderRadius: BorderRadius.circular(28.r),
+                    boxShadow: [
+                      BoxShadow(
+                        color: theme.lightPinkColor.withValues(alpha: 0.1),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {},
+                      borderRadius: BorderRadius.circular(28.r),
+                      child: Center(
+                        child: TextConstant(
+                          title: 'Continue with Google',
+                          color: theme.whiteColor.withValues(alpha: 0.9),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
                 heightBox(12),
-                glassyButton(
-                  title: 'Continue with phone',
-                  onTap: () {
-                    Get.to(() => AuthScreen(startMode: 'phone'));
-                  },
+                Container(
+                  width: double.infinity,
+                  height: 56.h,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        theme.lightPinkColor.withValues(alpha: 0.15),
+                        theme.purpleColor.withValues(alpha: 0.1),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    border: Border.all(
+                      color: theme.lightPinkColor.withValues(alpha: 0.3),
+                      width: 1.w,
+                    ),
+                    borderRadius: BorderRadius.circular(28.r),
+                    boxShadow: [
+                      BoxShadow(
+                        color: theme.lightPinkColor.withValues(alpha: 0.1),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {},
+                      borderRadius: BorderRadius.circular(28.r),
+                      child: Center(
+                        child: TextConstant(
+                          title: 'Continue with Microsoft Account',
+                          color: theme.whiteColor.withValues(alpha: 0.9),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                heightBox(12),
+                Container(
+                  width: double.infinity,
+                  height: 56.h,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        theme.lightPinkColor.withValues(alpha: 0.15),
+                        theme.purpleColor.withValues(alpha: 0.1),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    border: Border.all(
+                      color: theme.lightPinkColor.withValues(alpha: 0.3),
+                      width: 1.w,
+                    ),
+                    borderRadius: BorderRadius.circular(28.r),
+                    boxShadow: [
+                      BoxShadow(
+                        color: theme.lightPinkColor.withValues(alpha: 0.1),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {},
+                      borderRadius: BorderRadius.circular(28.r),
+                      child: Center(
+                        child: TextConstant(
+                          title: 'Continue with Apple',
+                          color: theme.whiteColor.withValues(alpha: 0.9),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                heightBox(12),
+                Container(
+                  width: double.infinity,
+                  height: 56.h,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        theme.lightPinkColor.withValues(alpha: 0.15),
+                        theme.purpleColor.withValues(alpha: 0.1),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    border: Border.all(
+                      color: theme.lightPinkColor.withValues(alpha: 0.3),
+                      width: 1.w,
+                    ),
+                    borderRadius: BorderRadius.circular(28.r),
+                    boxShadow: [
+                      BoxShadow(
+                        color: theme.lightPinkColor.withValues(alpha: 0.1),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        Get.to(() => AuthScreen(startMode: 'phone'));
+                      },
+                      borderRadius: BorderRadius.circular(28.r),
+                      child: Center(
+                        child: TextConstant(
+                          title: 'Continue with phone',
+                          color: theme.whiteColor.withValues(alpha: 0.9),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
 
-                const Spacer(),
+                heightBox(40),
 
                 Center(
                   child: Wrap(
@@ -151,6 +309,7 @@ class GetStartedAuthScreen extends StatelessWidget {
                 ),
                 heightBox(12),
               ],
+            ),
             ),
           ),
         ),

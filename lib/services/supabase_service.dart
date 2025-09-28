@@ -79,12 +79,19 @@ class SupabaseService {
   }
   
   static Future<Map<String, dynamic>?> getProfile(String userId) async {
-    final response = await client
-        .from('profiles')
-        .select()
-        .eq('id', userId)
-        .maybeSingle();
-    return response;
+    try {
+      print('🔄 DEBUG: SupabaseService.getProfile called for user: $userId');
+      final response = await client
+          .from('profiles')
+          .select()
+          .eq('id', userId)
+          .maybeSingle();
+      print('🔄 DEBUG: SupabaseService.getProfile response: $response');
+      return response;
+    } catch (e) {
+      print('❌ DEBUG: SupabaseService.getProfile error: $e');
+      return null;
+    }
   }
   
   static Future<void> updateProfile({
@@ -213,7 +220,7 @@ class SupabaseService {
   static Future<List<Map<String, dynamic>>> getMessages(String matchId) async {
     final response = await client
         .from('messages')
-        .select('id,match_id,sender_id,content,created_at,story_id,is_story_reply,story_user_name')
+        .select('id,match_id,sender_id,content,created_at,story_id,is_story_reply,story_user_name,is_disappearing_photo,disappearing_photo_id')
         .eq('match_id', matchId)
         .order('created_at', ascending: true);
     return (response as List).cast<Map<String, dynamic>>();
@@ -353,12 +360,17 @@ class SupabaseService {
     required String path,
     required List<int> fileBytes,
   }) async {
-    await client.storage.from(bucket).uploadBinary(
-      path,
-      Uint8List.fromList(fileBytes),
-    );
-    
-    return client.storage.from(bucket).getPublicUrl(path);
+    try {
+      await client.storage.from(bucket).uploadBinary(
+        path,
+        Uint8List.fromList(fileBytes),
+      );
+      
+      final urlResponse = client.storage.from(bucket).getPublicUrl(path);
+      return urlResponse;
+    } catch (e) {
+      throw Exception('Upload failed: $e');
+    }
   }
 
   // Stories

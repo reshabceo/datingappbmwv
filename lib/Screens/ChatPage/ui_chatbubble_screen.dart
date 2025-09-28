@@ -1,7 +1,12 @@
-import 'package:boliler_plate/Common/text_constant.dart';
-import 'package:boliler_plate/Common/widget_constant.dart';
-import 'package:boliler_plate/Screens/ChatPage/controller_message_screen.dart';
-import 'package:boliler_plate/ThemeController/theme_controller.dart';
+import 'package:lovebug/Common/text_constant.dart';
+import 'package:lovebug/Common/widget_constant.dart';
+import 'package:lovebug/Screens/ChatPage/controller_message_screen.dart';
+import 'package:lovebug/Screens/DiscoverPage/profile_detail_screen.dart';
+import 'package:lovebug/Screens/DiscoverPage/controller_discover_screen.dart';
+import 'package:lovebug/Screens/ChatPage/disappearing_photo_screen.dart';
+import 'package:lovebug/services/disappearing_photo_service.dart';
+import 'package:lovebug/ThemeController/theme_controller.dart';
+import 'package:lovebug/services/supabase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
@@ -11,10 +16,251 @@ class ChatBubble extends StatelessWidget {
   final Message message;
   final String userImage;
   final String userName;
+  final String? matchId;
 
-  ChatBubble({super.key, required this.message, required this.userImage, required this.userName});
+  ChatBubble({super.key, required this.message, required this.userImage, required this.userName, this.matchId});
 
   final ThemeController themeController = Get.find<ThemeController>();
+
+  Profile _mapToProfile(Map<String, dynamic> profileData) {
+    final photos = <String>[];
+    if (profileData['photos'] != null) {
+      photos.addAll(List<String>.from(profileData['photos']));
+    }
+    if (profileData['image_urls'] != null) {
+      photos.addAll(List<String>.from(profileData['image_urls']));
+    }
+    
+    final hobbies = <String>[];
+    if (profileData['hobbies'] != null) {
+      hobbies.addAll(List<String>.from(profileData['hobbies']));
+    }
+    if (profileData['interests'] != null) {
+      hobbies.addAll(List<String>.from(profileData['interests']));
+    }
+
+    return Profile(
+      id: profileData['id']?.toString() ?? '',
+      name: profileData['name']?.toString() ?? 'User',
+      age: (profileData['age'] ?? 25) as int,
+      imageUrl: photos.isNotEmpty ? photos.first : '',
+      photos: photos,
+      location: profileData['location']?.toString() ?? 'Unknown',
+      distance: profileData['distance']?.toString() ?? 'Unknown distance',
+      description: profileData['description']?.toString() ?? 
+                  profileData['bio']?.toString() ?? 
+                  'No description available',
+      hobbies: hobbies,
+      isVerified: (profileData['is_verified'] ?? false) as bool,
+      isActiveNow: (profileData['is_active'] ?? false) as bool,
+    );
+  }
+
+  Future<void> _viewProfile() async {
+    if (matchId == null) return;
+    
+    try {
+      // Get the match details to find the other user's ID
+      final match = await SupabaseService.getMatchById(matchId!);
+      if (match != null) {
+        final currentUserId = SupabaseService.currentUser?.id;
+        final userId1 = match['user_id_1']?.toString();
+        final userId2 = match['user_id_2']?.toString();
+        
+        // Find the other user's ID (not the current user)
+        String? otherUserId;
+        if (userId1 == currentUserId) {
+          otherUserId = userId2;
+        } else if (userId2 == currentUserId) {
+          otherUserId = userId1;
+        }
+        
+        if (otherUserId != null) {
+          // Get the other user's profile
+          final profileData = await SupabaseService.getProfile(otherUserId);
+          if (profileData != null) {
+            // Convert Map to Profile object
+            final profile = _mapToProfile(profileData);
+            // Navigate to profile detail screen (this is a matched profile)
+            Get.to(() => ProfileDetailScreen(profile: profile, isMatched: true));
+          } else {
+            Get.snackbar('Error', 'Profile not found');
+          }
+        } else {
+          Get.snackbar('Error', 'Could not find user profile');
+        }
+      } else {
+        Get.snackbar('Error', 'Match not found');
+      }
+    } catch (e) {
+      print('Error viewing profile: $e');
+      Get.snackbar('Error', 'Failed to load profile');
+    }
+  }
+
+  Future<void> _viewDisappearingPhoto() async {
+    if (message.disappearingPhotoId == null) {
+      Get.snackbar('Error', 'Disappearing photo ID not found');
+      return;
+    }
+
+    try {
+      print('🔄 DEBUG: Viewing disappearing photo: ${message.disappearingPhotoId}');
+      
+      // Get the disappearing photo details
+      final photoData = await DisappearingPhotoService.getDisappearingPhoto(message.disappearingPhotoId!);
+      
+      if (photoData == null) {
+        Get.snackbar('Error', 'Photo not found or expired');
+        return;
+      }
+
+      print('✅ DEBUG: Photo data: $photoData');
+      
+      // Check if photo is expired
+      final expiresAt = DateTime.parse(photoData['expires_at']);
+      if (DateTime.now().isAfter(expiresAt)) {
+        Get.snackbar('Error', 'Photo has expired');
+        return;
+      }
+
+      // Check if already viewed by current user
+      final currentUserId = SupabaseService.currentUser?.id;
+      if (photoData['viewed_by'] != null && photoData['viewed_by'] == currentUserId) {
+        Get.snackbar('Error', 'You have already viewed this photo');
+        return;
+      }
+
+      // Mark as viewed in database BEFORE opening
+      await DisappearingPhotoService.markPhotoAsViewed(message.disappearingPhotoId!);
+
+      // Navigate to disappearing photo viewer
+      Get.to(() => DisappearingPhotoScreen(
+        photoUrl: photoData['photo_url'],
+        senderName: userName,
+        sentAt: DateTime.parse(photoData['created_at']),
+        viewDuration: photoData['view_duration'],
+      ));
+      
+    } catch (e) {
+      print('❌ DEBUG: Error viewing disappearing photo: $e');
+      Get.snackbar('Error', 'Failed to load photo: $e');
+    }
+  }
+
+  Widget _buildMessageContent() {
+    // Check if it's a photo message
+    if (message.text.startsWith('📸 Photo: ')) {
+      final photoUrl = message.text.substring(10); // Remove "📸 Photo: " prefix
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextConstant(
+            title: '📸 Photo',
+            color: themeController.whiteColor.withValues(alpha: 0.9),
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+          SizedBox(height: 8.h),
+          Container(
+            constraints: BoxConstraints(
+              maxWidth: 200.w,
+              maxHeight: 200.h,
+            ),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8.r),
+              border: Border.all(
+                color: themeController.lightPinkColor.withValues(alpha: 0.3),
+                width: 1.w,
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(7.r),
+              child: Image.network(
+                photoUrl,
+                fit: BoxFit.cover,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Container(
+                    height: 100.h,
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        value: loadingProgress.expectedTotalBytes != null
+                            ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                            : null,
+                        color: themeController.lightPinkColor,
+                      ),
+                    ),
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    height: 100.h,
+                    color: themeController.lightPinkColor.withValues(alpha: 0.2),
+                    child: Icon(
+                      LucideIcons.image,
+                      color: themeController.lightPinkColor,
+                      size: 30,
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+    
+    // Check if it's a disappearing photo
+    if (message.isDisappearingPhoto) {
+      return GestureDetector(
+        onTap: () => _viewDisappearingPhoto(),
+        onLongPress: () => _viewDisappearingPhoto(), // Tap and hold also works
+        child: Container(
+          padding: EdgeInsets.all(8.w),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: themeController.purpleColor.withValues(alpha: 0.5),
+              width: 1.w,
+            ),
+            borderRadius: BorderRadius.circular(8.r),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                LucideIcons.eyeOff,
+                color: themeController.purpleColor,
+                size: 16,
+              ),
+              SizedBox(width: 8.w),
+              TextConstant(
+                title: '📸 Disappearing Photo',
+                color: themeController.whiteColor.withValues(alpha: 0.9),
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+              SizedBox(width: 4.w),
+              Icon(
+                LucideIcons.play,
+                color: themeController.purpleColor,
+                size: 12,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
+    // Regular text message
+    return TextConstant(
+      title: message.text,
+      color: themeController.whiteColor.withValues(alpha: 0.9),
+      softWrap: true, 
+      fontSize: 14, 
+      height: 1.3,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -130,27 +376,30 @@ class ChatBubble extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Profile picture
-                Stack(
-                  alignment: Alignment.bottomRight,
-                  children: [
-                    ProfileAvatar(
-                      imageUrl: userImage, 
-                      size: 32, 
-                      borderWidth: 2.w,
-                    ),
-                    Container(
-                      height: 10.h,
-                      width: 10.h,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: themeController.lightPinkColor,
-                        border: Border.all(
-                          color: themeController.whiteColor,
-                          width: 1.5.w,
+                GestureDetector(
+                  onTap: _viewProfile,
+                  child: Stack(
+                    alignment: Alignment.bottomRight,
+                    children: [
+                      ProfileAvatar(
+                        imageUrl: userImage, 
+                        size: 32, 
+                        borderWidth: 2.w,
+                      ),
+                      Container(
+                        height: 10.h,
+                        width: 10.h,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: themeController.lightPinkColor,
+                          border: Border.all(
+                            color: themeController.whiteColor,
+                            width: 1.5.w,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
                 SizedBox(width: 8.w),
                 // Message bubble (dynamic width)
@@ -182,13 +431,7 @@ class ChatBubble extends StatelessWidget {
                         ),
                       ],
                     ),
-                    child: TextConstant(
-                      title: message.text,
-                      color: themeController.whiteColor.withValues(alpha: 0.9),
-                      softWrap: true, 
-                      fontSize: 14, 
-                      height: 1.3,
-                    ),
+                    child: _buildMessageContent(),
                   ),
                 ),
               ],
@@ -238,13 +481,7 @@ class ChatBubble extends StatelessWidget {
                         ),
                       ],
                     ),
-                    child: TextConstant(
-                      title: message.text,
-                      softWrap: true,
-                      fontSize: 14,
-                      height: 1.3,
-                      color: themeController.whiteColor.withValues(alpha: 0.9),
-                    ),
+                    child: _buildMessageContent(),
                   ),
                 ),
               ],
@@ -269,10 +506,21 @@ class ChatBubble extends StatelessWidget {
   }
 
   String formatTime(DateTime dateTime) {
-    String period = dateTime.hour >= 12 ? 'PM' : 'AM';
-    int hour = dateTime.hour > 12 ? dateTime.hour - 12 : dateTime.hour;
+    // Convert to local timezone
+    final localTime = dateTime.toLocal();
+    String period = localTime.hour >= 12 ? 'PM' : 'AM';
+    int hour = localTime.hour > 12 ? localTime.hour - 12 : localTime.hour;
     if (hour == 0) hour = 12;
-    final minute = dateTime.minute.toString().padLeft(2, '0');
+    final minute = localTime.minute.toString().padLeft(2, '0');
+    
+    // Debug logging for disappearing photos
+    if (message.isDisappearingPhoto) {
+      print('🕐 DEBUG: Disappearing photo timestamp conversion:');
+      print('  - Original UTC: $dateTime');
+      print('  - Local time: $localTime');
+      print('  - Formatted: $hour:$minute $period');
+    }
+    
     return '$hour:$minute $period';
   }
 

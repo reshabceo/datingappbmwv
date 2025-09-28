@@ -1,5 +1,5 @@
-import 'package:boliler_plate/global_data.dart';
-import 'package:boliler_plate/shared_prefrence_helper.dart';
+import 'package:lovebug/global_data.dart';
+import 'package:lovebug/shared_prefrence_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 

@@ -1,15 +1,15 @@
 import 'package:get/get.dart';
-import 'package:boliler_plate/services/supabase_service.dart';
-import 'package:boliler_plate/services/analytics_service.dart';
-import 'package:boliler_plate/Screens/ChatPage/ui_message_screen.dart';
-import 'package:boliler_plate/ThemeController/theme_controller.dart';
+import 'package:lovebug/services/supabase_service.dart';
+import 'package:lovebug/services/analytics_service.dart';
+import 'package:lovebug/Screens/ChatPage/chat_integration_helper.dart';
+import 'package:lovebug/ThemeController/theme_controller.dart';
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:math' as math;
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:boliler_plate/shared_prefrence_helper.dart';
+import 'package:lovebug/shared_prefrence_helper.dart';
 import 'package:collection/collection.dart';
 
 class DiscoverController extends GetxController {
@@ -176,6 +176,18 @@ class DiscoverController extends GetxController {
       // For now, client-side filtering after fetch; can move to RPC later
       final rows = await SupabaseService.getProfiles();
 
+      // Debug: Log all profiles being processed
+      print('🔍 DEBUG: Total profiles fetched: ${rows.length}');
+      for (final r in rows) {
+        final name = (r['name'] ?? '').toString();
+        if (name.toLowerCase().contains('ashley')) {
+          print('🔍 DEBUG: Found Ashley in raw data:');
+          print('  - Name: $name');
+          print('  - photos field: ${r['photos']} (type: ${r['photos'].runtimeType})');
+          print('  - image_urls field: ${r['image_urls']} (type: ${r['image_urls'].runtimeType})');
+        }
+      }
+      
       final loaded = rows
           .where((r) {
             final id = (r['id'] ?? '').toString();
@@ -207,9 +219,21 @@ class DiscoverController extends GetxController {
             return d <= maxDistanceKm.value;
           })
           .map((r) {
-            // photos/image_urls support
-            List<String> photos = _asStringList(r['photos']);
-            if (photos.isEmpty) photos = _asStringList(r['image_urls']);
+            // photos/image_urls support - Check image_urls FIRST (current field)
+            List<String> photos = _asStringList(r['image_urls']);
+            if (photos.isEmpty) photos = _asStringList(r['photos']);
+            
+            // Debug logging for Ashley's profile
+            if ((r['name'] ?? '').toString().toLowerCase().contains('ashley')) {
+              print('🔍 DEBUG: Ashley profile data:');
+              print('  - Raw data: $r');
+              print('  - photos field: ${r['photos']} (type: ${r['photos'].runtimeType})');
+              print('  - image_urls field: ${r['image_urls']} (type: ${r['image_urls'].runtimeType})');
+              print('  - photos after _asStringList: $photos');
+              print('  - photos length: ${photos.length}');
+              print('  - Final imageUrl: ${photos.isNotEmpty ? photos.first : "NONE"}');
+            }
+            
             return Profile(
               id: (r['id'] ?? '').toString(),
               name: (r['name'] ?? '').toString(),
@@ -289,7 +313,10 @@ class DiscoverController extends GetxController {
   }
 
   List<String> _asStringList(dynamic v) {
-    if (v is List) return v.map((e) => e.toString()).toList();
+    if (v == null) return [];
+    if (v is List) {
+      return v.map((e) => e?.toString() ?? '').where((s) => s.isNotEmpty).toList();
+    }
     if (v is String && v.isNotEmpty) return [v];
     return [];
   }
@@ -502,7 +529,11 @@ class DiscoverController extends GetxController {
                           GestureDetector(
                             onTap: () {
                               Get.back();
-                              Get.to(() => MessageScreen(userName: profile.name, userImage: profile.imageUrl, matchId: matchId));
+                              ChatIntegrationHelper.navigateToChat(
+                                userName: profile.name,
+                                userImage: profile.imageUrl,
+                                matchId: matchId,
+                              );
                             },
                             child: Container(
                               padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 14.h),

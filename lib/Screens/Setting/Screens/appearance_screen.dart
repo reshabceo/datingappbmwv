@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:boliler_plate/Common/text_constant.dart';
-import 'package:boliler_plate/ThemeController/theme_controller.dart';
+import 'package:lovebug/Common/text_constant.dart';
+import 'package:lovebug/ThemeController/theme_controller.dart';
 
 class AppearanceSettingsScreen extends StatelessWidget {
   AppearanceSettingsScreen({super.key});

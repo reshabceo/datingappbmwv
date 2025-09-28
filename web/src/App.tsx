@@ -3,7 +3,6 @@ import { Routes, Route, Link, useLocation } from 'react-router-dom'
 import Login from './pages/Login'
 import Profiles from './pages/Profiles'
 import Home from './pages/Home'
-import Admin from './pages/Admin'
 import ProfileDetail from './pages/ProfileDetail'
 import PhoneOtp from './pages/Auth/PhoneOtp'
 import MagicLinkVerify from './pages/Auth/MagicLinkVerify'
@@ -48,6 +47,7 @@ import Press from './pages/Press'
 import Blog from './pages/Blog'
 import SubscriptionPlansAdmin from './pages/admin/SubscriptionPlansAdmin'
 import OffersAdmin from './pages/admin/OffersAdmin'
+import ReportsManagement from './admin-components/ReportsManagement'
 
 export default function App() {
   const { user, signOut } = useAuth()
@@ -194,12 +194,13 @@ export default function App() {
         {/* Admin routes - no header/footer */}
         <Route path="/admin/*" element={
           <Routes>
-            <Route path="/" element={<ProtectedRoute adminRequired={true}><Admin /></ProtectedRoute>} />
+            <Route path="/" element={<AdminDashboard />} />
+            <Route path="/dashboard" element={<AdminDashboard />} />
             <Route path="/subscriptions" element={<ProtectedRoute adminRequired={true}><AdminSubscriptions /></ProtectedRoute>} />
             <Route path="/subscription-plans" element={<ProtectedRoute adminRequired={true}><SubscriptionPlansAdmin /></ProtectedRoute>} />
             <Route path="/offers" element={<ProtectedRoute adminRequired={true}><OffersAdmin /></ProtectedRoute>} />
+            <Route path="/reports" element={<ProtectedRoute adminRequired={true}><ReportsManagement /></ProtectedRoute>} />
             <Route path="/embed" element={<AdminEmbed />} />
-            <Route path="/dashboard" element={<AdminDashboard />} />
           </Routes>
         } />
         

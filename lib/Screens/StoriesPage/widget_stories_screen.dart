@@ -1,8 +1,11 @@
-import 'package:boliler_plate/Common/text_constant.dart';
-import 'package:boliler_plate/Common/widget_constant.dart';
-import 'package:boliler_plate/Screens/StoriesPage/controller_stories_screen.dart';
-import 'package:boliler_plate/Screens/StoriesPage/ui_show_story_screen.dart';
-import 'package:boliler_plate/ThemeController/theme_controller.dart';
+import 'package:lovebug/Common/text_constant.dart';
+import 'package:lovebug/Common/widget_constant.dart';
+import 'package:lovebug/Screens/StoriesPage/controller_stories_screen.dart';
+import 'package:lovebug/Screens/StoriesPage/ui_show_story_screen.dart';
+import 'package:lovebug/Screens/DiscoverPage/profile_detail_screen.dart';
+import 'package:lovebug/Screens/DiscoverPage/controller_discover_screen.dart';
+import 'package:lovebug/ThemeController/theme_controller.dart';
+import 'package:lovebug/services/supabase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
@@ -10,40 +13,100 @@ import 'package:get/get.dart';
 class WidgetStories {
   ThemeController themeController = Get.find<ThemeController>();
 
+  Profile _mapToProfile(Map<String, dynamic> profileData) {
+    final photos = <String>[];
+    if (profileData['photos'] != null) {
+      photos.addAll(List<String>.from(profileData['photos']));
+    }
+    if (profileData['image_urls'] != null) {
+      photos.addAll(List<String>.from(profileData['image_urls']));
+    }
+    
+    final hobbies = <String>[];
+    if (profileData['hobbies'] != null) {
+      hobbies.addAll(List<String>.from(profileData['hobbies']));
+    }
+    if (profileData['interests'] != null) {
+      hobbies.addAll(List<String>.from(profileData['interests']));
+    }
+
+    return Profile(
+      id: profileData['id']?.toString() ?? '',
+      name: profileData['name']?.toString() ?? 'User',
+      age: (profileData['age'] ?? 25) as int,
+      imageUrl: photos.isNotEmpty ? photos.first : '',
+      photos: photos,
+      location: profileData['location']?.toString() ?? 'Unknown',
+      distance: profileData['distance']?.toString() ?? 'Unknown distance',
+      description: profileData['description']?.toString() ?? 
+                  profileData['bio']?.toString() ?? 
+                  'No description available',
+      hobbies: hobbies,
+      isVerified: (profileData['is_verified'] ?? false) as bool,
+      isActiveNow: (profileData['is_active'] ?? false) as bool,
+    );
+  }
+
+  Future<void> _viewProfile(String userId) async {
+    try {
+      print('🔍 _viewProfile called for userId: $userId');
+      // Get the user's profile
+      final profileData = await SupabaseService.getProfile(userId);
+      print('🔍 Profile data received: $profileData');
+      if (profileData != null) {
+        // Convert Map to Profile object
+        final profile = _mapToProfile(profileData);
+        print('🔍 Profile object created: ${profile.name}');
+        // Navigate to profile detail screen with isMatched: true
+        Get.to(() => ProfileDetailScreen(profile: profile, isMatched: true));
+      } else {
+        print('❌ Profile data is null');
+        Get.snackbar('Error', 'Profile not found');
+      }
+    } catch (e) {
+      print('❌ Error viewing profile: $e');
+      Get.snackbar('Error', 'Failed to load profile');
+    }
+  }
+
   Widget storyGroupCard({required StoryGroup storyGroup, required VoidCallback onTap}) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        margin: EdgeInsets.only(bottom: 12.h),
-        child: Row(
-          children: [
-            // Profile Avatar with Story Ring
-            Stack(
-              children: [
-                Container(
-                  padding: EdgeInsets.all(2),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: storyGroup.hasUnviewed
-                        ? LinearGradient(
-                            colors: [
-                              themeController.lightPinkColor,
-                              themeController.lightPinkColor.withValues(alpha: 0.7),
-                            ],
-                          )
-                        : LinearGradient(
-                            colors: [
-                              themeController.greyColor,
-                              themeController.greyColor,
-                            ],
-                          ),
+    return Container(
+      margin: EdgeInsets.only(bottom: 12.h),
+      child: Row(
+        children: [
+          // Profile Avatar with Story Ring
+          GestureDetector(
+            onTap: () {
+              print('🎯 Profile picture tapped for user: ${storyGroup.userId}');
+              print('🎯 StoryGroup details: ${storyGroup.userName}, ${storyGroup.avatarUrl}');
+              _viewProfile(storyGroup.userId);
+            },
+            child: Stack(
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: storyGroup.hasUnviewed
+                          ? LinearGradient(
+                              colors: [
+                                themeController.lightPinkColor,
+                                themeController.lightPinkColor.withValues(alpha: 0.7),
+                              ],
+                            )
+                          : LinearGradient(
+                              colors: [
+                                themeController.greyColor,
+                                themeController.greyColor,
+                              ],
+                            ),
+                    ),
+                    child: ProfileAvatar(
+                      imageUrl: storyGroup.avatarUrl,
+                      borderWidth: 0,
+                      size: 50,
+                    ),
                   ),
-                  child: ProfileAvatar(
-                    imageUrl: storyGroup.avatarUrl,
-                    borderWidth: 0,
-                    size: 50,
-                  ),
-                ),
                 if (storyGroup.hasUnviewed)
                   Positioned(
                     top: 0,
@@ -61,51 +124,57 @@ class WidgetStories {
                       ),
                     ),
                   ),
-              ],
-            ),
-            
-            widthBox(12),
-            
-            // User Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextConstant(
-                    title: storyGroup.userName,
-                    fontWeight: FontWeight.bold,
-                    color: themeController.whiteColor,
-                    fontSize: 16,
-                  ),
-                  TextConstant(
-                    title: '${storyGroup.stories.length} story${storyGroup.stories.length > 1 ? 'ies' : ''}',
-                    color: themeController.whiteColor.withValues(alpha: 0.7),
-                    fontSize: 14,
-                  ),
                 ],
               ),
             ),
             
+            widthBox(12),
+            
+            // User Info and Story Tap Area
+            Expanded(
+              child: GestureDetector(
+                onTap: onTap,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextConstant(
+                      title: storyGroup.userName,
+                      fontWeight: FontWeight.bold,
+                      color: themeController.whiteColor,
+                      fontSize: 16,
+                    ),
+                    TextConstant(
+                      title: '${storyGroup.stories.length} story${storyGroup.stories.length > 1 ? 'ies' : ''}',
+                      color: themeController.whiteColor.withValues(alpha: 0.7),
+                      fontSize: 14,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            
             // Time and Arrow
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                TextConstant(
-                  title: storyGroup.stories.first.timeLabel,
-                  color: themeController.whiteColor.withValues(alpha: 0.7),
-                  fontSize: 12,
-                ),
-                Icon(
-                  Icons.arrow_forward_ios,
-                  color: themeController.whiteColor.withValues(alpha: 0.5),
-                  size: 16,
-                ),
-              ],
+            GestureDetector(
+              onTap: onTap,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  TextConstant(
+                    title: storyGroup.stories.first.timeLabel,
+                    color: themeController.whiteColor.withValues(alpha: 0.7),
+                    fontSize: 12,
+                  ),
+                  Icon(
+                    Icons.arrow_forward_ios,
+                    color: themeController.whiteColor.withValues(alpha: 0.5),
+                    size: 16,
+                  ),
+                ],
+              ),
             ),
           ],
         ),
-      ),
-    );
+      );
   }
 
   Widget storiesCard({required StoryItem story}) {

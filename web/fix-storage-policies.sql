@@ -1,0 +1,2 @@
+-- Long-term storage policy fix for profile photo uploads
+-- This creates proper RLS policies that work securelym webiste and its u

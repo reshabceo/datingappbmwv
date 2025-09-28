@@ -12,16 +12,30 @@ export default function Step3Photos() {
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null)
   const addPhoto = async (index: number, file: File) => {
     if (!user || !file) return
+    
+    // Validate file
+    if (file.size > 10 * 1024 * 1024) { // 10MB limit
+      alert('File size must be less than 10MB')
+      return
+    }
+    
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file')
+      return
+    }
+    
     try {
       setUploadingIndex(index)
-      console.log('[Step3Photos] uploading file', index, file.name)
+      console.log('[Step3Photos] uploading file', index, file.name, 'size:', file.size)
       const url = await uploadProfileImage(file, user.id)
-      if (!url) throw new Error('Upload failed')
+      if (!url) {
+        throw new Error('Upload failed - no URL returned')
+      }
       setPhotos((s) => [...s, url])
       console.log('[Step3Photos] uploaded url', url)
     } catch (e: any) {
       console.error('[Step3Photos] upload error', e)
-      alert(e?.message || 'Image upload failed')
+      alert(`Image upload failed: ${e?.message || 'Unknown error'}`)
     } finally {
       setUploadingIndex(null)
     }

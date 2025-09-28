@@ -1,8 +1,10 @@
-import 'package:boliler_plate/Common/text_constant.dart';
-import 'package:boliler_plate/Common/widget_constant.dart';
-import 'package:boliler_plate/Screens/StoriesPage/controller_stories_screen.dart';
-import 'package:boliler_plate/ThemeController/theme_controller.dart';
-import 'package:boliler_plate/services/supabase_service.dart';
+import 'package:lovebug/Common/text_constant.dart';
+import 'package:lovebug/Common/widget_constant.dart';
+import 'package:lovebug/Screens/StoriesPage/controller_stories_screen.dart';
+import 'package:lovebug/Screens/DiscoverPage/profile_detail_screen.dart';
+import 'package:lovebug/Screens/DiscoverPage/controller_discover_screen.dart';
+import 'package:lovebug/ThemeController/theme_controller.dart';
+import 'package:lovebug/services/supabase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
@@ -51,6 +53,62 @@ class _InstagramStoryViewerState extends State<InstagramStoryViewer>
       setState(() {
         _likedStories[currentStory.id] = !_isLiked;
       });
+    }
+  }
+
+  Profile _mapToProfile(Map<String, dynamic> profileData) {
+    final photos = <String>[];
+    if (profileData['photos'] != null) {
+      photos.addAll(List<String>.from(profileData['photos']));
+    }
+    if (profileData['image_urls'] != null) {
+      photos.addAll(List<String>.from(profileData['image_urls']));
+    }
+    
+    final hobbies = <String>[];
+    if (profileData['hobbies'] != null) {
+      hobbies.addAll(List<String>.from(profileData['hobbies']));
+    }
+    if (profileData['interests'] != null) {
+      hobbies.addAll(List<String>.from(profileData['interests']));
+    }
+
+    return Profile(
+      id: profileData['id']?.toString() ?? '',
+      name: profileData['name']?.toString() ?? 'User',
+      age: (profileData['age'] ?? 25) as int,
+      imageUrl: photos.isNotEmpty ? photos.first : '',
+      photos: photos,
+      location: profileData['location']?.toString() ?? 'Unknown',
+      distance: profileData['distance']?.toString() ?? 'Unknown distance',
+      description: profileData['description']?.toString() ?? 
+                  profileData['bio']?.toString() ?? 
+                  'No description available',
+      hobbies: hobbies,
+      isVerified: (profileData['is_verified'] ?? false) as bool,
+      isActiveNow: (profileData['is_active'] ?? false) as bool,
+    );
+  }
+
+  Future<void> _viewProfile(String userId) async {
+    try {
+      print('🔍 _viewProfile called for userId: $userId');
+      // Get the user's profile
+      final profileData = await SupabaseService.getProfile(userId);
+      print('🔍 Profile data received: $profileData');
+      if (profileData != null) {
+        // Convert Map to Profile object
+        final profile = _mapToProfile(profileData);
+        print('🔍 Profile object created: ${profile.name}');
+        // Navigate to profile detail screen with isMatched: true
+        Get.to(() => ProfileDetailScreen(profile: profile, isMatched: true));
+      } else {
+        print('❌ Profile data is null');
+        Get.snackbar('Error', 'Profile not found');
+      }
+    } catch (e) {
+      print('❌ Error viewing profile: $e');
+      Get.snackbar('Error', 'Failed to load profile');
     }
   }
 
@@ -453,10 +511,16 @@ class _InstagramStoryViewerState extends State<InstagramStoryViewer>
     
     return Row(
       children: [
-        ProfileAvatar(
-          imageUrl: currentGroup.avatarUrl,
-          borderWidth: 2,
-          size: 40,
+        GestureDetector(
+          onTap: () {
+            print('🎯 Profile picture tapped in story viewer for user: ${currentGroup.userId}');
+            _viewProfile(currentGroup.userId);
+          },
+          child: ProfileAvatar(
+            imageUrl: currentGroup.avatarUrl,
+            borderWidth: 2,
+            size: 40,
+          ),
         ),
         widthBox(12),
         Expanded(

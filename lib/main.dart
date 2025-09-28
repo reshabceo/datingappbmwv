@@ -1,10 +1,10 @@
-import 'package:boliler_plate/Language/all_languages.dart';
-import 'package:boliler_plate/Screens/WelcomePage/welcome_screen.dart';
-import 'package:boliler_plate/global_data.dart';
-import 'package:boliler_plate/shared_prefrence_helper.dart';
-import 'package:boliler_plate/services/supabase_service.dart';
-import 'package:boliler_plate/services/analytics_service.dart';
-import 'package:boliler_plate/services/payment_service.dart';
+import 'package:lovebug/Language/all_languages.dart';
+import 'package:lovebug/Screens/WelcomePage/welcome_screen.dart';
+import 'package:lovebug/global_data.dart';
+import 'package:lovebug/shared_prefrence_helper.dart';
+import 'package:lovebug/services/supabase_service.dart';
+import 'package:lovebug/services/analytics_service.dart';
+import 'package:lovebug/services/payment_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -16,6 +16,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'Screens/BottomBarPage/bottombar_screen.dart';
 import 'Screens/ProfileFormPage/multi_step_profile_form.dart';
+import 'Screens/AuthPage/auth_ui_screen.dart';
 import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -25,6 +26,7 @@ Future<void> main() async {
   // Initialize Supabase
   await SupabaseService.initialize();
   
+<<<<<<< Updated upstream
   // Initialize Payment Service
   await PaymentService.initialize();
   
@@ -110,7 +112,8 @@ class _AuthGateState extends State<_AuthGate> {
     super.initState();
     _checkSessionAndProfile();
     // React to login/logout in real time
-    _authSub = SupabaseService.authStateChanges.listen((_) {
+    _authSub = SupabaseService.authStateChanges.listen((authState) {
+      print('🔄 DEBUG: Auth state changed - event: ${authState.event}, session: ${authState.session != null}');
       _checkSessionAndProfile();
     });
   }
@@ -120,12 +123,32 @@ class _AuthGateState extends State<_AuthGate> {
     await Future.delayed(const Duration(milliseconds: 150));
     final session = SupabaseService.client.auth.currentSession;
     
+    print('🔄 DEBUG: _AuthGate checking session - has session: ${session != null}');
+    
     if (session != null) {
       // User is authenticated, check if they have a complete profile
       try {
         final user = SupabaseService.currentUser;
         if (user != null) {
           final profile = await SupabaseService.getProfile(user.id);
+          
+          // Check if user account is deactivated
+          if (profile != null && profile['is_active'] == false) {
+            print('🚫 DEBUG: User account is deactivated');
+            // Store user ID before signing out
+            final userId = user.id;
+            // Sign out the user and show deactivation message
+            await SupabaseService.signOut();
+            _showAccountDeactivatedDialog(userId);
+            setState(() {
+              _ready = true;
+              _hasSession = false;
+              _hasProfile = false;
+              _checkingProfile = false;
+            });
+            return;
+          }
+          
           setState(() {
             _ready = true;
             _hasSession = true;
@@ -133,8 +156,8 @@ class _AuthGateState extends State<_AuthGate> {
             _checkingProfile = false;
           });
           
-          // Start analytics session for authenticated user
-          await AnalyticsService.startSession();
+          // Start analytics session for authenticated user - Temporarily disabled
+          // await AnalyticsService.startSession();
         } else {
           setState(() {
             _ready = true;
@@ -152,8 +175,8 @@ class _AuthGateState extends State<_AuthGate> {
           _checkingProfile = false;
         });
         
-        // Start analytics session even if profile check fails
-        await AnalyticsService.startSession();
+        // Start analytics session even if profile check fails - Temporarily disabled
+        // await AnalyticsService.startSession();
       }
     } else {
       setState(() {
@@ -162,6 +185,99 @@ class _AuthGateState extends State<_AuthGate> {
         _hasProfile = false;
         _checkingProfile = false;
       });
+    }
+  }
+
+  void _showAccountDeactivatedDialog(String userId) {
+    Get.dialog(
+      AlertDialog(
+        title: Text('Account Deactivated'),
+        content: Text('Your account has been deactivated. All your data is preserved and will be restored when you reactivate your account.'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Get.back();
+              // Navigate to welcome screen
+              Get.offAll(() => WelcomeScreen());
+            },
+            child: Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Get.back();
+              await _reactivateAccount(userId);
+            },
+            child: Text('Reactivate Account'),
+          ),
+        ],
+      ),
+      barrierDismissible: false,
+    );
+  }
+
+  Future<void> _reactivateAccount(String userId) async {
+    try {
+      // Show loading
+      Get.dialog(
+        Center(
+          child: Container(
+            padding: EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.black,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(color: Colors.pink),
+                SizedBox(height: 10),
+                Text(
+                  'Reactivating account...',
+                  style: TextStyle(color: Colors.white, fontSize: 14),
+                ),
+              ],
+            ),
+          ),
+        ),
+        barrierDismissible: false,
+      );
+
+      // Reactivate the user's account using the stored user ID
+      print('🔄 Reactivating account for user: $userId');
+      final response = await SupabaseService.client
+          .from('profiles')
+          .update({'is_active': true})
+          .eq('id', userId);
+      print('✅ Account reactivated successfully. Response: $response');
+      
+      // Wait a moment for the database to commit the change
+      await Future.delayed(Duration(milliseconds: 500));
+
+      // Close loading dialog
+      Get.back();
+
+      // Show success message
+      Get.snackbar(
+        'Account Reactivated',
+        'Your account has been reactivated successfully! Please log in again.',
+        backgroundColor: Colors.black,
+        colorText: Colors.white,
+        duration: Duration(seconds: 3),
+      );
+
+      // Navigate to welcome screen instead of main app
+      // The user needs to log in again since they were signed out
+      Get.offAll(() => WelcomeScreen());
+    } catch (e) {
+      print('❌ Error reactivating account: $e');
+      Get.back(); // Close loading dialog
+      Get.snackbar(
+        'Error',
+        'Failed to reactivate account: $e',
+        backgroundColor: Colors.black,
+        colorText: Colors.white,
+        duration: Duration(seconds: 3),
+      );
     }
   }
 
