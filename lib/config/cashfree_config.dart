@@ -26,15 +26,15 @@
 
 // CASHFREE CONFIGURATION
 class CashfreeConfig {
-  // Replace these with your actual Cashfree credentials
-  static const String cashfreeAppId = 'YOUR_CASHFREE_APP_ID';
-  static const String cashfreeSecretKey = 'YOUR_CASHFREE_SECRET_KEY';
+  // Cashfree credentials
+  static const String cashfreeAppId = 'TEST108148726e3fe406cfaf95fc00af27841801';
+  static const String cashfreeSecretKey = 'cfsk_ma_test_66de59f49e4468e95026fe4777c738dc_c66ff734';
   
   // Environment (sandbox or production)
   static const String environment = 'sandbox'; // Change to 'production' for live
   
   // Webhook URL for payment verification
-  static const String webhookUrl = 'https://your-domain.com/webhook/cashfree';
+  static const String webhookUrl = 'https://dkcitxzvojvecuvacwsp.supabase.co/functions/v1/cashfree-webhook';
   
   // Currency code
   static const String currency = 'INR';

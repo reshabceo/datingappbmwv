@@ -63,11 +63,12 @@ export default function OrderHistory() {
         setOrders(ordersData || [])
       }
 
-      // Fetch user subscriptions
+      // Fetch user subscriptions (only active ones for Current Subscription)
       const { data: subscriptionsData, error: subscriptionsError } = await supabase
         .from('user_subscriptions')
         .select('*')
         .eq('user_id', user?.id)
+        .eq('status', 'active')
         .order('created_at', { ascending: false })
 
       if (subscriptionsError) {
@@ -83,7 +84,7 @@ export default function OrderHistory() {
   }
 
   const formatPrice = (amount: number) => {
-    return `₹${(amount / 100).toFixed(2)}`
+    return `₹${amount.toFixed(2)}`
   }
 
   const formatDate = (dateString: string) => {

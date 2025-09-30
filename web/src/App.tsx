@@ -18,6 +18,7 @@ import Plans from './pages/Plans'
 import PremiumPlans from './pages/PremiumPlans'
 import PaymentTest from './pages/PaymentTest'
 import OrderHistory from './pages/OrderHistory'
+import PaymentSuccess from './pages/PaymentSuccess'
 import InvoiceTest from './pages/InvoiceTest'
 import PDFTest from './pages/PDFTest'
 import AdminSubscriptions from './pages/AdminSubscriptions'
@@ -226,6 +227,7 @@ export default function App() {
                 <Route path="/invoice-test" element={<InvoiceTest />} />
                 <Route path="/pdf-test" element={<PDFTest />} />
                 <Route path="/order-history" element={<ProtectedRoute><OrderHistory /></ProtectedRoute>} />
+                <Route path="/payment/success" element={<PaymentSuccess />} />
                 {/* Profile setup wizard */}
                 <Route path="/profile/setup/1" element={<ProtectedRoute><Step1Gender /></ProtectedRoute>} />
                 <Route path="/profile/setup/2" element={<ProtectedRoute><Step2Basic /></ProtectedRoute>} />

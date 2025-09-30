@@ -1,48 +1,50 @@
 import 'dart:convert';
-import 'package:razorpay_flutter/razorpay_flutter.dart';
+import 'dart:async';
+// import 'package:razorpay_flutter/razorpay_flutter.dart'; // COMMENTED OUT - SWITCHED TO CASHFREE
 import 'package:uuid/uuid.dart';
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:http/http.dart' as http;
 import '../config/supabase_config.dart';
-import '../config/razorpay_config.dart';
+import '../config/cashfree_config.dart';
 
 class PaymentService {
-  static Razorpay? _razorpay;
-  static const String _razorpayKeyId = RazorpayConfig.razorpayKeyId;
-  static const String _razorpayKeySecret = RazorpayConfig.razorpayKeySecret;
+  // static Razorpay? _razorpay; // COMMENTED OUT - SWITCHED TO CASHFREE
+  static const String _cashfreeAppId = CashfreeConfig.cashfreeAppId;
+  static const String _cashfreeSecretKey = CashfreeConfig.cashfreeSecretKey;
+  static const String _environment = CashfreeConfig.environment;
   
   // Subscription plans with pricing
   static const Map<String, Map<String, dynamic>> subscriptionPlans = {
     '1_month': {
       'name': 'Premium - 1 Month',
-      'price': 1500, // ₹15.00 (in paise)
+      'price': 1500, // ₹1,500
       'duration_months': 1,
       'description': 'Premium features for 1 month'
     },
     '3_month': {
       'name': 'Premium - 3 Months',
-      'price': 2250, // ₹22.50 (in paise)
+      'price': 2250, // ₹2,250
       'duration_months': 3,
       'description': 'Premium features for 3 months'
     },
     '6_month': {
       'name': 'Premium - 6 Months',
-      'name': 'Premium - 6 Months',
-      'price': 3600, // ₹36.00 (in paise)
+      'price': 3600, // ₹3,600
       'duration_months': 6,
       'description': 'Premium features for 6 months'
     }
   };
 
   static Future<void> initialize() async {
-    _razorpay = Razorpay();
-    _razorpay!.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
-    _razorpay!.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
-    _razorpay!.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
+    // Cashfree doesn't require initialization like Razorpay
+    // The payment flow is handled through API calls
+    print('Cashfree Payment Service initialized');
   }
 
   static Future<void> dispose() async {
-    _razorpay?.clear();
+    // No cleanup needed for Cashfree
+    print('Cashfree Payment Service disposed');
   }
 
   static Future<void> initiatePayment({
@@ -50,10 +52,6 @@ class PaymentService {
     required String userEmail,
     required String userName,
   }) async {
-    if (_razorpay == null) {
-      await initialize();
-    }
-
     final plan = subscriptionPlans[planType];
     if (plan == null) {
       Get.snackbar('Error', 'Invalid subscription plan');
@@ -61,30 +59,21 @@ class PaymentService {
     }
 
     final orderId = const Uuid().v4();
-    final amount = plan['price'] as int;
+    final amount = (plan['price'] as int) * 100; // Convert rupees to paise for Cashfree (₹1,500 = 150,000 paise)
     final description = plan['description'] as String;
 
     try {
       // Create order in Supabase first
       await _createOrderRecord(orderId, planType, amount, userEmail);
 
-      final options = {
-        'key': _razorpayKeyId,
-        'amount': amount,
-        'name': 'FlameChat Premium',
-        'description': description,
-        'order_id': orderId,
-        'prefill': {
-          'contact': userEmail,
-          'email': userEmail,
-          'name': userName,
-        },
-        'external': {
-          'wallets': ['paytm']
-        }
-      };
-
-      _razorpay!.open(options);
+      // Create Cashfree payment session
+      await _createCashfreePaymentSession(
+        orderId: orderId,
+        amount: amount,
+        userEmail: userEmail,
+        userName: userName,
+        description: description,
+      );
     } catch (e) {
       Get.snackbar('Error', 'Failed to initiate payment: $e');
     }
@@ -97,9 +86,43 @@ class PaymentService {
     String userEmail,
   ) async {
     try {
+      final user = Supabase.instance.client.auth.currentUser;
+      String? userId = user?.id;
+      
+      // Check if user has a profile, if not create one
+      if (user != null && user.id != null) {
+        try {
+          // Check if profile exists
+          await Supabase.instance.client
+              .from('profiles')
+              .select('id')
+              .eq('id', user.id!)
+              .single();
+        } catch (e) {
+          // Profile doesn't exist, create one
+          print('Creating profile for user: ${user.id}');
+          try {
+            await Supabase.instance.client.from('profiles').insert({
+              'id': user.id,
+              'email': user.email,
+              'name': user.userMetadata?['name'] ?? user.email?.split('@')[0] ?? 'User',
+              'age': 18, // Default age
+              'is_active': false, // Profile not active until completed
+              'created_at': DateTime.now().toIso8601String(),
+              'updated_at': DateTime.now().toIso8601String(),
+            });
+            print('Profile created successfully');
+          } catch (createError) {
+            print('Error creating profile: $createError');
+            // Continue anyway, we'll use null user_id
+            userId = null;
+          }
+        }
+      }
+      
       await Supabase.instance.client.from('payment_orders').insert({
         'order_id': orderId,
-        'user_id': Supabase.instance.client.auth.currentUser?.id,
+        'user_id': userId,
         'plan_type': planType,
         'amount': amount,
         'status': 'pending',
@@ -111,66 +134,130 @@ class PaymentService {
     }
   }
 
-  static Future<void> _handlePaymentSuccess(PaymentSuccessResponse response) async {
+  // CASHFREE PAYMENT SESSION CREATION
+  static Future<void> _createCashfreePaymentSession({
+    required String orderId,
+    required int amount,
+    required String userEmail,
+    required String userName,
+    required String description,
+  }) async {
     try {
-      print('Payment Success: ${response.paymentId}');
+      final baseUrl = _environment == 'sandbox' 
+          ? 'https://sandbox.cashfree.com/pg' 
+          : 'https://api.cashfree.com/pg';
       
-      // Verify payment with Razorpay (this also creates the subscription)
-      final isVerified = await _verifyPayment(response.paymentId!);
-      
-      if (isVerified) {
-        Get.snackbar('Success', 'Payment successful! Premium features activated.');
+      final requestBody = {
+        'order_id': orderId,
+        'order_amount': amount.round(), // Amount is already in paise
+        'order_currency': 'INR',
+        'customer_details': {
+          'customer_id': userEmail,
+          'customer_name': userName,
+          'customer_email': userEmail,
+        },
+        'order_meta': {
+          'return_url': 'https://your-domain.com/payment/success',
+          // 'notify_url': CashfreeConfig.webhookUrl, // Disabled - using direct verification
+        },
+        'order_note': description,
+      };
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/orders'),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-version': '2023-08-01',
+          'x-client-id': _cashfreeAppId,
+          'x-client-secret': _cashfreeSecretKey,
+        },
+        body: jsonEncode(requestBody),
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        final paymentUrl = responseData['payment_link'];
         
-        // Track analytics
-        await _trackPaymentSuccess(response.orderId!);
+        // Open payment URL in browser or webview
+        await _openPaymentUrl(paymentUrl);
       } else {
-        Get.snackbar('Error', 'Payment verification failed');
+        throw Exception('Failed to create payment session: ${response.body}');
       }
     } catch (e) {
-      print('Error handling payment success: $e');
-      Get.snackbar('Error', 'Payment processing failed');
+      print('Error creating Cashfree payment session: $e');
+      rethrow;
     }
   }
 
-  static Future<void> _handlePaymentError(PaymentFailureResponse response) async {
-    print('Payment Error: ${response.code} - ${response.message}');
-    Get.snackbar('Payment Failed', 'Payment was cancelled or failed');
+  static Future<void> _openPaymentUrl(String paymentUrl) async {
+    // This would typically open a webview or browser
+    print('Payment URL: $paymentUrl');
+    Get.snackbar('Payment', 'Redirecting to payment page...');
     
-    // Update order status
-    if (response.orderId != null) {
-      await _updateOrderStatus(response.orderId!, 'failed', null);
-    }
+    // In a real implementation, you would:
+    // 1. Open a webview with the payment URL
+    // 2. Handle the return URL to verify payment
+    // 3. Update order status based on payment result
+    
+    // For now, start polling for payment status
+    _startPaymentPolling(paymentUrl);
   }
 
-  static Future<void> _handleExternalWallet(ExternalWalletResponse response) async {
-    print('External Wallet: ${response.walletName}');
-  }
-
-  static Future<bool> _verifyPayment(String paymentId) async {
-    try {
-      // Get order ID from the current payment context
-      // We need to pass both payment_id and order_id to the Edge Function
-      final orderId = await _getCurrentOrderId();
-      if (orderId == null) {
-        print('No order ID found for payment verification');
-        return false;
+  static void _startPaymentPolling(String paymentUrl) {
+    // Start polling for payment status
+    Timer.periodic(const Duration(seconds: 10), (timer) async {
+      try {
+        // Get the order ID from the payment URL or store it somewhere
+        // This is a simplified approach - in production you'd store the order ID
+        print('Polling payment status...');
+        
+        // You would implement payment verification here
+        // For now, we'll just show a message
+        Get.snackbar('Payment', 'Please complete payment in the browser and return to the app');
+        
+        // Stop polling after 5 minutes
+        if (timer.tick >= 30) {
+          timer.cancel();
+          Get.snackbar('Payment', 'Payment timeout - please try again');
+        }
+      } catch (e) {
+        print('Error polling payment: $e');
       }
+    });
+  }
 
-      // Call Supabase Edge Function to verify payment
-      final response = await Supabase.instance.client.functions.invoke(
-        'verify-payment',
-        body: {
-          'payment_id': paymentId,
-          'order_id': orderId,
+  // CASHFREE PAYMENT VERIFICATION
+  static Future<bool> _verifyCashfreePayment(String orderId) async {
+    try {
+      final baseUrl = _environment == 'sandbox' 
+          ? 'https://sandbox.cashfree.com/pg' 
+          : 'https://api.cashfree.com/pg';
+      
+      final response = await http.get(
+        Uri.parse('$baseUrl/orders/$orderId'),
+        headers: {
+          'x-api-version': '2023-08-01',
+          'x-client-id': _cashfreeAppId,
+          'x-client-secret': _cashfreeSecretKey,
         },
       );
-      
-      if (response.status == 200) {
-        final data = response.data as Map<String, dynamic>;
-        return data['verified'] == true;
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        return responseData['order_status'] == 'PAID';
       }
       
       return false;
+    } catch (e) {
+      print('Error verifying Cashfree payment: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> _verifyPayment(String orderId) async {
+    try {
+      // Verify payment with Cashfree
+      return await _verifyCashfreePayment(orderId);
     } catch (e) {
       print('Payment verification error: $e');
       return false;

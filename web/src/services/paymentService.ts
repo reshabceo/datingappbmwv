@@ -5,66 +5,47 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Razorpay configuration
-const RAZORPAY_KEY_ID = 'rzp_test_1DP5mmOlF5G5ag'; // Replace with your Razorpay key
+// CASHFREE CONFIGURATION
+const CASHFREE_APP_ID = 'TEST108148726e3fe406cfaf95fc00af27841801';
+const CASHFREE_SECRET_KEY = 'cfsk_ma_test_66de59f49e4468e95026fe4777c738dc_c66ff734';
+const CASHFREE_ENVIRONMENT = 'sandbox'; // Change to 'production' for live
 
 // Subscription plans with pricing
 export const subscriptionPlans = {
   '1_month': {
     name: 'Premium - 1 Month',
-    price: 150000, // ₹1,500 (in paise)
+    price: 1500, // ₹1,500
     duration_months: 1,
     description: 'Premium features for 1 month'
   },
   '3_month': {
     name: 'Premium - 3 Months',
-    price: 225000, // ₹2250.00 (in paise)
+    price: 2250, // ₹2,250
     duration_months: 3,
     description: 'Premium features for 3 months'
   },
   '6_month': {
     name: 'Premium - 6 Months',
-    price: 360000, // ₹3600.00 (in paise)
+    price: 3600, // ₹3,600
     duration_months: 6,
     description: 'Premium features for 6 months'
   }
 };
 
 export class PaymentService {
-  private static razorpay: any = null;
+  // private static razorpay: any = null; // COMMENTED OUT - SWITCHED TO CASHFREE
 
   static async initialize() {
-    // Check if Razorpay is already loaded
-    if (this.razorpay) {
-      console.log('Razorpay already initialized');
-      return true;
-    }
-
-    // Load Razorpay script dynamically
-    return new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.onload = () => {
-        this.razorpay = (window as any).Razorpay;
-        console.log('Razorpay loaded successfully');
-        resolve(true);
-      };
-      script.onerror = () => {
-        console.error('Failed to load Razorpay script');
-        reject(new Error('Failed to load Razorpay'));
-      };
-      document.head.appendChild(script);
-    });
+    // Cashfree doesn't require script loading like Razorpay
+    // Payment is handled through API calls
+    console.log('Cashfree Payment Service initialized');
+    return true;
   }
 
   static async initiatePayment(planType: string, userEmail: string, userName: string) {
     try {
-      console.log('Starting payment initiation...');
+      console.log('Starting Cashfree payment initiation...');
       
-      if (!this.razorpay) {
-        throw new Error('Razorpay not initialized. Please refresh the page.');
-      }
-
       const plan = subscriptionPlans[planType as keyof typeof subscriptionPlans];
       if (!plan) {
         throw new Error('Invalid subscription plan');
@@ -79,37 +60,14 @@ export class PaymentService {
       // Create order in Supabase first
       await this.createOrderRecord(orderId, planType, amount, userEmail);
 
-      const options = {
-        key: RAZORPAY_KEY_ID,
-        amount: amount,
-        currency: 'INR',
-        name: 'Love Bug Premium',
-        description: description,
-        prefill: {
-          name: userName,
-          email: userEmail,
-        },
-        theme: {
-          color: '#ec4899'
-        },
-        handler: async (response: any) => {
-          console.log('Payment success handler called');
-          await this.handlePaymentSuccess(response, orderId);
-        },
-        modal: {
-          ondismiss: () => {
-            console.log('Payment modal dismissed');
-          }
-        },
-        notes: {
-          order_id: orderId,
-          plan_type: planType
-        }
-      };
-
-      console.log('Opening Razorpay modal with options:', options);
-      this.razorpay.open(options);
-      console.log('Razorpay modal opened successfully');
+      // Create Cashfree payment session
+      await this.createCashfreePaymentSession(
+        orderId,
+        amount,
+        userEmail,
+        userName,
+        description
+      );
       
     } catch (error) {
       console.error('Error initiating payment:', error);
@@ -125,9 +83,45 @@ export class PaymentService {
         console.warn('User not authenticated, creating order without user_id');
       }
       
+      // Check if user has a profile, if not create one
+      let userId = user?.id;
+      if (user && user.id) {
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', user.id)
+          .single();
+        
+        if (profileError && profileError.code === 'PGRST116') {
+          // Profile doesn't exist, create one
+          console.log('Creating profile for user:', user.id);
+          const { error: createProfileError } = await supabase.from('profiles').insert({
+            id: user.id,
+            email: user.email,
+            name: user.user_metadata?.name || user.email?.split('@')[0] || 'User',
+            age: 18, // Default age
+            is_active: false, // Profile not active until completed
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+          
+          if (createProfileError) {
+            console.error('Error creating profile:', createProfileError);
+            // Continue anyway, we'll use null user_id
+            userId = null;
+          } else {
+            console.log('Profile created successfully');
+          }
+        } else if (profileError) {
+          console.error('Error checking profile:', profileError);
+          // Continue anyway, we'll use null user_id
+          userId = null;
+        }
+      }
+      
       const { data, error } = await supabase.from('payment_orders').insert({
         order_id: orderId,
-        user_id: user?.id || null,
+        user_id: userId,
         plan_type: planType,
         amount: amount,
         status: 'pending',
@@ -148,12 +142,313 @@ export class PaymentService {
     }
   }
 
+  // CASHFREE PAYMENT SESSION CREATION - Using Edge Function to avoid CORS
+  private static async createCashfreePaymentSession(
+    orderId: string,
+    amount: number,
+    userEmail: string,
+    userName: string,
+    description: string
+  ) {
+    try {
+      console.log('Calling Cashfree Edge Function...');
+      
+      // Get current user ID for Cashfree customer_id
+      const { data: { user } } = await supabase.auth.getUser()
+      const userId = user?.id
+
+      // Call Supabase Edge Function instead of direct API
+      const { data, error } = await supabase.functions.invoke('cashfree-payment', {
+        body: {
+          type: 'createOrder', // Add type for Edge Function
+          orderId,
+          amount,
+          userEmail,
+          userName,
+          description,
+          userId
+        }
+      });
+
+      if (error) {
+        console.error('Edge Function error:', error);
+        throw new Error(`Edge Function failed: ${error.message}`);
+      }
+
+      if (data.success) {
+        const paymentSessionId = data.payment_session_id;
+        
+        console.log('Cashfree payment session created via Edge Function:', data);
+        console.log('Payment Session ID:', paymentSessionId);
+        console.log('Debug response from Cashfree:', data.debug_response);
+        
+        if (!paymentSessionId) {
+          console.error('No payment_session_id received from Cashfree');
+          throw new Error('Failed to get payment session ID from Cashfree');
+        }
+        
+        // Use Cashfree's SDK to open checkout modal (like Razorpay)
+        await this.openCashfreeCheckout(paymentSessionId, orderId);
+        
+        // Set up window focus listener to detect when user returns from payment
+        this.setupPaymentFocusListener(orderId);
+        
+        // Set up polling to check payment status as fallback
+        this.pollPaymentStatus(orderId);
+      } else {
+        throw new Error(data.error || 'Failed to create payment session');
+      }
+    } catch (error) {
+      console.error('Error creating Cashfree payment session:', error);
+      throw error;
+    }
+  }
+
+  // OPEN CASHFREE CHECKOUT MODAL - Using Cashfree SDK
+  private static async openCashfreeCheckout(paymentSessionId: string, orderId: string) {
+    try {
+      // Load Cashfree SDK dynamically
+      if (!(window as any).Cashfree) {
+        await this.loadCashfreeSDK();
+      }
+
+      const cashfree = new (window as any).Cashfree();
+      
+      // Initialize Cashfree with payment session
+      const checkoutOptions = {
+        paymentSessionId: paymentSessionId,
+        returnUrl: `${window.location.origin}/payment/success?order_id=${orderId}`,
+        mode: CASHFREE_ENVIRONMENT === 'sandbox' ? 'sandbox' : 'production',
+      };
+
+      console.log('Opening Cashfree checkout with options:', checkoutOptions);
+
+      // Open checkout modal (like Razorpay popup)
+      cashfree.checkout(checkoutOptions).then((result: any) => {
+        console.log('Cashfree checkout result:', result);
+        console.log('Result keys:', Object.keys(result || {}));
+        
+        if (result.error) {
+          console.error('Cashfree checkout error:', result.error);
+          alert(`Payment failed: ${result.error.message}`);
+          return;
+        }
+        
+        // Always start verification after modal closes
+        // (Cashfree SDK doesn't always return clear success indicators)
+        console.log('Cashfree modal closed, starting verification...');
+        this.handlePaymentCompletion(orderId);
+        
+        if (result.redirect) {
+          console.log('Cashfree redirect:', result.redirect);
+        }
+        if (result.paymentDetails) {
+          console.log('Payment successful:', result.paymentDetails);
+        }
+      }).catch((error: any) => {
+        console.error('Cashfree checkout error:', error);
+        alert(`Payment failed: ${error.message}`);
+      });
+    } catch (error) {
+      console.error('Error opening Cashfree checkout:', error);
+      throw error;
+    }
+  }
+
+  // LOAD CASHFREE SDK
+  private static async loadCashfreeSDK(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if ((window as any).Cashfree) {
+        resolve();
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = CASHFREE_ENVIRONMENT === 'sandbox' 
+        ? 'https://sdk.cashfree.com/js/v3/cashfree.js'
+        : 'https://sdk.cashfree.com/js/v3/cashfree.prod.js';
+      script.async = true;
+      script.onload = () => {
+        console.log('Cashfree SDK loaded successfully');
+        
+        // Cashfree SDK is now available globally
+        resolve();
+      };
+      script.onerror = () => {
+        reject(new Error('Failed to load Cashfree SDK'));
+      };
+      document.body.appendChild(script);
+    });
+  }
+
+  // SETUP PAYMENT FOCUS LISTENER - Detect when user returns from payment modal
+  private static setupPaymentFocusListener(orderId: string) {
+    let hasProcessed = false;
+    
+    const handleFocus = async () => {
+      if (hasProcessed) return;
+      hasProcessed = true;
+      
+      console.log('Window focused - checking payment status...');
+      
+      // Wait a moment for payment to be processed
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      try {
+        const isPaid = await this.verifyCashfreePayment(orderId);
+        if (isPaid) {
+          console.log('Payment verified on window focus!');
+          await this.handlePaymentSuccess({ order_id: orderId }, orderId);
+        }
+      } catch (error) {
+        console.error('Error checking payment on focus:', error);
+      }
+      
+      // Remove listener after processing
+      window.removeEventListener('focus', handleFocus);
+    };
+    
+    // Listen for window focus (when user returns from payment modal)
+    window.addEventListener('focus', handleFocus);
+    
+    // Also listen for visibility change (when tab becomes active)
+    const handleVisibilityChange = () => {
+      if (!document.hidden && !hasProcessed) {
+        handleFocus();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Clean up after 5 minutes
+    setTimeout(() => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }, 300000);
+  }
+
+  // HANDLE PAYMENT COMPLETION - Immediate verification like Razorpay
+  private static async handlePaymentCompletion(orderId: string) {
+    console.log('Payment completed, verifying immediately...');
+    
+    // Wait for Cashfree to process (they need a few seconds)
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    try {
+      // Try verification multiple times with delays
+      for (let attempt = 1; attempt <= 5; attempt++) {
+        console.log(`Verification attempt ${attempt}/5...`);
+        
+        const isPaid = await this.verifyCashfreePayment(orderId);
+        
+        if (isPaid) {
+          console.log('✅ Payment verified successfully!');
+          await this.handlePaymentSuccess({ order_id: orderId }, orderId);
+          return; // Exit after success
+        }
+        
+        // Wait before next attempt
+        if (attempt < 5) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      }
+      
+      console.log('Payment not verified after 5 attempts, continuing to poll...');
+    } catch (error) {
+      console.error('Error in payment completion:', error);
+    }
+  }
+
+  // POLL PAYMENT STATUS - More aggressive polling without webhooks
+  private static async pollPaymentStatus(orderId: string) {
+    const maxAttempts = 60; // Poll for 10 minutes (60 * 10 seconds)
+    let attempts = 0;
+    
+    console.log('Starting payment status polling for order:', orderId);
+    
+    const pollInterval = setInterval(async () => {
+      attempts++;
+      console.log(`Polling attempt ${attempts}/${maxAttempts} for order: ${orderId}`);
+      
+      try {
+        const isPaid = await this.verifyCashfreePayment(orderId);
+        
+        if (isPaid) {
+          console.log('Payment confirmed! Processing success...');
+          clearInterval(pollInterval);
+          await this.handlePaymentSuccess({ order_id: orderId }, orderId);
+        } else if (attempts >= maxAttempts) {
+          console.log('Payment polling timeout - user may have abandoned payment');
+          clearInterval(pollInterval);
+          // Optionally update order status to failed
+          await this.updateOrderStatus(orderId, 'timeout', null);
+        }
+      } catch (error) {
+        console.error('Error polling payment status:', error);
+        if (attempts >= maxAttempts) {
+          clearInterval(pollInterval);
+        }
+      }
+    }, 10000); // Poll every 10 seconds
+  }
+
+  // VERIFY CASHFREE PAYMENT - Using Edge Function to avoid CORS
+  private static async verifyCashfreePayment(orderId: string): Promise<boolean> {
+    try {
+      // Call Supabase Edge Function for verification (no CORS issues)
+      const { data, error } = await supabase.functions.invoke('cashfree-payment', {
+        body: {
+          type: 'verifyOrder', // Add type for Edge Function
+          orderId
+        }
+      });
+
+      if (error) {
+        console.error('Edge Function error (verifyOrder):', error);
+        return false;
+      }
+
+      console.log('Cashfree verification response from Edge Function:', data);
+      
+      if (data.success) {
+        console.log('Cashfree order_status:', data.order_status);
+        console.log('Cashfree payment_status:', data.payment_status);
+        
+        // Cashfree uses different status values than Razorpay
+        // Check for successful payment statuses
+        const isOrderPaid = data.order_status === 'PAID' || data.order_status === 'ACTIVE';
+        const isPaymentSuccessful = data.payment_status === 'SUCCESS' || data.payment_status === 'PAID';
+        
+        return isOrderPaid || isPaymentSuccessful;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Error verifying Cashfree payment:', error);
+      return false;
+    }
+  }
+
   public static async handlePaymentSuccess(response: any, orderId: string) {
     try {
-      // Fix the payment ID - Razorpay uses razorpay_payment_id
-      const paymentId = response.razorpay_payment_id || response.paymentId;
+      // For Cashfree, we use order_id as the primary identifier
+      const paymentId = response.payment_id || orderId;
       console.log('Payment Success:', paymentId);
       console.log('Full response:', response);
+      
+      // Check if this order has already been processed
+      const { data: existingOrder } = await supabase
+        .from('payment_orders')
+        .select('status')
+        .eq('order_id', orderId)
+        .single();
+      
+      if (existingOrder?.status === 'success') {
+        console.log('Order already processed, skipping duplicate processing');
+        return;
+      }
+      
+      // Success message will be shown by UI, not alert
       
       // Use local processing directly (bypass Edge Function for now)
       console.log('Using local processing...');
@@ -199,6 +494,7 @@ export class PaymentService {
                 .single();
               
               // Call Edge Function to send invoice
+              console.log('📧 Sending invoice with amount:', orderData.amount, 'for order:', orderId);
               const { data: invoiceResult, error: invoiceError } = await supabase.functions.invoke('send-invoice', {
                 body: {
                   orderId: orderId,
@@ -299,6 +595,18 @@ Your premium subscription is now active! You can view your order history and man
     try {
       console.log('Creating subscription for order:', orderId);
       
+      // Check if subscription already exists for this order
+      const { data: existingSubscription } = await supabase
+        .from('user_subscriptions')
+        .select('id')
+        .eq('order_id', orderId)
+        .single();
+      
+      if (existingSubscription) {
+        console.log('Subscription already exists for this order, skipping creation');
+        return;
+      }
+      
       // Get order details
       const { data: orderData, error: orderError } = await supabase
         .from('payment_orders')
@@ -327,7 +635,7 @@ Your premium subscription is now active! You can view your order history and man
       const now = new Date();
       
       // Check if user already has an active subscription
-      const { data: existingSubscription } = await supabase
+      const { data: currentSubscription } = await supabase
         .from('user_subscriptions')
         .select('end_date')
         .eq('user_id', userId)
@@ -337,9 +645,9 @@ Your premium subscription is now active! You can view your order history and man
         .single();
 
       let validUntil;
-      if (existingSubscription && existingSubscription.end_date) {
+      if (currentSubscription && currentSubscription.end_date) {
         // Extend from current end date
-        const currentEndDate = new Date(existingSubscription.end_date);
+        const currentEndDate = new Date(currentSubscription.end_date);
         validUntil = new Date(currentEndDate.getTime() + (durationMonths * 30 * 24 * 60 * 60 * 1000));
         console.log('Extending subscription from:', currentEndDate.toISOString(), 'to:', validUntil.toISOString());
       } else {
