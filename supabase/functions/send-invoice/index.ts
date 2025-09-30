@@ -111,7 +111,7 @@ function generateInvoiceHTML(data: InvoiceData): string {
   }
 
   const planName = planNames[data.planType as keyof typeof planNames] || data.planType
-  const amountInRupees = (data.amount / 100).toFixed(2)
+  const amountInRupees = data.amount.toFixed(2)
 
   return `
   <!DOCTYPE html>

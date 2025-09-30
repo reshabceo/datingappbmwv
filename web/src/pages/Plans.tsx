@@ -443,7 +443,7 @@ export default function Plans() {
               </details>
             ))}
           </div>
-          <p className="text-light-white text-xs mt-8">Payments are powered by Stripe/Razorpay. You can cancel anytime.</p>
+          <p className="text-light-white text-xs mt-8">Payments are powered by Cashfree. You can cancel anytime.</p>
         </div>
       </section>
     </div>
