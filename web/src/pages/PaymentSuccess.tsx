@@ -39,10 +39,9 @@ export default function PaymentSuccess() {
             setMessage('Payment successful! Creating your subscription...');
             
             // Process the payment success silently (no alerts from here)
-            await (PaymentService as any).updateOrderStatus(orderId, 'success', orderId);
             await (PaymentService as any).createSubscription(orderId);
             
-            // Send invoice via handlePaymentSuccess
+            // Send invoice via handlePaymentSuccess (this will also update order status)
             console.log('🔍 Calling handlePaymentSuccess to send invoice...');
             await (PaymentService as any).handlePaymentSuccess({ payment_id: orderId }, orderId);
             
