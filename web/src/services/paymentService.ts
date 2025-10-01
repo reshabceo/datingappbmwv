@@ -436,6 +436,7 @@ export class PaymentService {
   }
 
   public static async handlePaymentSuccess(response: any, orderId: string) {
+    console.log('🚀 handlePaymentSuccess called for order:', orderId);
     try {
       // For Cashfree, we use order_id as the primary identifier
       const paymentId = response.payment_id || orderId;
@@ -480,6 +481,7 @@ export class PaymentService {
       
       // Send invoice email after successful subscription using Edge Function
       console.log('🔍 Starting invoice sending process...');
+      console.log('🔍 About to send invoice for order:', orderId);
       try {
         const { data: { user } } = await supabase.auth.getUser();
         console.log('🔍 User data:', user?.email);
