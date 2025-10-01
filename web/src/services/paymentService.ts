@@ -5,17 +5,10 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// CASHFREE CONFIGURATION
-// Use sandbox credentials for localhost testing, production for live site
-const CASHFREE_APP_ID = window.location.hostname === 'localhost' 
-  ? 'TEST108148726e3fe406cfaf95fc00af27841801'  // Sandbox for localhost
-  : '108566980dabe16ff7dcf1c424e9665801';       // Live for production
-
-const CASHFREE_SECRET_KEY = window.location.hostname === 'localhost'
-  ? 'cfsk_ma_test_66de59f49e4468e95026fe4777c738dc_c66ff734'  // Sandbox for localhost
-  : 'cfsk_ma_prod_2696a352b7f5c5519d02aa8750eccfd5_5b5f2bd0'; // Live for production
-
-const CASHFREE_ENVIRONMENT = window.location.hostname === 'localhost' ? 'sandbox' : 'production';
+// CASHFREE CONFIGURATION - LIVE CREDENTIALS ONLY
+const CASHFREE_APP_ID = '108566980dabe16ff7dcf1c424e9665801';
+const CASHFREE_SECRET_KEY = 'cfsk_ma_prod_2696a352b7f5c5519d02aa8750eccfd5_5b5f2bd0';
+const CASHFREE_ENVIRONMENT = 'production';
 
 // Subscription plans with pricing
 export const subscriptionPlans = {
@@ -225,10 +218,12 @@ export class PaymentService {
       const checkoutOptions = {
         paymentSessionId: paymentSessionId,
         returnUrl: `${window.location.origin}/payment/success?order_id=${orderId}`,
-        mode: CASHFREE_ENVIRONMENT === 'sandbox' ? 'sandbox' : 'production',
+        mode: 'production', // Always production
       };
 
       console.log('Opening Cashfree checkout with options:', checkoutOptions);
+      console.log('Cashfree SDK available:', typeof cashfree);
+      console.log('Cashfree checkout method:', typeof cashfree.checkout);
 
       // Open checkout modal (like Razorpay popup)
       cashfree.checkout(checkoutOptions).then((result: any) => {
@@ -271,20 +266,21 @@ export class PaymentService {
       }
 
       const script = document.createElement('script');
-      // For localhost testing, always use sandbox SDK
-      script.src = window.location.hostname === 'localhost' 
-        ? 'https://sdk.cashfree.com/js/v3/cashfree.js'
-        : (CASHFREE_ENVIRONMENT === 'sandbox' 
-          ? 'https://sdk.cashfree.com/js/v3/cashfree.js'
-          : 'https://sdk.cashfree.com/js/v3/cashfree.prod.js');
+      // Use regular SDK (works with both localhost and production)
+      script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
       script.async = true;
+      
+      console.log('Loading Cashfree SDK from:', script.src);
       script.onload = () => {
         console.log('Cashfree SDK loaded successfully');
+        console.log('Cashfree object available:', typeof (window as any).Cashfree);
         
         // Cashfree SDK is now available globally
         resolve();
       };
-      script.onerror = () => {
+      script.onerror = (error) => {
+        console.error('Cashfree SDK loading error:', error);
+        console.error('Script src:', script.src);
         reject(new Error('Failed to load Cashfree SDK'));
       };
       document.body.appendChild(script);
