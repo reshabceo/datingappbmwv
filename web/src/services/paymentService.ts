@@ -6,27 +6,34 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // CASHFREE CONFIGURATION
-const CASHFREE_APP_ID = 'TEST108148726e3fe406cfaf95fc00af27841801';
-const CASHFREE_SECRET_KEY = 'cfsk_ma_test_66de59f49e4468e95026fe4777c738dc_c66ff734';
-const CASHFREE_ENVIRONMENT = 'sandbox'; // Change to 'production' for live
+// Use sandbox credentials for localhost testing, production for live site
+const CASHFREE_APP_ID = window.location.hostname === 'localhost' 
+  ? 'TEST108148726e3fe406cfaf95fc00af27841801'  // Sandbox for localhost
+  : '108566980dabe16ff7dcf1c424e9665801';       // Live for production
+
+const CASHFREE_SECRET_KEY = window.location.hostname === 'localhost'
+  ? 'cfsk_ma_test_66de59f49e4468e95026fe4777c738dc_c66ff734'  // Sandbox for localhost
+  : 'cfsk_ma_prod_2696a352b7f5c5519d02aa8750eccfd5_5b5f2bd0'; // Live for production
+
+const CASHFREE_ENVIRONMENT = window.location.hostname === 'localhost' ? 'sandbox' : 'production';
 
 // Subscription plans with pricing
 export const subscriptionPlans = {
   '1_month': {
     name: 'Premium - 1 Month',
-    price: 1500, // ₹1,500
+    price: 1, // ₹1 (TESTING)
     duration_months: 1,
     description: 'Premium features for 1 month'
   },
   '3_month': {
     name: 'Premium - 3 Months',
-    price: 2250, // ₹2,250
+    price: 1, // ₹1 (TESTING)
     duration_months: 3,
     description: 'Premium features for 3 months'
   },
   '6_month': {
     name: 'Premium - 6 Months',
-    price: 3600, // ₹3,600
+    price: 1, // ₹1 (TESTING)
     duration_months: 6,
     description: 'Premium features for 6 months'
   }
@@ -264,9 +271,12 @@ export class PaymentService {
       }
 
       const script = document.createElement('script');
-      script.src = CASHFREE_ENVIRONMENT === 'sandbox' 
+      // For localhost testing, always use sandbox SDK
+      script.src = window.location.hostname === 'localhost' 
         ? 'https://sdk.cashfree.com/js/v3/cashfree.js'
-        : 'https://sdk.cashfree.com/js/v3/cashfree.prod.js';
+        : (CASHFREE_ENVIRONMENT === 'sandbox' 
+          ? 'https://sdk.cashfree.com/js/v3/cashfree.js'
+          : 'https://sdk.cashfree.com/js/v3/cashfree.prod.js');
       script.async = true;
       script.onload = () => {
         console.log('Cashfree SDK loaded successfully');

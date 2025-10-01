@@ -24,14 +24,30 @@ serve(async (req) => {
 
     console.log('Edge Function called with type:', type, { orderId, amount, userEmail, userId })
 
-    // Cashfree credentials (stored as environment variables)
-    const CASHFREE_APP_ID = Deno.env.get('CASHFREE_APP_ID') || 'TEST108148726e3fe406cfaf95fc00af27841801'
-    const CASHFREE_SECRET_KEY = Deno.env.get('CASHFREE_SECRET_KEY') || 'cfsk_ma_test_66de59f49e4468e95026fe4777c738dc_c66ff734'
-    const CASHFREE_ENVIRONMENT = Deno.env.get('CASHFREE_ENVIRONMENT') || 'sandbox'
+    // Check if request is from localhost (for testing)
+    const origin = req.headers.get('origin') || '';
+    const isLocalhost = origin.includes('localhost') || origin.includes('127.0.0.1');
+    
+    // Cashfree credentials - use sandbox for localhost, production for live
+    const CASHFREE_APP_ID = isLocalhost 
+      ? 'TEST108148726e3fe406cfaf95fc00af27841801'  // Sandbox for localhost
+      : '108566980dabe16ff7dcf1c424e9665801';       // Live for production
+      
+    const CASHFREE_SECRET_KEY = isLocalhost
+      ? 'cfsk_ma_test_66de59f49e4468e95026fe4777c738dc_c66ff734'  // Sandbox for localhost
+      : 'cfsk_ma_prod_2696a352b7f5c5519d02aa8750eccfd5_5b5f2bd0'; // Live for production
+      
+    const CASHFREE_ENVIRONMENT = isLocalhost ? 'sandbox' : 'production'
+    
+    console.log('Environment from env:', Deno.env.get('CASHFREE_ENVIRONMENT'))
+    console.log('Final environment:', CASHFREE_ENVIRONMENT)
 
+    // Use appropriate API URL based on environment
     const baseUrl = CASHFREE_ENVIRONMENT === 'sandbox' 
-        ? 'https://sandbox.cashfree.com/pg' 
-        : 'https://api.cashfree.com/pg'
+      ? 'https://sandbox.cashfree.com/pg' 
+      : 'https://api.cashfree.com/pg'
+        
+    console.log('Using API URL:', baseUrl)
 
     if (type === 'createOrder') {
       const requestBody = {
@@ -45,7 +61,7 @@ serve(async (req) => {
           customer_phone: '9999999999', // Default phone number for Cashfree
         },
         order_meta: {
-          return_url: `${req.headers.get('origin')}/payment/success`,
+          return_url: 'https://www.lovebug.live/payment/success', // Use actual production URL
           notify_url: 'https://dkcitxzvojvecuvacwsp.supabase.co/functions/v1/cashfree-webhook',
         },
         order_note: description,
@@ -65,7 +81,7 @@ serve(async (req) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-version': '2023-08-01',
+          'x-api-version': '2022-09-01',
           'x-client-id': CASHFREE_APP_ID,
           'x-client-secret': CASHFREE_SECRET_KEY,
         },
@@ -117,7 +133,7 @@ serve(async (req) => {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-version': '2023-08-01',
+          'x-api-version': '2022-09-01',
           'x-client-id': CASHFREE_APP_ID,
           'x-client-secret': CASHFREE_SECRET_KEY,
         },

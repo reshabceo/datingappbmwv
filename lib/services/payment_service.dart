@@ -18,19 +18,19 @@ class PaymentService {
   static const Map<String, Map<String, dynamic>> subscriptionPlans = {
     '1_month': {
       'name': 'Premium - 1 Month',
-      'price': 1500, // ₹1,500
+      'price': 1, // ₹1 (TESTING)
       'duration_months': 1,
       'description': 'Premium features for 1 month'
     },
     '3_month': {
       'name': 'Premium - 3 Months',
-      'price': 2250, // ₹2,250
+      'price': 1, // ₹1 (TESTING)
       'duration_months': 3,
       'description': 'Premium features for 3 months'
     },
     '6_month': {
       'name': 'Premium - 6 Months',
-      'price': 3600, // ₹3,600
+      'price': 1, // ₹1 (TESTING)
       'duration_months': 6,
       'description': 'Premium features for 6 months'
     }
