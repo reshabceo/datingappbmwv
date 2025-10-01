@@ -34,9 +34,9 @@ export default function PremiumPlans() {
 
   // UI-only overrides to ensure the display matches client-approved pricing
   const uiPricingOverrides: Record<number, { original: number; price: number; discountPct: number; savings: number }> = {
-    1: { original: 2, price: 1, discountPct: 50, savings: 1 }, // ₹1 (TESTING)
-    3: { original: 2, price: 1, discountPct: 50, savings: 1 },
-    6: { original: 2, price: 1, discountPct: 50, savings: 1 },
+    1: { original: 2000, price: 1500, discountPct: 25, savings: 500 }, // ₹1,500 for 1 month
+    3: { original: 3000, price: 2250, discountPct: 25, savings: 750 }, // ₹2,250 for 3 months
+    6: { original: 4800, price: 3600, discountPct: 25, savings: 1200 }, // ₹3,600 for 6 months
   }
 
   useEffect(() => {
@@ -77,7 +77,7 @@ export default function PremiumPlans() {
                 id: 'premium-1m',
                 plan_id: 'premium-static',
                 duration_months: 1,
-                price: 1, // ₹1 (TESTING)
+                price: 1500, // ₹1,500
                 original_price: 2000,
                 discount_percentage: 25,
                 is_popular: false,
@@ -88,7 +88,7 @@ export default function PremiumPlans() {
                 id: 'premium-3m',
                 plan_id: 'premium-static',
                 duration_months: 3,
-                price: 1, // ₹1 (TESTING)
+                price: 2250, // ₹2,250
                 original_price: 4500,
                 discount_percentage: 50,
                 is_popular: false,
@@ -99,7 +99,7 @@ export default function PremiumPlans() {
                 id: 'premium-6m',
                 plan_id: 'premium-static',
                 duration_months: 6,
-                price: 1, // ₹1 (TESTING)
+                price: 3600, // ₹3,600
                 original_price: 9000,
                 discount_percentage: 60,
                 is_popular: true,
