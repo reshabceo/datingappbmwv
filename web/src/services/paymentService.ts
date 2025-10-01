@@ -499,8 +499,8 @@ export class PaymentService {
                 .eq('order_id', orderId)
                 .single();
               
-              // Call Edge Function to send invoice
-              console.log('📧 Sending invoice with amount:', orderData.amount, 'for order:', orderId);
+              // Send invoice via Edge Function
+              console.log('📧 Sending invoice via Edge Function for order:', orderId);
               const { data: invoiceResult, error: invoiceError } = await supabase.functions.invoke('send-invoice', {
                 body: {
                   orderId: orderId,
@@ -517,7 +517,7 @@ export class PaymentService {
               if (invoiceError) {
                 console.error('❌ Invoice Edge Function Error:', invoiceError);
               } else {
-                console.log('📧 Invoice sent successfully via Edge Function:', invoiceResult);
+                console.log('✅ Invoice sent successfully via Edge Function:', invoiceResult);
               }
             }
           }
