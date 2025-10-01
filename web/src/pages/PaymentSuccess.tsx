@@ -42,6 +42,10 @@ export default function PaymentSuccess() {
             await (PaymentService as any).updateOrderStatus(orderId, 'success', orderId);
             await (PaymentService as any).createSubscription(orderId);
             
+            // Send invoice via handlePaymentSuccess
+            console.log('🔍 Calling handlePaymentSuccess to send invoice...');
+            await (PaymentService as any).handlePaymentSuccess({ payment_id: orderId }, orderId);
+            
             setStatus('success');
             setMessage('Your premium subscription is now active!');
             
