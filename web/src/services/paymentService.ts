@@ -475,8 +475,10 @@ export class PaymentService {
         console.log('Subscription created successfully');
         
         // Send invoice email after successful subscription using Edge Function
+        console.log('🔍 Starting invoice sending process...');
         try {
           const { data: { user } } = await supabase.auth.getUser();
+          console.log('🔍 User data:', user?.email);
           if (user?.email) {
             const { data: profileData } = await supabase
               .from('profiles')
@@ -485,12 +487,14 @@ export class PaymentService {
               .single();
             
             const userName = profileData?.name || 'User';
+            console.log('🔍 User name:', userName);
             const { data: orderData } = await supabase
               .from('payment_orders')
               .select('plan_type, amount, created_at')
               .eq('order_id', orderId)
               .single();
             
+            console.log('🔍 Order data:', orderData);
             if (orderData) {
               // Get subscription end date
               const { data: subscriptionData } = await supabase
@@ -501,6 +505,14 @@ export class PaymentService {
               
               // Send invoice via Edge Function
               console.log('📧 Sending invoice via Edge Function for order:', orderId);
+              console.log('📧 Invoice data being sent:', {
+                orderId,
+                paymentId,
+                amount: orderData.amount,
+                planType: orderData.plan_type,
+                userEmail: user.email,
+                userName
+              });
               const { data: invoiceResult, error: invoiceError } = await supabase.functions.invoke('send-invoice', {
                 body: {
                   orderId: orderId,
@@ -522,7 +534,8 @@ export class PaymentService {
             }
           }
         } catch (invoiceError) {
-          console.error('Error sending invoice email:', invoiceError);
+          console.error('❌ Error sending invoice email:', invoiceError);
+          console.error('❌ Invoice error details:', invoiceError);
           // Don't fail the payment process if invoice fails
         }
         
