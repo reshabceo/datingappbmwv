@@ -1,5 +1,6 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Routes, Route, Link, useLocation } from 'react-router-dom'
+import { WelcomeEmailService } from './services/welcomeEmailService'
 import Login from './pages/Login'
 import Profiles from './pages/Profiles'
 import Home from './pages/Home'
@@ -55,6 +56,16 @@ export default function App() {
   const location = useLocation()
   const isAdminRoute = location.pathname.startsWith('/admin')
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+
+  // Initialize welcome email service
+  useEffect(() => {
+    WelcomeEmailService.startProcessing()
+    
+    // Cleanup on unmount
+    return () => {
+      WelcomeEmailService.stopProcessing()
+    }
+  }, [])
 
   return (
     <div className="min-h-screen font-app">
