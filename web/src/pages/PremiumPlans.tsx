@@ -35,8 +35,8 @@ export default function PremiumPlans() {
   // UI-only overrides to ensure the display matches client-approved pricing
   const uiPricingOverrides: Record<number, { original: number; price: number; discountPct: number; savings: number }> = {
     1: { original: 2000, price: 1500, discountPct: 25, savings: 500 }, // ₹1,500 for 1 month
-    3: { original: 3000, price: 2250, discountPct: 25, savings: 750 }, // ₹2,250 for 3 months
-    6: { original: 4800, price: 3600, discountPct: 25, savings: 1200 }, // ₹3,600 for 6 months
+    3: { original: 4500, price: 2250, discountPct: 50, savings: 2250 }, // ₹2,250 for 3 months (50% off)
+    6: { original: 9000, price: 3600, discountPct: 60, savings: 5400 }, // ₹3,600 for 6 months (60% off)
   }
 
   useEffect(() => {
@@ -184,7 +184,7 @@ export default function PremiumPlans() {
           </button>
           
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white">Choose Your Premium Plan</h1>
-          <p className="text-light-white mt-3 max-w-2xl text-sm sm:text-base">Select the duration that works best for you. All plans include our pre-launch discount!</p>
+          <p className="text-light-white mt-3 max-w-2xl text-sm sm:text-base">Select the duration that works best for you. Special launch discounts applied.</p>
         </div>
         <div className="w-full border-t border-border-white-10" />
       </section>
@@ -225,7 +225,7 @@ export default function PremiumPlans() {
               <div className="space-y-6">
                 <div className="text-center">
                   <h3 className="text-xl font-bold text-white mb-2">Choose Your Duration</h3>
-                  <p className="text-sm text-light-white">All plans include pre-launch discount</p>
+                  <p className="text-sm text-light-white">Limited-time discounts available</p>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

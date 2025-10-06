@@ -60,26 +60,26 @@ SELECT
   false
 FROM subscription_plans sp WHERE sp.name = 'Premium';
 
--- 3 Months: ₹6,000 → ₹4,500 (25% off)
+-- 3 Months: ₹4,500 → ₹2,250 (50% off)
 INSERT INTO pricing_options (plan_id, duration_months, price, original_price, discount_percentage, is_popular)
 SELECT 
   sp.id,
   3,
-  4500,  -- 25% off from ₹6,000
-  6000,
-  25,
-  true   -- Most popular
+  2250,  -- 50% off from ₹4,500
+  4500,
+  50,
+  false
 FROM subscription_plans sp WHERE sp.name = 'Premium';
 
--- 6 Months: ₹12,000 → ₹9,000 (25% off)
+-- 6 Months: ₹9,000 → ₹3,600 (60% off) [Most popular]
 INSERT INTO pricing_options (plan_id, duration_months, price, original_price, discount_percentage, is_popular)
 SELECT 
   sp.id,
   6,
-  9000,  -- 25% off from ₹12,000
-  12000,
-  25,
-  false
+  3600,  -- 60% off from ₹9,000
+  9000,
+  60,
+  true   -- Most popular
 FROM subscription_plans sp WHERE sp.name = 'Premium';
 
 -- Create a special offers table for pre-release discounts
