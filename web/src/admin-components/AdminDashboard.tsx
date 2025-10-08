@@ -14,6 +14,7 @@ import { supabase } from '../admin-integrations/supabase/client';
 import UserManagement from './UserManagement';
 import ContentModeration from './ContentModeration';
 import SubscriptionManagement from './SubscriptionManagement';
+import EarlyAccessManagement from './EarlyAccessManagement';
 import CommunicationLogs from './CommunicationLogs';
 import Notifications from './Notifications';
 import Analytics from './Analytics';
@@ -387,6 +388,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     { id: 'users', label: 'User Management', icon: Users },
     { id: 'content', label: 'Content Moderation', icon: Shield },
     { id: 'subscription', label: 'Subscription', icon: CreditCard },
+    { id: 'early-access', label: 'Early Access', icon: Bell },
     { id: 'communication', label: 'Communication Logs', icon: MessageSquare },
     { id: 'notifications', label: 'Notifications', icon: BellRing },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
@@ -590,6 +592,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
           {activeModule === 'subscription' && (
             <SubscriptionManagement isDarkMode={isDarkMode} />
+          )}
+
+          {activeModule === 'early-access' && (
+            <EarlyAccessManagement isDarkMode={isDarkMode} />
           )}
 
           {activeModule === 'communication' && (

@@ -180,21 +180,41 @@ export default function Home() {
         </div>
       </Section>
 
-      {/* Newsletter */}
+      {/* Early Access */}
       <Section>
         <div className="rounded-2xl p-10 md:p-12 bg-gradient-card-pink border border-pink-30 backdrop-blur-md text-center">
-          <h3 className="text-3xl md:text-4xl font-bold mb-4">Stay Updated</h3>
+          <h3 className="text-3xl md:text-4xl font-bold mb-4">Early Access</h3>
           <p className="text-light-white mb-7 text-lg">
-            Subscribe to our newsletter for dating tips, success stories, and special offers.
+            Get early access to Love Bug! Be the first to experience our revolutionary dating platform.
           </p>
           <form
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault()
               const form = e.target as HTMLFormElement
               const input = form.querySelector('input') as HTMLInputElement
-              console.log('Subscribed:', input?.value)
-              alert('Thanks for subscribing!')
-              input.value = ''
+              const email = input?.value
+              
+              if (email) {
+                try {
+                  // Store email in database
+                  const { supabase } = await import('../supabaseClient')
+                  const { error } = await supabase
+                    .from('early_access_emails')
+                    .insert({ email, subscribed_at: new Date().toISOString() })
+                  
+                  if (error) {
+                    console.error('Error storing email:', error)
+                    alert('Thanks for your interest! We\'ll be in touch soon.')
+                  } else {
+                    alert('Thanks for joining our early access list! We\'ll notify you when we launch.')
+                  }
+                  input.value = ''
+                } catch (error) {
+                  console.error('Error:', error)
+                  alert('Thanks for your interest! We\'ll be in touch soon.')
+                  input.value = ''
+                }
+              }
             }}
             className="mx-auto max-w-2xl flex flex-col sm:flex-row gap-4"
           >
@@ -204,7 +224,7 @@ export default function Home() {
               placeholder="Enter your email"
               className="flex-1 px-5 py-4 rounded-xl bg-white/90 text-gray-800 placeholder-gray-500 text-base min-w-0"
             />
-            <PinkGradientButton className="rounded-xl px-6 py-4 text-base w-full sm:w-auto whitespace-nowrap">Subscribe</PinkGradientButton>
+            <PinkGradientButton className="rounded-xl px-6 py-4 text-base w-full sm:w-auto whitespace-nowrap">Get Early Access</PinkGradientButton>
           </form>
         </div>
       </Section>
