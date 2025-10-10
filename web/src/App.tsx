@@ -47,9 +47,11 @@ import RefundPolicy from './pages/RefundPolicy'
 import Careers from './pages/Careers'
 import Press from './pages/Press'
 import Blog from './pages/Blog'
+import EarlyAccessThankYou from './pages/EarlyAccessThankYou'
 import SubscriptionPlansAdmin from './pages/admin/SubscriptionPlansAdmin'
 import OffersAdmin from './pages/admin/OffersAdmin'
 import ReportsManagement from './admin-components/ReportsManagement'
+import { Toaster } from 'sonner'
 
 export default function App() {
   const { user, signOut } = useAuth()
@@ -69,6 +71,22 @@ export default function App() {
 
   return (
     <div className="min-h-screen font-app">
+      <Toaster 
+        richColors 
+        position="bottom-right" 
+        theme="dark"
+        toastOptions={{
+          duration: 3500,
+          classNames: {
+            toast: 'rounded-2xl bg-gradient-to-r from-pink-500/90 to-purple-600/90 text-white border border-pink-400/30 shadow-2xl backdrop-blur-sm px-6 py-4 text-lg flex items-center gap-3 whitespace-nowrap min-w-fit max-w-[calc(100vw-2rem)]',
+            title: 'text-white font-semibold text-lg',
+            description: 'text-white',
+            icon: 'text-red-400 flex-shrink-0',
+            actionButton: 'bg-white/15 hover:bg-white/25 text-white border border-white/20 rounded-lg text-sm px-3 py-2',
+            cancelButton: 'bg-transparent hover:bg-white/10 text-white border border-white/20 rounded-lg text-sm px-3 py-2'
+          }
+        }}
+      />
       {!isAdminRoute && (
         <header className="sticky top-0 z-50 bg-gradient-card-pink backdrop-blur border-b border-pink-30">
         <div className="w-full px-4 sm:px-6 md:px-8 xl:px-12 py-3 flex items-center justify-between">
@@ -260,6 +278,7 @@ export default function App() {
                 <Route path="/careers" element={<Careers />} />
                 <Route path="/press" element={<Press />} />
                 <Route path="/blog" element={<Blog />} />
+                <Route path="/thank-you" element={<EarlyAccessThankYou />} />
               </Routes>
             </main>
             <Footer />
