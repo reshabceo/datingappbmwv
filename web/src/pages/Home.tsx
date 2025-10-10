@@ -1,4 +1,5 @@
 import React from 'react'
+import { toast } from 'sonner'
 import { Link } from 'react-router-dom'
 import PinkGradientButton from '../components/ui/PinkGradientButton'
 import GlassCardPink from '../components/ui/GlassCardPink'
@@ -204,14 +205,21 @@ export default function Home() {
                   
                   if (error) {
                     console.error('Error storing email:', error)
-                    alert('Thanks for your interest! We\'ll be in touch soon.')
+                    const msg = (error as any)?.message?.toLowerCase?.() || ''
+                    const code = (error as any)?.code
+                    if (code === '23505' || msg.includes('duplicate') || msg.includes('unique')) {
+                      toast.info('Email already submitted for early access')
+                    } else {
+                      toast.error('Something went wrong. Please try again.')
+                    }
                   } else {
-                    alert('Thanks for joining our early access list! We\'ll notify you when we launch.')
+                    // Redirect to thank-you page for GTM/Pixel tracking
+                    window.location.assign('/thank-you')
                   }
                   input.value = ''
                 } catch (error) {
                   console.error('Error:', error)
-                  alert('Thanks for your interest! We\'ll be in touch soon.')
+                  toast.error('Could not submit right now. Please try again.')
                   input.value = ''
                 }
               }
