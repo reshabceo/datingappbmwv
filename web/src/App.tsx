@@ -79,14 +79,20 @@ export default function App() {
 
   // GTM page view tracking for React Router
   useEffect(() => {
-    // Track page view for GTM
-    if (typeof window !== 'undefined' && window.dataLayer) {
-      window.dataLayer.push({
-        event: 'page_view',
-        page_path: location.pathname + location.search,
-        page_title: document.title
-      })
-    }
+    // Small delay to ensure page is fully loaded
+    const timer = setTimeout(() => {
+      // Track page view for GTM
+      if (typeof window !== 'undefined' && window.dataLayer) {
+        window.dataLayer.push({
+          event: 'page_view',
+          page_path: location.pathname + location.search,
+          page_title: document.title,
+          page_location: window.location.href
+        })
+      }
+    }, 100)
+    
+    return () => clearTimeout(timer)
   }, [location])
 
   return (
