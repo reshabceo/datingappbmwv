@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from 'react'
 import { Routes, Route, Link, useLocation } from 'react-router-dom'
+
+// GTM tracking for page views
+declare global {
+  interface Window {
+    dataLayer: any[];
+    gtag: (...args: any[]) => void;
+  }
+}
 import { WelcomeEmailService } from './services/welcomeEmailService'
 import Login from './pages/Login'
 import Profiles from './pages/Profiles'
@@ -68,6 +76,18 @@ export default function App() {
       WelcomeEmailService.stopProcessing()
     }
   }, [])
+
+  // GTM page view tracking for React Router
+  useEffect(() => {
+    // Track page view for GTM
+    if (typeof window !== 'undefined' && window.dataLayer) {
+      window.dataLayer.push({
+        event: 'page_view',
+        page_path: location.pathname + location.search,
+        page_title: document.title
+      })
+    }
+  }, [location])
 
   return (
     <div className="min-h-screen font-app">
