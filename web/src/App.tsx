@@ -67,9 +67,20 @@ export default function App() {
   const isAdminRoute = location.pathname.startsWith('/admin')
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
-  // Initialize welcome email service
+  // Initialize welcome email service and GTM
   useEffect(() => {
     WelcomeEmailService.startProcessing()
+    
+    // Ensure GTM is properly initialized
+    if (typeof window !== 'undefined') {
+      window.dataLayer = window.dataLayer || []
+      
+      // Force GTM to fire on initial load
+      window.dataLayer.push({
+        'gtm.start': new Date().getTime(),
+        event: 'gtm.js'
+      })
+    }
     
     // Cleanup on unmount
     return () => {
@@ -79,13 +90,25 @@ export default function App() {
 
   // GTM page view tracking for React Router
   useEffect(() => {
-    // Track page view for GTM
-    if (typeof window !== 'undefined' && window.dataLayer) {
+    // Initialize dataLayer if it doesn't exist
+    if (typeof window !== 'undefined') {
+      window.dataLayer = window.dataLayer || []
+      
+      // Track page view for GTM
       window.dataLayer.push({
         event: 'page_view',
         page_path: location.pathname + location.search,
-        page_title: document.title
+        page_title: document.title,
+        page_location: window.location.href
       })
+      
+      // Also trigger GTM if it exists
+      if (window.gtag) {
+        window.gtag('config', 'GTM-NDLQLD4N', {
+          page_path: location.pathname + location.search,
+          page_title: document.title
+        })
+      }
     }
   }, [location])
 
