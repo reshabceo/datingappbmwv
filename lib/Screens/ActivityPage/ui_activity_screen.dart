@@ -22,262 +22,249 @@ class ActivityScreen extends StatelessWidget {
         height: Get.height,
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [themeController.blackColor, themeController.bgGradient1, themeController.blackColor],
+            colors: [
+              themeController.blackColor,
+              themeController.bgGradient1,
+              themeController.blackColor,
+            ],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
         ),
-        child: screenPadding(customPadding: EdgeInsets.fromLTRB(15.w, 56.h, 15.w, 0),
+        child: screenPadding(
+          customPadding: EdgeInsets.fromLTRB(15.w, 20.h, 15.w, 0),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              heightBox(10),
+              heightBox(35),
               TextConstant(
                 fontSize: 24,
                 title: 'activity'.tr,
                 fontWeight: FontWeight.bold,
                 color: themeController.whiteColor,
               ),
-              heightBox(15),
+              heightBox(2),
               Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      ListView.separated(
-                        shrinkWrap: true,
-                        physics: NeverScrollableScrollPhysics(),
-                        itemCount: controller.activityList.length,
-                        separatorBuilder: (context, index) => heightBox(10),
-                        itemBuilder: (context, index) {
-                          final activity = controller.activityList[index];
-
-                          final isOdd = index % 2 != 0;
-                          final backgroundColor = isOdd
-                              ? themeController.lightPinkColor.withValues(
-                            alpha: 0.2,
-                          )
-                              : themeController.purpleColor.withValues(
-                            alpha: 0.2,
-                          );
-
-                          final iconColor = isOdd
-                              ? themeController.lightPinkColor
-                              : themeController.purpleColor;
-
-                          return InkWell(
-                            onTap: () {},
-                            child: Container(
-                              width: Get.width,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: themeController.lightPinkColor.withValues(
-                                  alpha: 0.15,
-                                ),
-                                border: Border.all(
-                                  color: themeController.lightPinkColor.withValues(
-                                    alpha: 0.3,
-                                  ),
-                                  width: 1.w,
-                                ),
-                                borderRadius: BorderRadius.circular(16.r),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: themeController.lightPinkColor.withValues(alpha: 0.2),
-                                    blurRadius: 8,
-                                    offset: Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              padding: EdgeInsets.all(12.w),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  ButtonSquare(
-                                    icon: activity.icon,
-                                    backgroundColor: backgroundColor,
-                                    iconColor: iconColor,
-                                    width: 35,
-                                    height: 35,
-                                    iconSize: 15,
-                                    borderRadius: 100,
-                                  ),
-                                  widthBox(11),
-                                  Expanded(
-                                    child: Column(
-                                      spacing: 3.h,
-                                      crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                      children: [
-                                        TextConstant(
-                                          title: activity.message,
-                                          overflow: TextOverflow.ellipsis,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                          color: themeController.whiteColor,
-                                        ),
-                                        TextConstant(
-                                          title: activity.time,
-                                          fontSize: 11,
-                                          color: themeController.whiteColor.withValues(alpha: 0.7),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  widthBox(10),
-                                  Container(
-                                    height: 8.h,
-                                    width: 8.h,
-                                    decoration: BoxDecoration(
-                                      color: iconColor,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
+                child: Obx(() {
+                  // Loading
+                  if (controller.isLoading.value &&
+                      controller.activities.isEmpty) {
+                    return Center(
+                      child: CircularProgressIndicator(
+                        color: themeController.lightPinkColor,
                       ),
-                      heightBox(20),
-                        Container(
-                          width: Get.width,
-                          margin: EdgeInsets.symmetric(vertical: 4),
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: themeController.lightPinkColor.withValues(
-                              alpha: 0.15,
-                            ),
-                            border: Border.all(
-                              color: themeController.lightPinkColor.withValues(
-                                alpha: 0.3,
-                              ),
-                              width: 1.w,
-                            ),
-                            borderRadius: BorderRadius.circular(16.r),
-                            boxShadow: [
-                              BoxShadow(
-                                color: themeController.lightPinkColor.withValues(alpha: 0.2),
-                                blurRadius: 8,
-                                offset: Offset(0, 4),
-                              ),
-                            ],
+                    );
+                  }
+
+                  // Error
+                  if (controller.hasError.value) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            size: 48.sp,
+                            color: themeController.lightPinkColor,
                           ),
-                        padding: EdgeInsets.all(12.w),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            ButtonSquare(
-                              icon: LucideIcons.ghost,
-                              iconColor: themeController.purpleColor,
-                              backgroundColor: themeController.purpleColor
-                                  .withValues(alpha: 0.2),
-                              width: 35,
-                              height: 35,
-                              iconSize: 15,
-                              borderRadius: 100,
+                          heightBox(16),
+                          TextConstant(
+                            title: 'Failed to load activities',
+                            fontSize: 14,
+                            color: themeController.whiteColor,
+                          ),
+                          heightBox(16),
+                          ElevatedButton(
+                            onPressed: () => controller.loadActivities(),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor:
+                                  themeController.lightPinkColor,
                             ),
-                            widthBox(11),
-                            Expanded(
-                              child: Column(
-                                spacing: 3.h,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  TextConstant(
-                                    title: 'ghost_mode'.tr,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.bold,
-                                    overflow: TextOverflow.ellipsis,
-                                    color: themeController.whiteColor,
-                                  ),
-                                  TextConstant(
-                                    fontSize: 11,
-                                    title: 'become_hours'.tr,
-                                    color: themeController.whiteColor.withValues(alpha: 0.7),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            widthBox(10),
-                            Obx(() {
-                              return Switch.adaptive(
-                                value: controller.isOn.value,
-                                onChanged: (v) {
-                                  controller.toggle();
-                                },
-                                trackOutlineWidth: WidgetStatePropertyAll(0.1),
-                                activeTrackColor: themeController.purpleColor
-                                    .withValues(alpha: 0.3),
-                                inactiveTrackColor: themeController.greyColor
-                                    .withValues(alpha: 0.3),
-                                thumbColor: controller.isOn.value
-                                    ? WidgetStateProperty.all(
-                                  themeController.purpleColor,
-                                )
-                                    : WidgetStateProperty.all(
-                                  themeController.whiteColor.withValues(
-                                    alpha: 0.7,
-                                  ),
-                                ),
-                              );
-                            }),
-                          ],
-                        ),
+                            child: const Text('Retry'),
+                          ),
+                        ],
                       ),
-                      heightBox(20),
-                      TextConstant(
-                        fontSize: 16,
-                        title: 'recent_activity'.tr,
-                        fontWeight: FontWeight.bold,
-                        color: themeController.whiteColor,
-                      ),
-                      heightBox(15),
-                      ListView.separated(
-                        shrinkWrap: true,
-                        physics: NeverScrollableScrollPhysics(),
-                        itemCount: controller.recentActivity.length,
-                        separatorBuilder: (context, index) => heightBox(10),
-                        itemBuilder: (context, index) {
-                          final recentActivity =
-                          controller.recentActivity[index];
+                    );
+                  }
 
-                            return Container(
-                              width: Get.width,
-                              alignment: Alignment.centerLeft,
-                              decoration: BoxDecoration(
-                                color: themeController.lightPinkColor.withValues(
-                                  alpha: 0.15,
-                                ),
-                                border: Border.all(
-                                  color: themeController.lightPinkColor.withValues(
-                                    alpha: 0.3,
-                                  ),
-                                  width: 1.w,
-                                ),
-                                borderRadius: BorderRadius.circular(16.r),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: themeController.lightPinkColor.withValues(alpha: 0.2),
-                                    blurRadius: 8,
-                                    offset: Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                            padding: EdgeInsets.all(12.w),
-                            child: TextConstant(
-                              fontSize: 12,
-                              title: recentActivity,
-                              fontWeight: FontWeight.bold,
-                              overflow: TextOverflow.ellipsis,
-                              color: themeController.whiteColor,
-                            ),
-                          );
-                        },
+                  // Empty
+                  if (controller.activities.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            LucideIcons.inbox,
+                            size: 48.sp,
+                            color: themeController.whiteColor
+                                .withValues(alpha: 0.5),
+                          ),
+                          heightBox(16),
+                          TextConstant(
+                            title: 'No activities yet',
+                            fontSize: 16,
+                            color: themeController.whiteColor
+                                .withValues(alpha: 0.7),
+                          ),
+                          heightBox(8),
+                          TextConstant(
+                            title:
+                                'Start swiping to see who likes you!',
+                            fontSize: 12,
+                            color: themeController.whiteColor
+                                .withValues(alpha: 0.5),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
+                    );
+                  }
+
+                  // List
+                  return RefreshIndicator(
+                    onRefresh: controller.refresh,
+                    color: themeController.lightPinkColor,
+                    child: ListView.separated(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: EdgeInsets.zero,
+                      itemCount: controller.activities.length,
+                      separatorBuilder: (context, index) => heightBox(10),
+                      itemBuilder: (context, index) {
+                        final activity = controller.activities[index];
+                        // Use blue gradient for BFF activities, pink/purple for dating activities
+                        final isBffActivity = activity.type.toString().contains('bff');
+                        final backgroundColor = isBffActivity
+                            ? themeController.bffPrimaryColor.withValues(alpha: 0.2)
+                            : (index % 2 != 0
+                                ? themeController.lightPinkColor.withValues(alpha: 0.2)
+                                : themeController.purpleColor.withValues(alpha: 0.2));
+                        final iconColor = isBffActivity
+                            ? themeController.bffPrimaryColor
+                            : (index % 2 != 0
+                                ? themeController.lightPinkColor
+                                : themeController.purpleColor);
+
+                        return InkWell(
+                          onTap: () => controller.onActivityTap(activity),
+                          child: Container(
+                                width: Get.width,
+                                decoration: BoxDecoration(
+                                  gradient: isBffActivity
+                                      ? LinearGradient(
+                                          colors: [
+                                            themeController.bffPrimaryColor.withValues(alpha: 0.15),
+                                            themeController.bffSecondaryColor.withValues(alpha: 0.1),
+                                          ],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                        )
+                                      : null,
+                                  color: isBffActivity
+                                      ? null
+                                      : themeController.lightPinkColor.withValues(alpha: 0.15),
+                                  border: Border.all(
+                                    color: isBffActivity
+                                        ? themeController.bffPrimaryColor.withValues(alpha: 0.3)
+                                        : themeController.lightPinkColor.withValues(alpha: 0.3),
+                                    width: 1.w,
+                                  ),
+                                  borderRadius: BorderRadius.circular(16.r),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: isBffActivity
+                                          ? themeController.bffPrimaryColor.withValues(alpha: 0.2)
+                                          : themeController.lightPinkColor.withValues(alpha: 0.2),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                padding: EdgeInsets.all(12.w),
+                                child: Row(
+                                  children: [
+                                    // Profile photo
+                                    Container(
+                                      width: 40.h,
+                                      height: 40.h,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: backgroundColor,
+                                        image: activity.otherUserPhoto !=
+                                                    null &&
+                                                activity.otherUserPhoto!
+                                                    .isNotEmpty
+                                            ? DecorationImage(
+                                                image: NetworkImage(
+                                                    activity.otherUserPhoto!),
+                                                fit: BoxFit.cover,
+                                              )
+                                            : null,
+                                      ),
+                                      child: (activity.otherUserPhoto ==
+                                                  null ||
+                                              activity.otherUserPhoto!
+                                                  .isEmpty)
+                                          ? Icon(
+                                              Icons.person,
+                                              color: iconColor,
+                                              size: 20.sp,
+                                            )
+                                          : null,
+                                    ),
+                                    widthBox(12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            activity.displayMessage,
+                                            style: TextStyle(
+                                              color: themeController
+                                                  .whiteColor,
+                                              fontSize: 13.sp,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          heightBox(4),
+                                          Text(
+                                            activity.timeAgo,
+                                            style: TextStyle(
+                                              color: themeController
+                                                  .whiteColor
+                                                  .withValues(alpha: 0.6),
+                                              fontSize: 11.sp,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    widthBox(8),
+                                    Icon(
+                                      activity.icon,
+                                      color: iconColor,
+                                      size: 20.sp,
+                                    ),
+                                    widthBox(8),
+                                    if (activity.isUnread)
+                                      Container(
+                                        width: 8.h,
+                                        height: 8.h,
+                                        decoration: BoxDecoration(
+                                          color: themeController
+                                              .lightPinkColor,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            );
+                      },
+                    ),
+                  );
+                }),
               ),
             ],
           ),

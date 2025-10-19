@@ -49,5 +49,34 @@
 	<string>This app needs access to camera to take photos for your profile.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>This app needs access to photo library to select photos for your profile.</string>
+	
+	<!-- Facebook App Configuration -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>facebook</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>fbYOUR_FACEBOOK_APP_ID</string>
+			</array>
+		</dict>
+	</array>
+	
+	<!-- Facebook App ID -->
+	<key>FacebookAppID</key>
+	<string>YOUR_FACEBOOK_APP_ID</string>
+	
+	<!-- Facebook Display Name -->
+	<key>FacebookDisplayName</key>
+	<string>LoveBug</string>
+	
+	<!-- Facebook Client Token -->
+	<key>FacebookClientToken</key>
+	<string>YOUR_FACEBOOK_CLIENT_TOKEN</string>
+	
+	<!-- Google Mobile Ads App ID -->
+	<key>GADApplicationIdentifier</key>
+	<string>ca-app-pub-3940256099942544~3347511713</string>
 </dict>
 </plist>

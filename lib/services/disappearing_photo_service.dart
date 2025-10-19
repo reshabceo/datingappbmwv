@@ -3,10 +3,10 @@ import 'package:lovebug/services/supabase_service.dart';
 import 'package:lovebug/Screens/ChatPage/disappearing_photo_screen.dart';
 import 'package:get/get.dart';
 
-class DisappearingPhotoService {
+class EnhancedDisappearingPhotoService {
   static const String _bucketName = 'disappearing-photos';
   
-  /// Send a disappearing photo
+  /// Send a disappearing photo with enhanced UX
   static Future<String?> sendDisappearingPhoto({
     required String matchId,
     required Uint8List photoBytes,
@@ -29,14 +29,9 @@ class DisappearingPhotoService {
       );
       print('✅ DEBUG: Storage upload successful: $photoUrl');
       
-      // Prepare data for database - use consistent timestamp
+      // Prepare data for database
       final now = DateTime.now();
       final expiresAt = now.add(Duration(seconds: viewDuration + 30));
-      // Don't set created_at manually - let database handle it like regular messages
-      
-      print('🕐 DEBUG: Timestamp details:');
-      print('  - now: $now');
-      print('  - expiresAt: $expiresAt');
       
       final insertData = {
         'match_id': matchId,
@@ -44,7 +39,6 @@ class DisappearingPhotoService {
         'sender_id': SupabaseService.currentUser?.id,
         'view_duration': viewDuration,
         'expires_at': expiresAt.toIso8601String(),
-        // Don't set created_at - let database handle it automatically
       };
       
       print('🔄 DEBUG: Inserting to database with data: $insertData');
@@ -63,14 +57,13 @@ class DisappearingPhotoService {
         return null;
       }
       
-      // Also add to messages table so it shows in chat - use same timestamp
+      // Add to messages table so it shows in chat - but only for receiver
       final messageData = {
         'match_id': matchId,
         'sender_id': SupabaseService.currentUser?.id,
         'content': '📸 Disappearing Photo',
         'is_disappearing_photo': true,
         'disappearing_photo_id': disappearingPhotoId,
-        // Don't set created_at - let database handle it automatically
       };
       
       print('🔄 DEBUG: Adding to messages table: $messageData');
@@ -80,27 +73,50 @@ class DisappearingPhotoService {
       return photoUrl;
     } catch (e) {
       print('❌ DEBUG: Error sending disappearing photo: $e');
-      print('❌ DEBUG: Error type: ${e.runtimeType}');
-      if (e.toString().contains('DateTime')) {
-        print('❌ DEBUG: DateTime conversion issue detected');
-      }
       return null;
     }
   }
   
-  /// Get disappearing photos for a match
+  /// Get disappearing photos for a match (receiver only)
   static Future<List<Map<String, dynamic>>> getDisappearingPhotos(String matchId) async {
     try {
+      final currentUserId = SupabaseService.currentUser?.id;
+      if (currentUserId == null) return [];
+      
+      // Only get disappearing photos where current user is NOT the sender
       final response = await SupabaseService.client
           .from('disappearing_photos')
           .select('*')
           .eq('match_id', matchId)
+          .neq('sender_id', currentUserId) // Exclude photos sent by current user
           .gt('expires_at', DateTime.now().toIso8601String())
           .order('created_at', ascending: false);
       
       return (response as List).cast<Map<String, dynamic>>();
     } catch (e) {
       print('Error getting disappearing photos: $e');
+      return [];
+    }
+  }
+  
+  /// Get disappearing photos sent by current user (for sender view)
+  static Future<List<Map<String, dynamic>>> getSentDisappearingPhotos(String matchId) async {
+    try {
+      final currentUserId = SupabaseService.currentUser?.id;
+      if (currentUserId == null) return [];
+      
+      // Get disappearing photos sent by current user
+      final response = await SupabaseService.client
+          .from('disappearing_photos')
+          .select('*')
+          .eq('match_id', matchId)
+          .eq('sender_id', currentUserId) // Only photos sent by current user
+          .gt('expires_at', DateTime.now().toIso8601String())
+          .order('created_at', ascending: false);
+      
+      return (response as List).cast<Map<String, dynamic>>();
+    } catch (e) {
+      print('Error getting sent disappearing photos: $e');
       return [];
     }
   }

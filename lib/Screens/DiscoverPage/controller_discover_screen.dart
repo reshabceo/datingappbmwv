@@ -11,6 +11,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:lovebug/shared_prefrence_helper.dart';
 import 'package:collection/collection.dart';
+import '../ChatPage/controller_chat_screen.dart';
 
 class DiscoverController extends GetxController {
   // Feature flags
@@ -18,6 +19,16 @@ class DiscoverController extends GetxController {
 
   final profiles = <Profile>[].obs;
   final currentIndex = 0.obs;
+  final RxBool isPreloading = false.obs;
+  final RxInt preloadedCount = 0.obs;
+  
+  // Mode toggle (Dating/BFF)
+  final RxString currentMode = 'dating'.obs; // 'dating' or 'bff'
+  
+  // Separate profile caches for each mode
+  final RxList<Profile> datingProfiles = <Profile>[].obs;
+  final RxList<Profile> bffProfiles = <Profile>[].obs;
+  
   // Filters
   final RxInt minAge = 18.obs;
   final RxInt maxAge = 99.obs;
@@ -27,6 +38,7 @@ class DiscoverController extends GetxController {
   final RxSet<String> selectedIntents = <String>{}.obs; // Casual, Serious, Just Chatting
 
   // Prefs keys
+  static const String _kModeKey = 'discover_mode';
   static const String _kMinAgeKey = 'filters_min_age';
   static const String _kMaxAgeKey = 'filters_max_age';
   static const String _kGenderKey = 'filters_gender';
@@ -116,8 +128,192 @@ class DiscoverController extends GetxController {
     super.onInit();
     // Ensure current auth user has a profile row in DB
     SupabaseService.ensureCurrentUserProfile();
+    _loadModeFromPrefs();
     _loadFiltersFromPrefs();
     _ensureLocationThenLoad();
+  }
+
+  // Mode management
+  void setMode(String mode) async {
+    if (mode == 'dating' || mode == 'bff') {
+      if (mode == currentMode.value) return;
+      
+      print('DEBUG: Mode changed from ${currentMode.value} to $mode');
+      
+      // Update mode preferences in database
+      await SupabaseService.updateModePreferences({
+        'dating': mode == 'dating',
+        'bff': mode == 'bff',
+      });
+      
+      currentMode.value = mode;
+      
+      // Force refresh profiles for the new mode
+      await refreshProfilesForMode(mode);
+      await SharedPreferenceHelper.setString(_kModeKey, mode);
+      
+      // Notify other controllers about mode change
+      _notifyModeChange(mode);
+      
+      print('🔄 Mode changed to: $mode');
+    }
+  }
+  
+  void _switchToModeProfiles(String mode) {
+    // Show loading indicator when switching modes
+    isPreloading.value = true;
+    
+    if (mode == 'bff') {
+      profiles.value = List.from(bffProfiles);
+    } else {
+      profiles.value = List.from(datingProfiles);
+    }
+    currentIndex.value = 0;
+    
+    // Hide loading indicator
+    isPreloading.value = false;
+  }
+
+  // Method to refresh profiles when switching modes
+  Future<void> refreshProfilesForMode(String mode) async {
+    print('🔄 Refreshing profiles for mode: $mode');
+    isPreloading.value = true;
+    
+    // Show loading indicator immediately
+    update();
+    
+    try {
+      final currentUserId = SupabaseService.currentUser?.id;
+      final Set<String> excludedIds = await _loadExcludedUserIds();
+      
+      // Load fresh profiles for the new mode with optimized loading
+      List<Map<String, dynamic>> rows;
+      if (mode == 'bff') {
+        print('🔍 DEBUG: Loading fresh BFF profiles for mode switch');
+        rows = await SupabaseService.getBffProfiles();
+        print('🔍 DEBUG: Fresh BFF profiles loaded: ${rows.length}');
+      } else {
+        print('🔍 DEBUG: Loading fresh dating profiles for mode switch');
+        rows = await SupabaseService.getProfilesWithSuperLikes();
+        print('🔍 DEBUG: Fresh dating profiles loaded: ${rows.length}');
+      }
+      
+      // If no profiles found, show "no more profiles" state
+      if (rows.isEmpty) {
+        print('🔍 DEBUG: No profiles found for mode: $mode');
+        profiles.clear();
+        currentIndex.value = 0;
+        isPreloading.value = false;
+        update(); // Force UI update to show empty state
+        return;
+      }
+      
+      // Process and filter profiles
+      final List<Profile> loaded = rows
+          .where((r) {
+            final id = (r['id'] ?? '').toString();
+            if (id.isEmpty) return false;
+            if (currentUserId != null && id == currentUserId) return false;
+            if (excludedIds.contains(id)) return false;
+            return true;
+          })
+          .where((r) {
+            final age = (r['age'] ?? 0) as int;
+            if (age < minAge.value || age > maxAge.value) return false;
+            if (gender.value != 'Everyone') {
+              final g = (r['gender'] ?? '').toString();
+              if (g.isNotEmpty && g.toLowerCase() != gender.value.toLowerCase()) return false;
+            }
+            if (selectedIntents.isNotEmpty) {
+              final i = (r['intent'] ?? '').toString();
+              if (i.isNotEmpty && !selectedIntents.map((e) => e.toLowerCase()).contains(i.toLowerCase())) return false;
+            }
+            return true;
+          })
+          .where((r) {
+            if (_userLat == null || _userLon == null || maxDistanceKm.value <= 0) return true;
+            final lat = (r['latitude'] as num?)?.toDouble();
+            final lon = (r['longitude'] as num?)?.toDouble();
+            if (lat == null || lon == null) return true;
+            final d = _haversineKm(_userLat!, _userLon!, lat, lon);
+            return d <= maxDistanceKm.value;
+          })
+          .map((r) {
+            List<String> photos = _asStringList(r['image_urls']);
+            if (photos.isEmpty) photos = _asStringList(r['photos']);
+            photos = photos.where((u) => (u is String) && u.toString().trim().isNotEmpty).toList();
+            
+            // Calculate distance
+            String distance = 'Unknown distance';
+            if (_userLat != null && _userLon != null) {
+              final lat = (r['latitude'] as num?)?.toDouble();
+              final lon = (r['longitude'] as num?)?.toDouble();
+              if (lat != null && lon != null) {
+                final d = _haversineKm(_userLat!, _userLon!, lat, lon);
+                distance = '${d.round()} miles away';
+              }
+            }
+            
+            return Profile(
+              id: (r['id'] ?? '').toString(),
+              name: (r['name'] ?? '').toString(),
+              age: (r['age'] ?? 0) as int,
+              imageUrl: photos.isNotEmpty ? photos.first : '',
+              photos: photos,
+              location: (r['location'] ?? '').toString(),
+              distance: distance,
+              description: (r['description'] ?? '').toString(),
+              hobbies: _asStringList(r['hobbies']),
+              isSuperLiked: (r['is_super_liked'] ?? false) as bool,
+            );
+          })
+          .toList();
+      
+      // Update profiles list with fresh data - optimized loading order
+      profiles.value = loaded;
+      currentIndex.value = 0;
+      
+      // Update cached profiles for the new mode
+      if (mode == 'bff') {
+        bffProfiles.clear();
+        bffProfiles.addAll(loaded);
+      } else {
+        datingProfiles.clear();
+        datingProfiles.addAll(loaded);
+      }
+      
+      // Force immediate UI update for first card
+      update();
+      
+      // Preload remaining cards in background (optimized loading order)
+      if (loaded.length > 1) {
+        _preloadRemainingCards(loaded);
+      }
+      
+      print('✅ Profiles refreshed for mode: $mode, count: ${profiles.length}');
+    } catch (e) {
+      print('❌ Error refreshing profiles for mode $mode: $e');
+    } finally {
+      isPreloading.value = false;
+      update(); // Force UI update
+    }
+  }
+
+  void _notifyModeChange(String mode) {
+    // Notify chat controller if it exists
+    if (Get.isRegistered<EnhancedChatController>()) {
+      final chatController = Get.find<EnhancedChatController>();
+      chatController.onModeChanged(mode);
+    }
+  }
+
+  void _loadModeFromPrefs() {
+    try {
+      final savedMode = SharedPreferenceHelper.getString(_kModeKey, defaultValue: 'dating');
+      if (savedMode == 'dating' || savedMode == 'bff') {
+        currentMode.value = savedMode;
+      }
+    } catch (_) {}
   }
 
   Future<void> reloadWithFilters() async {
@@ -134,6 +330,15 @@ class DiscoverController extends GetxController {
       selectedIntents.value = intents.toSet();
     } catch (_) {}
   }
+
+  void resetFilters() {
+    minAge.value = 18;
+    maxAge.value = 99;
+    gender.value = 'Everyone';
+    maxDistanceKm.value = 100.0;
+    selectedIntents.clear();
+  }
+
 
   Future<void> saveFilters() async {
     await SharedPreferenceHelper.setInt(_kMinAgeKey, minAge.value);
@@ -171,10 +376,30 @@ class DiscoverController extends GetxController {
 
   Future<void> _loadActiveProfiles() async {
     try {
+      isPreloading.value = true;
       final currentUserId = SupabaseService.currentUser?.id;
       final Set<String> excludedIds = await _loadExcludedUserIds();
-      // For now, client-side filtering after fetch; can move to RPC later
-      final rows = await SupabaseService.getProfiles();
+      
+      // Load profiles based on current mode
+      List<Map<String, dynamic>> rows;
+      if (currentMode.value == 'bff') {
+        print('🔍 DEBUG: Loading BFF profiles');
+        rows = await SupabaseService.getBffProfiles();
+        print('🔍 DEBUG: getBffProfiles() returned ${rows.length} profiles');
+        if (rows.isEmpty) {
+          print('🔍 DEBUG: No BFF profiles available - will show empty state');
+          // Clear any existing profiles to trigger empty state
+          profiles.clear();
+          currentIndex.value = 0;
+          isPreloading.value = false;
+          update();
+          return;
+        }
+      } else {
+        print('🔍 DEBUG: Loading dating profiles');
+        rows = await SupabaseService.getProfilesWithSuperLikes();
+        print('🔍 DEBUG: getProfilesWithSuperLikes() returned ${rows.length} profiles');
+      }
 
       // Debug: Log all profiles being processed
       print('🔍 DEBUG: Total profiles fetched: ${rows.length}');
@@ -222,17 +447,17 @@ class DiscoverController extends GetxController {
             // photos/image_urls support - Check image_urls FIRST (current field)
             List<String> photos = _asStringList(r['image_urls']);
             if (photos.isEmpty) photos = _asStringList(r['photos']);
+            // Sanitize - drop empties
+            photos = photos.where((u) => (u is String) && u.toString().trim().isNotEmpty).toList();
             
-            // Debug logging for Ashley's profile
-            if ((r['name'] ?? '').toString().toLowerCase().contains('ashley')) {
-              print('🔍 DEBUG: Ashley profile data:');
-              print('  - Raw data: $r');
-              print('  - photos field: ${r['photos']} (type: ${r['photos'].runtimeType})');
-              print('  - image_urls field: ${r['image_urls']} (type: ${r['image_urls'].runtimeType})');
-              print('  - photos after _asStringList: $photos');
-              print('  - photos length: ${photos.length}');
-              print('  - Final imageUrl: ${photos.isNotEmpty ? photos.first : "NONE"}');
+            // Add fallback image if no photos available
+            if (photos.isEmpty) {
+              photos = ['https://picsum.photos/seed/${r['id']}/800/1200'];
+              print('🖼️ No photos found for ${r['name']}, using fallback image');
             }
+            
+            final isSuperLiked = (r['is_super_liked'] ?? false) as bool;
+            print('🔍 Profile: ${(r['name'] ?? '').toString()} - isSuperLiked: $isSuperLiked');
             
             return Profile(
               id: (r['id'] ?? '').toString(),
@@ -246,10 +471,48 @@ class DiscoverController extends GetxController {
               hobbies: _asStringList(r['interests'] ?? r['hobbies'] ?? []),
               isVerified: true,
               isActiveNow: true,
+              isSuperLiked: isSuperLiked,
             );
           })
           .toList();
-      profiles.assignAll(loaded);
+      
+      // Validate and filter profiles before assigning
+      final validProfiles = loaded.where((profile) => 
+        profile.name.isNotEmpty && 
+        profile.id.isNotEmpty && 
+        profile.imageUrl.isNotEmpty
+      ).toList();
+      
+      // DEBUG: Log all loaded profiles
+      print('🔍 DEBUG: Raw loaded profiles: ${loaded.length}');
+      for (int i = 0; i < loaded.length; i++) {
+        final profile = loaded[i];
+        print('  Profile $i: ID=${profile.id}, Name="${profile.name}", Age=${profile.age}, Image=${profile.imageUrl}');
+      }
+      
+      print('🔍 DEBUG: Valid profiles after filtering: ${validProfiles.length}');
+      for (int i = 0; i < validProfiles.length; i++) {
+        final profile = validProfiles[i];
+        print('  Valid Profile $i: ID=${profile.id}, Name="${profile.name}", Age=${profile.age}');
+      }
+      
+      // Preload profiles and trigger background loading
+      profiles.assignAll(validProfiles);
+      preloadedCount.value = validProfiles.length;
+      isPreloading.value = false;
+      
+      // Cache profiles by mode
+      if (currentMode.value == 'bff') {
+        bffProfiles.value = List.from(validProfiles);
+      } else {
+        datingProfiles.value = List.from(validProfiles);
+      }
+      
+      print('✅ Loaded ${validProfiles.length} valid profiles for ${currentMode.value} mode');
+      
+      // Start background preloading of next batch
+      _preloadNextBatch();
+      
     } catch (_) {
       // fallback to embedded dummy list; no-op
     }
@@ -261,24 +524,39 @@ class DiscoverController extends GetxController {
     final uid = SupabaseService.currentUser?.id;
     if (uid == null) return ids;
     try {
-      // 1) Exclude any users we've already swiped on (any action)
-      final sw = await SupabaseService.client
-          .from('swipes')
-          .select('swiped_id')
-          .eq('swiper_id', uid);
-      if (sw is List) {
-        for (final r in sw) {
-          final other = (r['swiped_id'] ?? '').toString();
-          if (other.isNotEmpty) ids.add(other);
+      if (currentMode.value == 'bff') {
+        // For BFF mode, check bff_interactions table
+        final bffInteractions = await SupabaseService.client
+            .from('bff_interactions')
+            .select('target_user_id')
+            .eq('user_id', uid);
+        if (bffInteractions is List) {
+          for (final r in bffInteractions) {
+            final other = (r['target_user_id'] ?? '').toString();
+            if (other.isNotEmpty) ids.add(other);
+          }
+        }
+      } else {
+        // For dating mode, check regular swipes table
+        final sw = await SupabaseService.client
+            .from('swipes')
+            .select('swiped_id')
+            .eq('swiper_id', uid);
+        if (sw is List) {
+          for (final r in sw) {
+            final other = (r['swiped_id'] ?? '').toString();
+            if (other.isNotEmpty) ids.add(other);
+          }
         }
       }
 
       // 2) Exclude any existing/pending matches
+      final tableName = currentMode.value == 'bff' ? 'bff_matches' : 'matches';
       final rows = await SupabaseService.client
-          .from('matches')
+          .from(tableName)
           .select('user_id_1,user_id_2,status')
           .or('user_id_1.eq.$uid,user_id_2.eq.$uid')
-          .filter('status', 'in', '(pending,matched)');
+          .filter('status', 'in', '(pending,matched,active)');
       if (rows is List) {
         for (final r in rows) {
           final a = (r['user_id_1'] ?? '').toString();
@@ -357,13 +635,29 @@ class DiscoverController extends GetxController {
   }
 
   void _moveToNextCard() {
+    print('🔍 DEBUG: _moveToNextCard called - currentIndex=${currentIndex.value}, profiles.length=${profiles.length}');
+    
     if (currentIndex.value < profiles.length - 1) {
       currentIndex.value++;
+      print('🔍 DEBUG: Moved to next card - new currentIndex=${currentIndex.value}');
+      
+      // Log the new current profile
+      if (currentIndex.value < profiles.length) {
+        final newProfile = profiles[currentIndex.value];
+        print('🔍 DEBUG: New current profile - ID=${newProfile.id}, Name="${newProfile.name}", Age=${newProfile.age}');
+      }
+      
+      // Check if we need to preload more profiles
+      _checkAndPreload();
     } else {
-      // Reset to first card when reaching the end
-      currentIndex.value = 0;
-      // Refresh feed when we loop, to avoid stale/self cards
-      _loadActiveProfiles();
+      print('🔍 DEBUG: Reached end of profiles');
+      // Don't loop back - let the user see empty state
+      // Only refresh if we have no profiles left
+      if (profiles.isEmpty) {
+        _loadActiveProfiles();
+      }
+      // Force UI update to hide name overlay when no profiles
+      update();
     }
   }
 
@@ -375,7 +669,7 @@ class DiscoverController extends GetxController {
     }
   }
 
-  Future<void> _handleSwipe(Profile profile, {required String action}) async {
+  Future<void> _handleSwipe(Profile profile, {required String action, int? previousIndex}) async {
     final currentUserId = SupabaseService.currentUser?.id;
     final otherId = profile.id;
 
@@ -397,31 +691,66 @@ class DiscoverController extends GetxController {
   
 
     try {
-      // Use server-side atomic RPC that upserts swipe and creates ordered match
-      final res = await SupabaseService.handleSwipe(swipedId: otherId, action: action);
-      final bool matched = (res['matched'] == true);
-      final String matchId = (res['match_id'] ?? '').toString();
+      Map<String, dynamic> res;
+      bool matched = false;
+      String matchId = '';
+      
+      // Use mode-specific swipe handling
+      // Use the proper RPC function for both dating and BFF modes
+      res = await SupabaseService.handleSwipe(
+        swipedId: otherId, 
+        action: action, 
+        mode: currentMode.value
+      );
+      matched = (res['matched'] == true);
+      matchId = (res['match_id'] ?? '').toString();
 
-      print('DEBUG: RPC handle_swipe result matched=$matched matchId=$matchId');
+      print('DEBUG: RPC ${currentMode.value == 'bff' ? 'handle_bff_swipe' : 'handle_swipe'} result matched=$matched matchId=$matchId');
       print('DEBUG: Full RPC response: $res');
 
-      // Swipe recorded regardless of match; proceed to next card
-      _moveToNextCard();
-      _removeProfileSafely(profile);
+      // Remove profile and advance deck immediately
+      _removeProfileAndAdvance(profile);
 
       if (matched && matchId.isNotEmpty) {
         // Track match creation
         await AnalyticsService.trackMatch(matchId, otherId);
+        
+        // Generate ice breakers for the new match
+        _generateIceBreakersForMatch(matchId);
+        
         await Future.delayed(const Duration(milliseconds: 300));
-        _showMatchDialog(profile, matchId);
+        _showMatchDialog(profile, matchId, currentMode.value);
       }
     } catch (e) {
-      print('DEBUG: RPC swipe failed, keeping card. Error: $e');
-      // Keep profile in deck so user can retry
+      print('DEBUG: RPC swipe failed, removing card anyway. Error: $e');
+      // Remove profile even if swipe failed to prevent UI stuck
+      _removeProfileAndAdvance(profile);
     }
   }
 
   // Client-side retry helpers removed in RPC path
+
+  // Generate ice breakers for a new match
+  Future<void> _generateIceBreakersForMatch(String matchId) async {
+    try {
+      print('DEBUG: Generating ice breakers for match $matchId');
+      
+      // Call the edge function to generate ice breakers
+      final resp = await SupabaseService.client.functions.invoke(
+        'generate-match-insights',
+        body: {'matchId': matchId},
+      );
+      
+      if (resp.data != null && resp.data['success'] == true) {
+        print('DEBUG: Ice breakers generated successfully for match $matchId');
+      } else {
+        print('DEBUG: Failed to generate ice breakers for match $matchId: ${resp.data}');
+      }
+    } catch (e) {
+      print('DEBUG: Error generating ice breakers for match $matchId: $e');
+      // Don't show error to user, this is background generation
+    }
+  }
 
   void _removeProfileSafely(Profile profile) {
     WidgetsBinding.instance.addPostFrameCallback((_) { 
@@ -429,11 +758,115 @@ class DiscoverController extends GetxController {
         profiles.remove(profile); 
         _normalizeIndex();
         print('DEBUG: Profile removed safely');
+        // Force UI update when profiles are removed
+        update();
       }
     });
   }
 
-  Future<void> _showMatchDialog(Profile profile, String matchId) async {
+  // Remove profile and advance deck immediately (no delay)
+  void _removeProfileAndAdvance(Profile profile) {
+    final int prevIndex = profiles.indexWhere((p) => p.id == profile.id);
+    if (prevIndex == -1) {
+      print('🔍 DEBUG: Profile not found in list: ${profile.id}');
+      return;
+    }
+
+    print('🔍 DEBUG: Removing profile at index $prevIndex: ${profile.name}');
+    
+    // Remove the profile immediately
+    profiles.removeAt(prevIndex);
+    
+    // Adjust current index
+    if (profiles.isEmpty) {
+      currentIndex.value = 0;
+      print('🔍 DEBUG: No more profiles - showing empty state');
+      // Force UI update to show empty state
+      update();
+      return; // Don't continue with preloading if no profiles
+    } else {
+      // Stay at the same position if possible, otherwise move to last available
+      currentIndex.value = prevIndex.clamp(0, profiles.length - 1);
+      print('🔍 DEBUG: Advanced to index ${currentIndex.value}, ${profiles.length} profiles remaining');
+    }
+    
+    // Check if we need to show "no more profiles" state
+    if (profiles.length <= 1) {
+      print('🔍 DEBUG: Only ${profiles.length} profile(s) remaining - will show empty state soon');
+    }
+    
+    // Force UI update
+    update();
+    
+    // Preload more profiles if needed
+    _checkAndPreload();
+  }
+
+  // Preload remaining cards in background for optimal performance
+  Future<void> _preloadRemainingCards(List<Profile> loadedProfiles) async {
+    if (loadedProfiles.length <= 1) return;
+    
+    // Preload cards 2-5 in background (optimized order)
+    final cardsToPreload = loadedProfiles.skip(1).take(4).toList();
+    
+    for (int i = 0; i < cardsToPreload.length; i++) {
+      // Add small delay between preloads to avoid blocking UI
+      await Future.delayed(Duration(milliseconds: 100 * i));
+      
+      // Simulate preloading (in real implementation, this would preload images)
+      print('🔄 Preloading card ${i + 2}: ${cardsToPreload[i].name}');
+    }
+    
+    print('✅ Background preloading completed for ${cardsToPreload.length} cards');
+  }
+
+  // Remove swiped card first, then set the next visible index to avoid index-shift flicker
+  void _advanceDeckAfterSwipe(Profile profile) {
+    final int prevIndex = profiles.indexWhere((p) => p.id == profile.id);
+    if (prevIndex == -1) {
+      _moveToNextCard();
+      return;
+    }
+
+    print('🔍 DEBUG: _advanceDeckAfterSwipe prevIndex=$prevIndex, currentIndex=${currentIndex.value}, length=${profiles.length}');
+
+    // Remove immediately to avoid delayed reindexing
+    profiles.removeAt(prevIndex);
+
+    // Compute the next index: stay at prevIndex unless we were at end
+    if (profiles.isEmpty) {
+      currentIndex.value = 0;
+    } else {
+      currentIndex.value = prevIndex.clamp(0, profiles.length - 1);
+    }
+
+    print('🔍 DEBUG: After remove - new length=${profiles.length}, new currentIndex=${currentIndex.value}');
+    update();
+
+    // Preload ahead if needed
+    _checkAndPreload();
+  }
+
+  // Variant that uses an absolute deck index (safer with rapid swipes)
+  void _advanceDeckAfterSwipeByIndex(int prevIndex) {
+    if (prevIndex < 0 || prevIndex >= profiles.length) {
+      print('🔍 DEBUG: _advanceDeckAfterSwipeByIndex prevIndex out of range: $prevIndex');
+      _moveToNextCard();
+      return;
+    }
+    print('🔍 DEBUG: _advanceDeckAfterSwipeByIndex prevIndex=$prevIndex, currentIndex=${currentIndex.value}, length=${profiles.length}');
+    profiles.removeAt(prevIndex);
+    if (profiles.isEmpty) {
+      currentIndex.value = 0;
+    } else {
+      currentIndex.value = prevIndex.clamp(0, profiles.length - 1);
+    }
+    print('🔍 DEBUG: After remove(byIndex) - new length=${profiles.length}, new currentIndex=${currentIndex.value}');
+    update();
+    _checkAndPreload();
+  }
+
+  Future<void> _showMatchDialog(Profile profile, String matchId, String mode) async {
     final theme = Get.find<ThemeController>();
     String myAvatar = '';
     try {
@@ -475,9 +908,20 @@ class DiscoverController extends GetxController {
                         theme.whiteColor.withValues(alpha: 0.04),
                       ],
                     ),
-                    border: Border.all(color: theme.lightPinkColor.withValues(alpha: 0.35), width: 1),
+                    border: Border.all(
+                      color: currentMode.value == 'bff' 
+                          ? theme.bffPrimaryColor.withValues(alpha: 0.35) 
+                          : theme.getAccentColor().withValues(alpha: 0.35), 
+                      width: 1
+                    ),
                     boxShadow: [
-                      BoxShadow(color: theme.lightPinkColor.withValues(alpha: 0.18), blurRadius: 30, offset: Offset(0, 12)),
+                      BoxShadow(
+                        color: currentMode.value == 'bff' 
+                            ? theme.bffPrimaryColor.withValues(alpha: 0.18) 
+                            : theme.getAccentColor().withValues(alpha: 0.18), 
+                        blurRadius: 30, 
+                        offset: Offset(0, 12)
+                      ),
                     ],
                   ),
                   child: Column(
@@ -485,11 +929,11 @@ class DiscoverController extends GetxController {
                     children: [
                       SizedBox(height: 6.h),
                       Text(
-                        'It\'s a',
+                        currentMode.value == 'bff' ? 'Meet your new' : 'It\'s a',
                         style: TextStyle(
                           fontFamily: 'AppFont',
                           fontWeight: FontWeight.w700,
-                          fontSize: 30.sp,
+                          fontSize: currentMode.value == 'bff' ? 28.sp : 30.sp,
                           color: theme.whiteColor,
                           letterSpacing: 0.5,
                         ),
@@ -497,15 +941,32 @@ class DiscoverController extends GetxController {
                       Transform.translate(
                         offset: Offset(0, -18.h),
                         child: Text(
-                          'Match!',
+                          currentMode.value == 'bff' ? 'BFF!' : 'Match!',
                           style: GoogleFonts.dancingScript(
                             fontSize: 64.sp,
                             fontWeight: FontWeight.w700,
-                            color: theme.lightPinkColor,
+                            color: currentMode.value == 'bff' 
+                                ? theme.bffPrimaryColor 
+                                : theme.lightPinkColor,
                             shadows: [
-                              Shadow(color: theme.lightPinkColor.withValues(alpha: 0.9), blurRadius: 22),
-                              Shadow(color: theme.lightPinkColor.withValues(alpha: 0.6), blurRadius: 44),
-                              Shadow(color: theme.lightPinkColor.withValues(alpha: 0.3), blurRadius: 66),
+                              Shadow(
+                                color: (currentMode.value == 'bff' 
+                                    ? theme.bffPrimaryColor 
+                                    : theme.lightPinkColor).withValues(alpha: 0.9), 
+                                blurRadius: 22
+                              ),
+                              Shadow(
+                                color: (currentMode.value == 'bff' 
+                                    ? theme.bffPrimaryColor 
+                                    : theme.lightPinkColor).withValues(alpha: 0.6), 
+                                blurRadius: 44
+                              ),
+                              Shadow(
+                                color: (currentMode.value == 'bff' 
+                                    ? theme.bffPrimaryColor 
+                                    : theme.lightPinkColor).withValues(alpha: 0.3), 
+                                blurRadius: 66
+                              ),
                             ],
                           ),
                         ),
@@ -514,7 +975,9 @@ class DiscoverController extends GetxController {
                       _MatchProfileTiles(myUrl: myAvatar, otherUrl: profile.imageUrl),
                       SizedBox(height: 10.h),
                       Text(
-                        'You and ${profile.name} liked each other',
+                        currentMode.value == 'bff' 
+                            ? 'You and ${profile.name} want to be friends!'
+                            : 'You and ${profile.name} liked each other',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontFamily: 'AppFont',
@@ -539,9 +1002,19 @@ class DiscoverController extends GetxController {
                               padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 14.h),
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(24.r),
-                                gradient: LinearGradient(colors: [theme.lightPinkColor, theme.purpleColor]),
+                                gradient: LinearGradient(
+                                  colors: currentMode.value == 'bff' 
+                                      ? [theme.bffPrimaryColor, theme.bffSecondaryColor]
+                                      : [theme.lightPinkColor, theme.purpleColor]
+                                ),
                                 boxShadow: [
-                                  BoxShadow(color: theme.lightPinkColor.withValues(alpha: 0.4), blurRadius: 14, offset: Offset(0, 6)),
+                                  BoxShadow(
+                                    color: currentMode.value == 'bff' 
+                                        ? theme.bffPrimaryColor.withValues(alpha: 0.4) 
+                                        : theme.lightPinkColor.withValues(alpha: 0.4), 
+                                    blurRadius: 14, 
+                                    offset: Offset(0, 6)
+                                  ),
                                 ],
                               ),
                               child: Text('Send message', style: TextStyle(fontFamily: 'AppFont', color: Colors.white, fontWeight: FontWeight.w600)),
@@ -555,7 +1028,11 @@ class DiscoverController extends GetxController {
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(24.r),
                                 color: theme.whiteColor.withValues(alpha: 0.06),
-                                border: Border.all(color: theme.lightPinkColor.withValues(alpha: 0.35)),
+                                border: Border.all(
+                                  color: currentMode.value == 'bff' 
+                                      ? theme.bffPrimaryColor.withValues(alpha: 0.35)
+                                      : theme.lightPinkColor.withValues(alpha: 0.35)
+                                ),
                               ),
                               child: Text('Keep browsing', style: TextStyle(fontFamily: 'AppFont', color: theme.whiteColor, fontWeight: FontWeight.w600)),
                             ),
@@ -576,8 +1053,108 @@ class DiscoverController extends GetxController {
   }
 
   Profile? get currentProfile {
-    if (profiles.isEmpty || currentIndex.value >= profiles.length) return null;
-    return profiles[currentIndex.value];
+    if (profiles.isEmpty || currentIndex.value >= profiles.length) {
+      print('🔍 DEBUG: currentProfile is null - profiles.length=${profiles.length}, currentIndex=${currentIndex.value}');
+      return null;
+    }
+    final profile = profiles[currentIndex.value];
+    print('🔍 DEBUG: currentProfile - Index=${currentIndex.value}, ID=${profile.id}, Name="${profile.name}", Age=${profile.age}');
+    return profile;
+  }
+
+  // Preload next batch of profiles in background
+  Future<void> _preloadNextBatch() async {
+    try {
+      // Only preload if we have less than 10 profiles remaining
+      if (profiles.length - currentIndex.value < 10) {
+        print('🔄 Preloading next batch...');
+        
+        final currentUserId = SupabaseService.currentUser?.id;
+        if (currentUserId == null) return;
+        
+        final Set<String> excludedIds = await _loadExcludedUserIds();
+        
+        // Use mode-specific profile loading
+        List<Map<String, dynamic>> rows;
+        if (currentMode.value == 'bff') {
+          // For BFF mode, don't preload more - BFF profiles are limited
+          print('🔍 DEBUG: BFF mode - not preloading more profiles');
+          return;
+        } else {
+          rows = await SupabaseService.getProfiles(limit: 10, offset: profiles.length);
+        }
+        
+        final loaded = rows
+            .where((r) {
+              final id = (r['id'] ?? '').toString();
+              if (id.isEmpty || id == currentUserId) return false;
+              if (excludedIds.contains(id)) return false;
+              return true;
+            })
+            .where((r) {
+              final age = (r['age'] ?? 0) as int;
+              if (age < minAge.value || age > maxAge.value) return false;
+              if (gender.value != 'Everyone') {
+                final g = (r['gender'] ?? '').toString();
+                if (g.isNotEmpty && g.toLowerCase() != gender.value.toLowerCase()) return false;
+              }
+              return true;
+            })
+            .where((r) {
+              if (_userLat == null || _userLon == null || maxDistanceKm.value <= 0) return true;
+              final lat = (r['latitude'] as num?)?.toDouble();
+              final lon = (r['longitude'] as num?)?.toDouble();
+              if (lat == null || lon == null) return true;
+              final d = _haversineKm(_userLat!, _userLon!, lat, lon);
+              return d <= maxDistanceKm.value;
+            })
+            .map((r) {
+              List<String> photos = _asStringList(r['image_urls']);
+              if (photos.isEmpty) photos = _asStringList(r['photos']);
+              
+              // Add fallback image if no photos available
+              if (photos.isEmpty) {
+                photos = ['https://picsum.photos/seed/${r['id']}/800/1200'];
+                print('🖼️ No photos found for ${r['name']}, using fallback image');
+              }
+              
+            return Profile(
+                id: (r['id'] ?? '').toString(),
+                name: (r['name'] ?? '').toString(),
+                age: (r['age'] ?? 0) as int,
+                imageUrl: _firstImageUrl(photos.isNotEmpty ? photos.first : r['image_url']),
+                photos: photos,
+                location: (r['location'] ?? '').toString(),
+                distance: _userLat != null && _userLon != null
+                    ? '${_haversineKm(_userLat!, _userLon!, (r['latitude'] as num?)?.toDouble() ?? 0, (r['longitude'] as num?)?.toDouble() ?? 0).round()} miles away'
+                    : 'Unknown distance',
+                description: (r['bio'] ?? r['description'] ?? '').toString(),
+                hobbies: _asStringList(r['interests'] ?? r['hobbies'] ?? []),
+                isVerified: true,
+                isActiveNow: true,
+              );
+            })
+            .toList();
+        
+        // Add new profiles to existing list
+        profiles.addAll(loaded);
+        preloadedCount.value = profiles.length;
+        print('✅ Preloaded ${loaded.length} more profiles. Total: ${profiles.length}');
+      }
+    } catch (e) {
+      print('❌ Preloading failed: $e');
+    }
+  }
+
+  // Trigger preloading when user is near the end
+  void _checkAndPreload() {
+    // Only preload if we have more than 3 profiles left and not already loading
+    // AND we haven't reached the maximum limit to prevent infinite loading
+    if (currentIndex.value >= profiles.length - 5 && 
+        !isPreloading.value && 
+        profiles.length < 50) {
+      _preloadNextBatch();
+    }
   }
 }
 
@@ -593,6 +1170,7 @@ class Profile {
   final List<String> hobbies;
   final bool isVerified;
   final bool isActiveNow;
+  final bool isSuperLiked;
 
   Profile({
     required this.id,
@@ -606,6 +1184,7 @@ class Profile {
     required this.hobbies,
     this.isVerified = false,
     this.isActiveNow = false,
+    this.isSuperLiked = false,
   });
 }
 
@@ -727,6 +1306,7 @@ class _MatchProfileTiles extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeController theme = Get.find<ThemeController>();
+    final DiscoverController discoverController = Get.find<DiscoverController>();
     return SizedBox(
       height: 130.h,
       child: Stack(
@@ -736,7 +1316,7 @@ class _MatchProfileTiles extends StatelessWidget {
           _FadeSlide(
             delayMs: 0,
             child: Transform.translate(
-              offset: Offset(-28.w, 12.h),
+              offset: Offset(-35.w, 12.h),
               child: Transform.rotate(
                 angle: -8 * 3.14159 / 180,
                 child: ClipRRect(
@@ -756,7 +1336,7 @@ class _MatchProfileTiles extends StatelessWidget {
           _FadeSlide(
             delayMs: 100,
             child: Transform.translate(
-              offset: Offset(30.w, -6.h),
+              offset: Offset(40.w, -6.h),
               child: Transform.rotate(
                 angle: 6 * 3.14159 / 180,
                 child: ClipRRect(
@@ -772,18 +1352,33 @@ class _MatchProfileTiles extends StatelessWidget {
               ),
             ),
           ),
-          // Heart chip at the inner-btm intersection
+          // Heart/Friend icon at the inner-btm intersection
           Transform.translate(
-            offset: Offset(10.w, 18.h),
+            offset: Offset(5.w, 25.h),
             child: Container(
               width: 34.w,
               height: 34.w,
               decoration: BoxDecoration(
-                color: theme.lightPinkColor,
+                color: discoverController.currentMode.value == 'bff' 
+                    ? theme.bffPrimaryColor 
+                    : theme.lightPinkColor,
                 shape: BoxShape.circle,
-                boxShadow: [BoxShadow(color: theme.lightPinkColor.withValues(alpha: 0.35), blurRadius: 14)],
+                boxShadow: [
+                  BoxShadow(
+                    color: discoverController.currentMode.value == 'bff' 
+                        ? theme.bffPrimaryColor.withValues(alpha: 0.35) 
+                        : theme.lightPinkColor.withValues(alpha: 0.35), 
+                    blurRadius: 14
+                  )
+                ],
               ),
-              child: Icon(Icons.favorite, color: theme.whiteColor, size: 18.sp),
+              child: Icon(
+                discoverController.currentMode.value == 'bff' 
+                    ? Icons.people 
+                    : Icons.favorite, 
+                color: theme.whiteColor, 
+                size: 18.sp
+              ),
             ),
           ),
         ],

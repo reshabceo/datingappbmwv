@@ -8,12 +8,16 @@ class AstroCompatibilityWidget extends StatefulWidget {
   final String matchId;
   final String otherUserName;
   final String otherUserZodiac;
+  final bool visible;
+  final bool autoGenerateIfMissing;
 
   const AstroCompatibilityWidget({
     Key? key,
     required this.matchId,
     required this.otherUserName,
     required this.otherUserZodiac,
+    this.visible = true,
+    this.autoGenerateIfMissing = true,
   }) : super(key: key);
 
   @override
@@ -25,6 +29,7 @@ class _AstroCompatibilityWidgetState extends State<AstroCompatibilityWidget> {
   Map<String, dynamic>? matchEnhancements;
   bool isLoading = true;
   bool hasError = false;
+  bool iceBreakersUsed = false;
 
   @override
   void initState() {
@@ -40,23 +45,17 @@ class _AstroCompatibilityWidgetState extends State<AstroCompatibilityWidget> {
       });
 
       // Check if enhancements already exist
-      final response = await SupabaseService.client
+      final existing = await SupabaseService.client
           .from('match_enhancements')
           .select('*')
           .eq('match_id', widget.matchId)
           .maybeSingle();
-      
-      final existing = response.data;
-      final error = response.error;
-
-      if (error != null) {
-        print('Error loading enhancements: $error');
-        throw error;
-      }
 
       if (existing != null && 
           existing['expires_at'] != null && 
           DateTime.parse(existing['expires_at']).isAfter(DateTime.now())) {
+        // Also check if any ice breaker was already used for this match
+        await _checkIceBreakerUsage();
         setState(() {
           matchEnhancements = existing;
           isLoading = false;
@@ -64,13 +63,45 @@ class _AstroCompatibilityWidgetState extends State<AstroCompatibilityWidget> {
         return;
       }
 
-      // Generate new enhancements
-      await generateEnhancements();
+      // Do not auto-generate unless enabled
+      if (widget.autoGenerateIfMissing) {
+        await generateEnhancements();
+      } else {
+        setState(() {
+          isLoading = false;
+        });
+      }
     } catch (e) {
       print('Error loading match enhancements: $e');
       setState(() {
         hasError = true;
         isLoading = false;
+      });
+    }
+  }
+
+  // Exposed to parent via GlobalKey
+  Future<void> generateFromParent() async {
+    await generateEnhancements();
+  }
+
+  void setVisible(bool v) {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _checkIceBreakerUsage() async {
+    try {
+      final rows = await SupabaseService.client
+          .from('ice_breaker_usage')
+          .select('id')
+          .eq('match_id', widget.matchId)
+          .limit(1);
+      setState(() {
+        iceBreakersUsed = (rows as List).isNotEmpty;
+      });
+    } catch (_) {
+      setState(() {
+        iceBreakersUsed = false;
       });
     }
   }
@@ -83,21 +114,14 @@ class _AstroCompatibilityWidgetState extends State<AstroCompatibilityWidget> {
       );
       
       final data = response.data;
-      final error = response.error;
-
-      if (error != null) {
-        throw error;
-      }
 
       if (data != null && data['success'] == true) {
         // Reload the data from database
-        final updateResponse = await SupabaseService.client
+        final updated = await SupabaseService.client
             .from('match_enhancements')
             .select('*')
             .eq('match_id', widget.matchId)
-            .single();
-        
-        final updated = updateResponse.data;
+            .maybeSingle();
 
         setState(() {
           matchEnhancements = updated;
@@ -126,6 +150,7 @@ class _AstroCompatibilityWidgetState extends State<AstroCompatibilityWidget> {
 
   @override
   Widget build(BuildContext context) {
+    if (!widget.visible) return SizedBox.shrink();
     if (isLoading) {
       return Container(
         margin: EdgeInsets.all(16.w),
@@ -225,8 +250,8 @@ class _AstroCompatibilityWidgetState extends State<AstroCompatibilityWidget> {
           // Astrological Compatibility Card
           if (astroData != null) _buildCompatibilityCard(astroData),
           SizedBox(height: 12.h),
-          // Ice Breakers Card
-          if (iceBreakers != null && iceBreakers.isNotEmpty) 
+          // Ice Breakers Card (first-use only, hide if already used by either user)
+          if (!iceBreakersUsed && iceBreakers != null && iceBreakers.isNotEmpty)
             _buildIceBreakersCard(iceBreakers),
         ],
       ),
@@ -261,6 +286,7 @@ class _AstroCompatibilityWidgetState extends State<AstroCompatibilityWidget> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Icon(
                 Icons.auto_awesome,
@@ -268,29 +294,37 @@ class _AstroCompatibilityWidgetState extends State<AstroCompatibilityWidget> {
                 size: 20.sp,
               ),
               SizedBox(width: 8.w),
-              Text(
-                'Astrological Compatibility',
-                style: TextStyle(
-                  color: themeController.isDarkMode.value 
-                      ? Colors.white 
-                      : Colors.purple[700],
-                  fontSize: 16.sp,
-                  fontWeight: FontWeight.bold,
+              Expanded(
+                child: Text(
+                  'Astrological Compatibility',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: themeController.isDarkMode.value 
+                        ? Colors.white 
+                        : Colors.purple[700],
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
-              Spacer(),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-                decoration: BoxDecoration(
-                  color: Colors.purple[600],
-                  borderRadius: BorderRadius.circular(12.r),
-                ),
-                child: Text(
-                  '$score% Match',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 12.sp,
-                    fontWeight: FontWeight.bold,
+              SizedBox(width: 8.w),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                    decoration: BoxDecoration(
+                      color: Colors.purple[600],
+                      borderRadius: BorderRadius.circular(12.r),
+                    ),
+                    child: Text(
+                      '$score% Match',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12.sp,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -387,6 +421,8 @@ class _AstroCompatibilityWidgetState extends State<AstroCompatibilityWidget> {
                     fontSize: 13.sp,
                     height: 1.4,
                   ),
+                  softWrap: true,
+                  overflow: TextOverflow.visible,
                 ),
               ],
             ),
@@ -489,6 +525,33 @@ class _AstroCompatibilityWidgetState extends State<AstroCompatibilityWidget> {
                 color: Colors.white,
                 fontSize: 10.sp,
                 fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          SizedBox(width: 8.w),
+          TextButton(
+            onPressed: () async {
+              final currentUserId = SupabaseService.currentUser?.id;
+              if (currentUserId == null) return;
+              try {
+                await SupabaseService.client
+                    .from('ice_breaker_usage')
+                    .insert({
+                  'match_id': widget.matchId,
+                  'ice_breaker_text': question,
+                  'used_by_user_id': currentUserId,
+                });
+                setState(() {
+                  iceBreakersUsed = true;
+                });
+              } catch (_) {}
+            },
+            child: Text(
+              'Use',
+              style: TextStyle(
+                color: Colors.blue[700],
+                fontSize: 12.sp,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),

@@ -8,6 +8,7 @@ import 'package:lovebug/Common/text_constant.dart';
 import 'package:lovebug/ThemeController/theme_controller.dart';
 import 'package:lovebug/Screens/DiscoverPage/profile_detail_screen.dart';
 import 'package:lovebug/Screens/ChatPage/chat_integration_helper.dart';
+import 'controller_discover_screen.dart';
 
 class EnhancedDiscoverController extends GetxController {
   final ThemeController themeController = Get.find<ThemeController>();
@@ -230,7 +231,16 @@ class EnhancedDiscoverController extends GetxController {
     }
 
     try {
-      final res = await SupabaseService.handleSwipe(swipedId: otherId, action: action);
+      // Get current mode from the discover controller
+      final discoverController = Get.find<DiscoverController>();
+      final currentMode = discoverController.currentMode.value;
+      print('🔍 DEBUG: Current mode for swipe: $currentMode');
+      
+      final res = await SupabaseService.handleSwipe(
+        swipedId: otherId, 
+        action: action, 
+        mode: currentMode
+      );
       
       // Check for errors in response
       if (res.containsKey('error')) {
@@ -249,8 +259,12 @@ class EnhancedDiscoverController extends GetxController {
 
       if (matched && matchId.isNotEmpty) {
         await AnalyticsService.trackMatch(matchId, otherId);
+        
+        // Generate ice breakers for the new match
+        _generateIceBreakersForMatch(matchId);
+        
         await Future.delayed(const Duration(milliseconds: 300));
-        _showMatchDialog(profile, matchId);
+        _showMatchDialog(profile, matchId, currentMode);
       }
     } catch (e) {
       print('DEBUG: RPC swipe failed: $e');
@@ -265,11 +279,32 @@ class EnhancedDiscoverController extends GetxController {
       // Load more profiles if available
       if (hasMoreProfiles.value) {
         loadMoreProfiles();
-      } else {
-        // Reset to first card when reaching the end
-        currentIndex.value = 0;
-        _loadActiveProfiles();
       }
+      // Don't loop back to prevent cards from reappearing
+    }
+  }
+
+  // Generate ice breakers for a new match
+  Future<void> _generateIceBreakersForMatch(String matchId) async {
+    try {
+      print('DEBUG: Generating ice breakers for match $matchId');
+      
+      // Call the edge function to generate ice breakers
+      final resp = await SupabaseService.client.functions.invoke(
+        'generate-match-insights',
+        body: {'matchId': matchId},
+      );
+      
+      if (resp.data != null && resp.data['success'] == true) {
+        print('DEBUG: Ice breakers generated successfully for match $matchId');
+      } else {
+        print('DEBUG: Failed to generate ice breakers for match $matchId: ${resp.data}');
+        // Don't show error to user, this is background generation
+      }
+    } catch (e) {
+      print('DEBUG: Error generating ice breakers for match $matchId: $e');
+      // Don't show error to user, this is background generation
+      // The chat will still work without ice breakers
     }
   }
 
@@ -280,7 +315,7 @@ class EnhancedDiscoverController extends GetxController {
     }
   }
 
-  void _showMatchDialog(Profile profile, String matchId) {
+  void _showMatchDialog(Profile profile, String matchId, String mode) {
     Get.dialog(
       Dialog(
         backgroundColor: themeController.transparentColor,
@@ -298,7 +333,7 @@ class EnhancedDiscoverController extends GetxController {
             mainAxisSize: MainAxisSize.min,
             children: [
               TextConstant(
-                title: 'It\'s a Match! 🎉',
+                title: mode == 'bff' ? 'Meet Your New BFF! 🤝' : 'It\'s a Match! 🎉',
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
                 color: themeController.whiteColor,
@@ -433,6 +468,7 @@ class Profile {
   final bool isVerified;
   final bool isActiveNow;
   final String? gender;
+  final bool isSuperLiked;
 
   Profile({
     required this.id,
@@ -447,5 +483,6 @@ class Profile {
     required this.isVerified,
     required this.isActiveNow,
     this.gender,
+    this.isSuperLiked = false,
   });
 }

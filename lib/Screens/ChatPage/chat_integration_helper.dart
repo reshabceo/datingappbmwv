@@ -32,17 +32,31 @@ class ChatIntegrationHelper {
           userImage: userImage,
           userName: userName,
           matchId: matchId,
+          isBffMatch: false, // Default to dating mode when user is null
         ));
         return;
       }
 
-      final response = await SupabaseService.client
+      // Check if this is a BFF match or dating match
+      bool isBffMatch = false;
+      try {
+        // Check if match exists in bff_matches table
+        final bffMatchResponse = await SupabaseService.client
+            .from('bff_matches')
+            .select('id')
+            .eq('id', matchId)
+            .maybeSingle();
+        
+        isBffMatch = bffMatchResponse != null;
+      } catch (e) {
+        print('Error checking BFF match: $e');
+      }
+
+      final profile = await SupabaseService.client
           .from('profiles')
           .select('zodiac_sign, birth_date')
           .eq('id', currentUser.id)
-          .single();
-      
-      final profile = response.data;
+          .maybeSingle();
 
       // Check if user has astrological data
       final hasZodiacData = profile != null && 
@@ -54,6 +68,7 @@ class ChatIntegrationHelper {
           userImage: userImage,
           userName: userName,
           matchId: matchId,
+          isBffMatch: isBffMatch, // Pass BFF mode info
         ));
       } else {
         // Use regular chat
@@ -61,6 +76,7 @@ class ChatIntegrationHelper {
           userImage: userImage,
           userName: userName,
           matchId: matchId,
+          isBffMatch: isBffMatch, // Pass BFF mode info
         ));
       }
     } catch (e) {
@@ -70,6 +86,7 @@ class ChatIntegrationHelper {
         userImage: userImage,
         userName: userName,
         matchId: matchId,
+        isBffMatch: false, // Default to dating mode on error
       ));
     }
   }
@@ -77,15 +94,13 @@ class ChatIntegrationHelper {
   /// Check if a match has astrological enhancements available
   static Future<bool> hasAstroEnhancements(String matchId) async {
     try {
-      final response = await SupabaseService.client
+      final row = await SupabaseService.client
           .from('match_enhancements')
           .select('id')
           .eq('match_id', matchId)
           .maybeSingle();
-      
-      final data = response.data;
 
-      return data != null;
+      return row != null;
     } catch (e) {
       print('Error checking astro enhancements: $e');
       return false;
@@ -95,16 +110,14 @@ class ChatIntegrationHelper {
   /// Get astrological compatibility score for a match
   static Future<int?> getCompatibilityScore(String matchId) async {
     try {
-      final response = await SupabaseService.client
+      final row = await SupabaseService.client
           .from('match_enhancements')
           .select('astro_compatibility')
           .eq('match_id', matchId)
-          .single();
-      
-      final data = response.data;
+          .maybeSingle();
 
-      if (data != null && data['astro_compatibility'] != null) {
-        return data['astro_compatibility']['compatibility_score'] as int?;
+      if (row != null && row['astro_compatibility'] != null) {
+        return row['astro_compatibility']['compatibility_score'] as int?;
       }
       return null;
     } catch (e) {
@@ -119,13 +132,11 @@ class ChatIntegrationHelper {
       final currentUser = SupabaseService.currentUser;
       if (currentUser == null) return false;
 
-      final response = await SupabaseService.client
+      final profile = await SupabaseService.client
           .from('profiles')
           .select('zodiac_sign, birth_date')
           .eq('id', currentUser.id)
-          .single();
-      
-      final profile = response.data;
+          .maybeSingle();
 
       return profile != null &&
           (profile['zodiac_sign'] != null || profile['birth_date'] != null);

@@ -48,6 +48,8 @@ import SafetyTips from './pages/SafetyTips'
 import CookiePolicy from './pages/CookiePolicy'
 import ContactUs from './pages/ContactUs'
 import AboutUs from './pages/AboutUs'
+import VerificationScreen from './pages/VerificationScreen'
+import AdminVerification from './pages/AdminVerification'
 import Accessibility from './pages/Accessibility'
 import PrivacyPolicy from './pages/PrivacyPolicy'
 import TermsOfService from './pages/TermsOfService'
@@ -256,6 +258,7 @@ export default function App() {
             <Route path="/subscription-plans" element={<ProtectedRoute adminRequired={true}><SubscriptionPlansAdmin /></ProtectedRoute>} />
             <Route path="/offers" element={<ProtectedRoute adminRequired={true}><OffersAdmin /></ProtectedRoute>} />
             <Route path="/reports" element={<ProtectedRoute adminRequired={true}><ReportsManagement /></ProtectedRoute>} />
+            <Route path="/verification" element={<ProtectedRoute adminRequired={true}><AdminVerification /></ProtectedRoute>} />
             <Route path="/embed" element={<AdminEmbed />} />
           </Routes>
         } />
@@ -277,6 +280,7 @@ export default function App() {
                 <Route path="/story/:id" element={<ProtectedRoute><StoryDetail /></ProtectedRoute>} />
                 <Route path="/profile/:id" element={<ProtectedRoute><ProfileDetail /></ProtectedRoute>} />
                 <Route path="/profile/edit" element={<ProtectedRoute><ProfileEdit /></ProtectedRoute>} />
+                <Route path="/verification" element={<ProtectedRoute><VerificationScreen /></ProtectedRoute>} />
                 <Route path="/plans" element={<Plans />} />
                 <Route path="/premium-plans" element={<PremiumPlans />} />
                 <Route path="/payment-test" element={<PaymentTest />} />

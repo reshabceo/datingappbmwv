@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:lovebug/Common/text_constant.dart';
 import 'package:lovebug/Common/widget_constant.dart';
 import 'package:lovebug/Constant/app_assets.dart';
@@ -8,6 +9,7 @@ import 'package:lovebug/Screens/DiscoverPage/controller_discover_screen.dart';
 import 'package:lovebug/Screens/ChatPage/disappearing_photo_screen.dart';
 import 'package:lovebug/services/disappearing_photo_service.dart';
 import 'package:lovebug/ThemeController/theme_controller.dart';
+import 'package:lovebug/Screens/ChatPage/enhanced_photo_upload_service.dart';
 import 'package:lovebug/services/supabase_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
@@ -17,19 +19,77 @@ import 'package:get/get.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'dart:typed_data';
 
-class MessageScreen extends StatelessWidget {
+class MessageScreen extends StatefulWidget {
   MessageScreen({
     super.key,
     required this.userImage,
     required this.userName,
     required this.matchId,
+    this.isBffMatch = false,
   });
 
   final String? userImage;
   final String? userName;
   final String matchId;
+  final bool isBffMatch;
 
+  @override
+  State<MessageScreen> createState() => _MessageScreenState();
+}
+
+class _MessageScreenState extends State<MessageScreen> {
   final ThemeController themeController = Get.find<ThemeController>();
+  String? currentUserImage;
+
+  @override
+  void initState() {
+    super.initState();
+    print('🔄 DEBUG: MessageScreen initState - loading current user profile');
+    print('🔄 DEBUG: MessageScreen initState - widget.userImage: ${widget.userImage}');
+    print('🔄 DEBUG: MessageScreen initState - widget.userName: ${widget.userName}');
+    print('🔄 DEBUG: MessageScreen initState - widget.matchId: ${widget.matchId}');
+    print('🔄 DEBUG: MessageScreen initState - widget.isBffMatch: ${widget.isBffMatch}');
+    _loadCurrentUserProfile();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reload profile when dependencies change
+    if (currentUserImage == null) {
+      _loadCurrentUserProfile();
+    }
+  }
+
+  Future<void> _loadCurrentUserProfile() async {
+    try {
+      print('🔄 DEBUG: _loadCurrentUserProfile called in MessageScreen');
+      final currentUser = SupabaseService.currentUser;
+      print('🔄 DEBUG: Loading current user profile for: ${currentUser?.id}');
+      if (currentUser != null) {
+        final profile = await SupabaseService.getProfile(currentUser.id);
+        print('🔄 DEBUG: Profile loaded: $profile');
+        if (profile != null && mounted) {
+          setState(() {
+            // Get the first photo from the user's profile
+            final photos = <String>[];
+            if (profile['photos'] != null) {
+              photos.addAll(List<String>.from(profile['photos']));
+            }
+            if (profile['image_urls'] != null) {
+              photos.addAll(List<String>.from(profile['image_urls']));
+            }
+            print('🔄 DEBUG: Found photos: $photos');
+            currentUserImage = photos.isNotEmpty ? photos.first : null;
+            print('🔄 DEBUG: Set currentUserImage to: $currentUserImage');
+            print('🔄 DEBUG: currentUserImage length: ${currentUserImage?.length ?? 0}');
+          });
+        }
+      }
+    } catch (e) {
+      print('❌ DEBUG: Error loading current user profile: $e');
+    }
+  }
 
   Profile _mapToProfile(Map<String, dynamic> profileData) {
     final photos = <String>[];
@@ -68,7 +128,7 @@ class MessageScreen extends StatelessWidget {
   Future<void> _viewProfile() async {
     try {
       // Get the match details to find the other user's ID
-      final match = await SupabaseService.getMatchById(matchId);
+      final match = await SupabaseService.getMatchById(widget.matchId);
       if (match != null) {
         final currentUserId = SupabaseService.currentUser?.id;
         final userId1 = match['user_id_1']?.toString();
@@ -123,8 +183,8 @@ class MessageScreen extends StatelessWidget {
         final Uint8List imageBytes = await image.readAsBytes();
         
         // Send disappearing photo
-        final photoUrl = await DisappearingPhotoService.sendDisappearingPhoto(
-          matchId: matchId,
+        final photoUrl = await EnhancedDisappearingPhotoService.sendDisappearingPhoto(
+          matchId: widget.matchId,
           photoBytes: imageBytes,
           fileName: 'disappearing_${DateTime.now().millisecondsSinceEpoch}.jpg',
           viewDuration: duration,
@@ -145,66 +205,103 @@ class MessageScreen extends StatelessWidget {
   Future<void> _showPhotoOptions(MessageController controller) async {
     try {
       // Show source selection first
-      final source = await Get.dialog<ImageSource>(
-        AlertDialog(
-          backgroundColor: themeController.blackColor,
-          title: TextConstant(
-            title: 'Select Photo Source',
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: themeController.whiteColor,
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: Icon(
-                  Icons.camera_alt,
-                  color: themeController.lightPinkColor,
-                  size: 24.sp,
+      final source = await showModalBottomSheet<ImageSource>(
+        context: Get.context!,
+        backgroundColor: Colors.transparent,
+        barrierColor: Colors.black.withValues(alpha: 0.6),
+        isScrollControlled: true,
+        builder: (_) {
+          return ClipRRect(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(22.r)),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Container(
+                margin: EdgeInsets.only(bottom: MediaQuery.of(Get.context!).viewInsets.bottom),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.pink.withValues(alpha: 0.15),
+                      Colors.purple.withValues(alpha: 0.2),
+                      themeController.blackColor.withValues(alpha: 0.85),
+                    ],
+                    stops: [0.0, 0.3, 1.0],
+                  ),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(22.r)),
+                  border: Border.all(
+                    color: themeController.getAccentColor().withValues(alpha: 0.35),
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: themeController.getAccentColor().withValues(alpha: 0.15),
+                      blurRadius: 20,
+                      spreadRadius: 2,
+                    ),
+                  ],
                 ),
-                title: TextConstant(
-                  title: 'Take Photo',
-                  fontSize: 16,
-                  color: themeController.whiteColor,
+                child: SafeArea(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Handle bar
+                        Container(
+                          width: 40.w,
+                          height: 4.h,
+                          decoration: BoxDecoration(
+                            color: themeController.whiteColor.withValues(alpha: 0.3),
+                            borderRadius: BorderRadius.circular(2.r),
+                          ),
+                        ),
+                        heightBox(20.h.toInt()),
+                        
+                        // Header
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.photo_camera,
+                              color: themeController.getAccentColor(),
+                              size: 20.sp,
+                            ),
+                            SizedBox(width: 8.w),
+                            TextConstant(
+                              title: 'Select Photo Source',
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: themeController.whiteColor,
+                            ),
+                          ],
+                        ),
+                        heightBox(20.h.toInt()),
+                        
+                        // Camera Option
+                        _buildPhotoSourceOption(
+                          icon: Icons.camera_alt,
+                          title: 'Take Photo',
+                          subtitle: 'Capture a new photo',
+                          onTap: () => Get.back(result: ImageSource.camera),
+                        ),
+                        
+                        // Gallery Option
+                        _buildPhotoSourceOption(
+                          icon: Icons.photo_library,
+                          title: 'Choose from Gallery',
+                          subtitle: 'Select from your photos',
+                          onTap: () => Get.back(result: ImageSource.gallery),
+                        ),
+                        
+                        heightBox(20.h.toInt()),
+                      ],
+                    ),
+                  ),
                 ),
-                onTap: () => Get.back(result: ImageSource.camera),
-                tileColor: themeController.lightPinkColor.withValues(alpha: 0.1),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8.r),
-                ),
-              ),
-              heightBox(10.h.toInt()),
-              ListTile(
-                leading: Icon(
-                  Icons.photo_library,
-                  color: themeController.purpleColor,
-                  size: 24.sp,
-                ),
-                title: TextConstant(
-                  title: 'Choose from Gallery',
-                  fontSize: 16,
-                  color: themeController.whiteColor,
-                ),
-                onTap: () => Get.back(result: ImageSource.gallery),
-                tileColor: themeController.purpleColor.withValues(alpha: 0.1),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8.r),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Get.back(),
-              child: TextConstant(
-                title: 'Cancel',
-                fontSize: 14,
-                color: themeController.whiteColor.withValues(alpha: 0.7),
               ),
             ),
-          ],
-        ),
+          );
+        },
       );
 
       if (source == null) return;
@@ -224,100 +321,26 @@ class MessageScreen extends StatelessWidget {
       // Read image bytes
       final Uint8List imageBytes = await image.readAsBytes();
       
-      // Now show options for how to send the photo
-      final result = await Get.dialog<String>(
-        AlertDialog(
-          backgroundColor: themeController.blackColor,
-          title: TextConstant(
-            title: 'Send Photo',
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: themeController.whiteColor,
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextConstant(
-                title: 'How would you like to send this photo?',
-                fontSize: 14,
-                color: themeController.whiteColor.withValues(alpha: 0.8),
-              ),
-              heightBox(20.h.toInt()),
-              
-              // Regular photo option
-              ListTile(
-                leading: Icon(
-                  Icons.photo,
-                  color: themeController.lightPinkColor,
-                  size: 24.sp,
-                ),
-                title: TextConstant(
-                  title: 'Regular Photo',
-                  fontSize: 16,
-                  color: themeController.whiteColor,
-                ),
-                subtitle: TextConstant(
-                  title: 'Permanent photo that stays in chat',
-                  fontSize: 12,
-                  color: themeController.whiteColor.withValues(alpha: 0.7),
-                ),
-                onTap: () => Get.back(result: 'regular'),
-                tileColor: themeController.lightPinkColor.withValues(alpha: 0.1),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8.r),
-                ),
-              ),
-              heightBox(10.h.toInt()),
-              
-              // Disappearing photo option
-              ListTile(
-                leading: Icon(
-                  Icons.visibility_off,
-                  color: themeController.purpleColor,
-                  size: 24.sp,
-                ),
-                title: TextConstant(
-                  title: 'Disappearing Photo',
-                  fontSize: 16,
-                  color: themeController.whiteColor,
-                ),
-                subtitle: TextConstant(
-                  title: 'Photo that disappears after viewing',
-                  fontSize: 12,
-                  color: themeController.whiteColor.withValues(alpha: 0.7),
-                ),
-                onTap: () => Get.back(result: 'disappearing'),
-                tileColor: themeController.purpleColor.withValues(alpha: 0.1),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8.r),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Get.back(),
-              child: TextConstant(
-                title: 'Cancel',
-                fontSize: 14,
-                color: themeController.whiteColor.withValues(alpha: 0.7),
-              ),
-            ),
-          ],
-        ),
+      // Now show options for how to send the photo using our custom dialog
+      await EnhancedPhotoUploadService.handlePhotoSelection(
+        controller: controller,
+        matchId: widget.matchId,
+        imageBytes: imageBytes,
+        fileName: image.name,
       );
-
-      if (result == 'regular') {
-        await _sendRegularPhotoWithBytes(controller, imageBytes, image.name);
-      } else if (result == 'disappearing') {
-        await _sendDisappearingPhotoWithBytes(controller, imageBytes, image.name);
-      }
     } catch (e) {
       print('Error in photo flow: $e');
       if (e.toString().contains('camera') || e.toString().contains('Camera')) {
         Get.snackbar(
           'Camera Not Available', 
           'Camera is not available in simulator. Please test on a real device.',
+          backgroundColor: themeController.blackColor,
+          colorText: themeController.whiteColor,
+        );
+      } else if (e.toString().contains('permission')) {
+        Get.snackbar(
+          'Permission Required', 
+          'Camera permission is required to take photos.',
           backgroundColor: themeController.blackColor,
           colorText: themeController.whiteColor,
         );
@@ -329,13 +352,28 @@ class MessageScreen extends StatelessWidget {
           colorText: themeController.whiteColor,
         );
       } else {
-        Get.snackbar('Error', 'Failed to access camera: $e');
+        Get.snackbar('Error', 'Failed to access photo: ${e.toString()}');
       }
     }
   }
 
   Future<void> _sendRegularPhotoWithBytes(MessageController controller, Uint8List imageBytes, String fileName) async {
     try {
+      // Show instant preview message
+      final previewMessageId = 'preview_${DateTime.now().millisecondsSinceEpoch}';
+      final previewMessage = Message(
+        text: '📸 Photo uploading...',
+        isUser: true,
+        timestamp: DateTime.now(),
+      );
+      
+      // Add preview to messages list
+      controller.messages.add(previewMessage);
+      
+      // Show loading indicator
+      Get.snackbar('Uploading', 'Photo is being uploaded...', 
+        duration: Duration(seconds: 2));
+      
       // Upload to Supabase storage
       final photoUrl = await SupabaseService.uploadFile(
         bucket: 'chat-photos',
@@ -344,22 +382,44 @@ class MessageScreen extends StatelessWidget {
       );
 
       if (photoUrl.isNotEmpty) {
-        // Send as regular message with photo URL
-        await controller.sendMessage(matchId, '📸 Photo: $photoUrl');
+        // Remove preview message
+        controller.messages.removeWhere((m) => m.text == '📸 Photo uploading...');
+        
+        // Send actual photo message
+        await controller.sendMessage(widget.matchId, '📸 Photo: $photoUrl');
         Get.snackbar('Success', 'Photo sent!');
       } else {
+        // Remove preview on failure
+        controller.messages.removeWhere((m) => m.text == '📸 Photo uploading...');
         Get.snackbar('Error', 'Failed to upload photo');
       }
     } catch (e) {
       print('Error sending regular photo: $e');
+      // Remove preview on error
+      controller.messages.removeWhere((m) => m.text.contains('uploading...'));
       Get.snackbar('Error', 'Failed to send photo');
     }
   }
 
   Future<void> _sendDisappearingPhotoWithBytes(MessageController controller, Uint8List imageBytes, String fileName) async {
     try {
+      // Show instant preview message
+      final previewMessageId = 'preview_${DateTime.now().millisecondsSinceEpoch}';
+      final previewMessage = Message(
+        text: '📸 Disappearing photo uploading...',
+        isUser: true,
+        timestamp: DateTime.now(),
+      );
+      
+      // Add preview to messages list
+      controller.messages.add(previewMessage);
+      
+      // Show loading indicator
+      Get.snackbar('Uploading', 'Disappearing photo is being uploaded...', 
+        duration: Duration(seconds: 2));
+      
       print('🔄 DEBUG: Starting disappearing photo flow');
-      print('  - matchId: $matchId');
+      print('  - widget.matchId: $widget.matchId');
       print('  - fileName: $fileName');
       print('  - imageBytes length: ${imageBytes.length}');
       
@@ -373,22 +433,28 @@ class MessageScreen extends StatelessWidget {
       print('✅ DEBUG: Duration selected: $duration seconds');
 
       // Send disappearing photo
-      print('🔄 DEBUG: Calling DisappearingPhotoService...');
-      final photoUrl = await DisappearingPhotoService.sendDisappearingPhoto(
-        matchId: matchId,
+      print('🔄 DEBUG: Calling EnhancedDisappearingPhotoService...');
+      final photoUrl = await EnhancedDisappearingPhotoService.sendDisappearingPhoto(
+        matchId: widget.matchId,
         photoBytes: imageBytes,
         fileName: 'disappearing_${DateTime.now().millisecondsSinceEpoch}.jpg',
         viewDuration: duration,
       );
 
       if (photoUrl != null) {
+        // Remove preview message
+        controller.messages.removeWhere((m) => m.text == '📸 Disappearing photo uploading...');
         print('✅ DEBUG: Disappearing photo sent successfully: $photoUrl');
         Get.snackbar('Success', 'Disappearing photo sent!');
       } else {
+        // Remove preview on failure
+        controller.messages.removeWhere((m) => m.text == '📸 Disappearing photo uploading...');
         print('❌ DEBUG: Disappearing photo service returned null');
         Get.snackbar('Error', 'Failed to send disappearing photo');
       }
     } catch (e) {
+      // Remove preview on error
+      controller.messages.removeWhere((m) => m.text.contains('uploading...'));
       print('❌ DEBUG: Error in _sendDisappearingPhotoWithBytes: $e');
       print('❌ DEBUG: Error type: ${e.runtimeType}');
       Get.snackbar('Error', 'Failed to send disappearing photo: $e');
@@ -422,7 +488,7 @@ class MessageScreen extends StatelessWidget {
                   color: themeController.whiteColor,
                 ),
                 onTap: () => Get.back(result: seconds),
-                tileColor: themeController.lightPinkColor.withValues(alpha: 0.1),
+                tileColor: themeController.getAccentColor().withValues(alpha: 0.1),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8.r),
                 ),
@@ -447,8 +513,8 @@ class MessageScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final MessageController controller =
-        Get.put(MessageController(), tag: 'msg_$matchId')
-          ..ensureInitialized(matchId);
+        Get.put(MessageController(), tag: 'msg_${widget.matchId}')
+          ..ensureInitialized(widget.matchId, isBffMatch: widget.isBffMatch);
 
     return Scaffold(
       appBar: PreferredSize(
@@ -468,7 +534,7 @@ class MessageScreen extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextConstant(
-                  title: userName ?? '',
+                  title: widget.userName ?? '',
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
                   color: themeController.whiteColor,
@@ -527,7 +593,7 @@ class MessageScreen extends StatelessWidget {
                       alignment: Alignment.bottomRight,
                       children: [
                         ProfileAvatar(
-                          imageUrl: userImage ?? '',
+                          imageUrl: widget.userImage ?? '',
                           size: 50,
                           borderWidth: 1.5.w,
                         ),
@@ -552,7 +618,7 @@ class MessageScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         TextConstant(
-                          title: userName ?? '',
+                          title: widget.userName ?? '',
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                           color: themeController.whiteColor,
@@ -586,7 +652,7 @@ class MessageScreen extends StatelessWidget {
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             colors: [
-                              themeController.lightPinkColor.withOpacity(0.1),
+                              themeController.getAccentColor().withOpacity(0.1),
                               themeController.purpleColor.withOpacity(0.05),
                             ],
                             begin: Alignment.topLeft,
@@ -595,7 +661,7 @@ class MessageScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(20.r),
                           border: Border.all(
                             color:
-                                themeController.lightPinkColor.withOpacity(0.3),
+                                themeController.getAccentColor().withOpacity(0.3),
                             width: 1.w,
                           ),
                         ),
@@ -627,11 +693,22 @@ class MessageScreen extends StatelessWidget {
                     itemCount: controller.messages.length,
                     itemBuilder: (context, index) {
                       final message = controller.messages[index];
-                      return ChatBubble(
+                      print('🔄 DEBUG: Creating chat bubble - isUser: ${message.isUser}, currentUserImage: $currentUserImage, otherUserImage: ${widget.userImage}');
+                      print('🔄 DEBUG: Will show ${message.isUser ? "current user" : "other user"} profile picture');
+                      print('🔄 DEBUG: Passing userImage: $currentUserImage, otherUserImage: ${widget.userImage}');
+                      print('🔄 DEBUG: currentUserImage length: ${currentUserImage?.length ?? 0}');
+                      
+                      // If currentUserImage is still null, try to reload it
+                      if (currentUserImage == null && message.isUser) {
+                        _loadCurrentUserProfile();
+                      }
+                      
+                            return EnhancedChatBubble(
                         message: message,
-                        userImage: userImage ?? '',
-                        userName: userName ?? '',
-                        matchId: matchId,
+                        userName: widget.userName ?? '',
+                        isBffMatch: widget.isBffMatch,
+                        userImage: currentUserImage,
+                        otherUserImage: widget.userImage,
                       );
                     },
                   );
@@ -678,7 +755,7 @@ class MessageScreen extends StatelessWidget {
               icon: LucideIcons.paperclip,
               iconColor: themeController.whiteColor,
               borderColor: themeController.transparentColor,
-              backgroundColor: themeController.lightPinkColor,
+              backgroundColor: themeController.getAccentColor(),
             ),
             widthBox(6),
             ButtonSquare(
@@ -689,7 +766,7 @@ class MessageScreen extends StatelessWidget {
               icon: Icons.emoji_emotions_rounded,
               iconColor: themeController.whiteColor,
               borderColor: themeController.transparentColor,
-              backgroundColor: themeController.lightPinkColor,
+              backgroundColor: themeController.getAccentColor(),
             ),
             widthBox(6),
             Expanded(
@@ -712,7 +789,7 @@ class MessageScreen extends StatelessWidget {
                     textInputAction: TextInputAction.done,
                     onSubmitted: (v) {
                       if (v.trim().isNotEmpty && !v.contains('\n')) {
-                        controller.sendMessage(matchId, v.trim());
+                        controller.sendMessage(widget.matchId, v.trim());
                       }
                     },
                     decoration: InputDecoration(
@@ -731,7 +808,7 @@ class MessageScreen extends StatelessWidget {
                       ),
                       border: OutlineInputBorder(
                         borderSide: BorderSide(
-                          color: themeController.lightPinkColor
+                          color: themeController.getAccentColor()
                               .withOpacity(0.3),
                           width: 1.w,
                         ),
@@ -739,7 +816,7 @@ class MessageScreen extends StatelessWidget {
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderSide: BorderSide(
-                          color: themeController.lightPinkColor
+                          color: themeController.getAccentColor()
                               .withOpacity(0.3),
                           width: 1.w,
                         ),
@@ -747,7 +824,7 @@ class MessageScreen extends StatelessWidget {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderSide: BorderSide(
-                          color: themeController.lightPinkColor,
+                          color: themeController.getAccentColor(),
                           width: 1.5.w,
                         ),
                         borderRadius: BorderRadius.circular(50.r),
@@ -760,11 +837,11 @@ class MessageScreen extends StatelessWidget {
             widthBox(6),
             ButtonSquare(
               onTap: () =>
-                  controller.sendMessage(matchId, controller.textController.text.trim()),
+                  controller.sendMessage(widget.matchId, controller.textController.text.trim()),
               height: 35,
               width: 35,
               icon: LucideIcons.send,
-              backgroundColor: themeController.lightPinkColor,
+              backgroundColor: themeController.getAccentColor(),
               iconColor: themeController.whiteColor,
               borderColor: themeController.transparentColor,
               iconSize: 16,
@@ -776,87 +853,258 @@ class MessageScreen extends StatelessWidget {
   }
 
   void _showChatOptions() {
-    Get.dialog(
-      AlertDialog(
-        backgroundColor: Colors.transparent,
-        content: Container(
-          padding: EdgeInsets.symmetric(vertical: 8.h, horizontal: 0.w),
-          decoration: BoxDecoration(
-            color: themeController.blackColor.withValues(alpha: 0.95),
-            borderRadius: BorderRadius.circular(12.r),
-            border: Border.all(
-              color: themeController.lightPinkColor.withValues(alpha: 0.2),
-              width: 1.w,
+    showModalBottomSheet(
+      context: Get.context!,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.6),
+      isScrollControlled: true,
+      builder: (_) {
+        return ClipRRect(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22.r)),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              margin: EdgeInsets.only(bottom: MediaQuery.of(Get.context!).viewInsets.bottom),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.pink.withValues(alpha: 0.15),
+                    Colors.purple.withValues(alpha: 0.2),
+                    themeController.blackColor.withValues(alpha: 0.85),
+                  ],
+                  stops: [0.0, 0.3, 1.0],
+                ),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(22.r)),
+                border: Border.all(
+                  color: themeController.getAccentColor().withValues(alpha: 0.35),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: themeController.getAccentColor().withValues(alpha: 0.15),
+                    blurRadius: 20,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: SafeArea(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Handle bar
+                      Container(
+                        width: 40.w,
+                        height: 4.h,
+                        decoration: BoxDecoration(
+                          color: themeController.whiteColor.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(2.r),
+                        ),
+                      ),
+                      heightBox(20.h.toInt()),
+                      
+                      // Header
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.more_vert,
+                            color: themeController.getAccentColor(),
+                            size: 20.sp,
+                          ),
+                          SizedBox(width: 8.w),
+                          TextConstant(
+                            title: 'Chat Options',
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: themeController.whiteColor,
+                          ),
+                        ],
+                      ),
+                      heightBox(20.h.toInt()),
+                      
+                      // Menu Options
+                      _buildMenuOption(
+                        icon: Icons.person,
+                        title: 'View Profile',
+                        onTap: () {
+                          Get.back();
+                          _viewProfile();
+                        },
+                      ),
+                      
+                      _buildMenuOption(
+                        icon: Icons.notifications_off,
+                        title: 'Mute Notifications',
+                        onTap: () {
+                          Get.back();
+                          Get.snackbar('Muted', 'Notifications muted for this chat');
+                        },
+                      ),
+                      
+                      _buildMenuOption(
+                        icon: Icons.delete_outline,
+                        title: 'Clear Chat',
+                        isDestructive: true,
+                        onTap: () {
+                          Get.back();
+                          _showClearChatDialog();
+                        },
+                      ),
+                      
+                      _buildMenuOption(
+                        icon: Icons.person_remove,
+                        title: 'Unmatch User',
+                        isDestructive: true,
+                        onTap: () {
+                          Get.back();
+                          _showUnmatchUserDialog();
+                        },
+                      ),
+                      
+                      _buildMenuOption(
+                        icon: Icons.block,
+                        title: 'Block User',
+                        isDestructive: true,
+                        onTap: () {
+                          Get.back();
+                          Get.snackbar('Info', 'Block functionality coming soon');
+                        },
+                      ),
+                      
+                      heightBox(20.h.toInt()),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-            
-            // View Profile
-            _buildMenuOption(
-              icon: Icons.person,
-              title: 'View Profile',
-              onTap: () {
-                Get.back();
-                _viewProfile();
-              },
+        );
+      },
+    );
+  }
+
+  Widget _buildMenuOption({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+    bool isDestructive = false,
+  }) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 8.h),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12.r),
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+            decoration: BoxDecoration(
+              color: isDestructive 
+                  ? Colors.red.withValues(alpha: 0.1)
+                  : themeController.whiteColor.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(12.r),
+              border: Border.all(
+                color: isDestructive 
+                    ? Colors.red.withValues(alpha: 0.2)
+                    : themeController.getAccentColor().withValues(alpha: 0.1),
+                width: 1.w,
+              ),
             ),
-            
-            // Video Call
-            _buildMenuOption(
-              icon: Icons.videocam,
-              title: 'Video Call',
-              onTap: () {
-                Get.back();
-                Get.snackbar('Coming Soon', 'Video calling feature will be available soon!');
-              },
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  color: isDestructive 
+                      ? Colors.red
+                      : themeController.getAccentColor(),
+                  size: 20.sp,
+                ),
+                SizedBox(width: 12.w),
+                Expanded(
+                  child: TextConstant(
+                    title: title,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: isDestructive 
+                        ? Colors.red
+                        : themeController.whiteColor,
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  color: isDestructive 
+                      ? Colors.red.withValues(alpha: 0.5)
+                      : themeController.whiteColor.withValues(alpha: 0.5),
+                  size: 14.sp,
+                ),
+              ],
             ),
-            
-            // Voice Call
-            _buildMenuOption(
-              icon: Icons.call,
-              title: 'Voice Call',
-              onTap: () {
-                Get.back();
-                Get.snackbar('Coming Soon', 'Voice calling feature will be available soon!');
-              },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPhotoSourceOption({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 8.h),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12.r),
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+            decoration: BoxDecoration(
+              color: themeController.whiteColor.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(12.r),
+              border: Border.all(
+                color: themeController.getAccentColor().withValues(alpha: 0.1),
+                width: 1.w,
+              ),
             ),
-            
-            // Mute Notifications
-            _buildMenuOption(
-              icon: Icons.notifications_off,
-              title: 'Mute Notifications',
-              onTap: () {
-                Get.back();
-                Get.snackbar('Muted', 'Notifications muted for this chat');
-              },
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  color: themeController.getAccentColor(),
+                  size: 20.sp,
+                ),
+                SizedBox(width: 12.w),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextConstant(
+                        title: title,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: themeController.whiteColor,
+                      ),
+                      SizedBox(height: 2.h),
+                      TextConstant(
+                        title: subtitle,
+                        fontSize: 12,
+                        color: themeController.whiteColor.withValues(alpha: 0.7),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  color: themeController.whiteColor.withValues(alpha: 0.5),
+                  size: 14.sp,
+                ),
+              ],
             ),
-            
-            // Clear Chat
-            _buildMenuOption(
-              icon: Icons.delete_outline,
-              title: 'Clear Chat',
-              isDestructive: true,
-              onTap: () {
-                Get.back();
-                _showClearChatDialog();
-              },
-            ),
-            
-            // Unmatch User
-            _buildMenuOption(
-              icon: Icons.person_remove,
-              title: 'Unmatch User',
-              isDestructive: true,
-              onTap: () {
-                Get.back();
-                _showUnmatchUserDialog();
-              },
-            ),
-            
-            heightBox(20.h.toInt()),
-            ],
           ),
         ),
       ),
@@ -872,7 +1120,7 @@ class MessageScreen extends StatelessWidget {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                themeController.lightPinkColor.withValues(alpha: 0.15),
+                themeController.getAccentColor().withValues(alpha: 0.15),
                 themeController.purpleColor.withValues(alpha: 0.1),
               ],
               begin: Alignment.topLeft,
@@ -880,12 +1128,12 @@ class MessageScreen extends StatelessWidget {
             ),
             borderRadius: BorderRadius.circular(18.r),
             border: Border.all(
-              color: themeController.lightPinkColor.withValues(alpha: 0.3),
+              color: themeController.getAccentColor().withValues(alpha: 0.3),
               width: 1.w,
             ),
             boxShadow: [
               BoxShadow(
-                color: themeController.lightPinkColor.withValues(alpha: 0.1),
+                color: themeController.getAccentColor().withValues(alpha: 0.1),
                 blurRadius: 8,
                 offset: Offset(0, 2),
               ),
@@ -967,7 +1215,7 @@ class MessageScreen extends StatelessWidget {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                themeController.lightPinkColor.withValues(alpha: 0.15),
+                themeController.getAccentColor().withValues(alpha: 0.15),
                 themeController.purpleColor.withValues(alpha: 0.1),
               ],
               begin: Alignment.topLeft,
@@ -975,12 +1223,12 @@ class MessageScreen extends StatelessWidget {
             ),
             borderRadius: BorderRadius.circular(18.r),
             border: Border.all(
-              color: themeController.lightPinkColor.withValues(alpha: 0.3),
+              color: themeController.getAccentColor().withValues(alpha: 0.3),
               width: 1.w,
             ),
             boxShadow: [
               BoxShadow(
-                color: themeController.lightPinkColor.withValues(alpha: 0.1),
+                color: themeController.getAccentColor().withValues(alpha: 0.1),
                 blurRadius: 8,
                 offset: Offset(0, 2),
               ),
@@ -1012,7 +1260,7 @@ class MessageScreen extends StatelessWidget {
                     _justUnmatch();
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: themeController.lightPinkColor,
+                    backgroundColor: themeController.getAccentColor(),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10.r),
                     ),
@@ -1067,7 +1315,7 @@ class MessageScreen extends StatelessWidget {
 
   Future<void> _clearChat() async {
     try {
-      print('🔄 DEBUG: Starting to clear chat for match: $matchId');
+      print('🔄 DEBUG: Starting to clear chat for match: $widget.matchId');
       
       // Show loading indicator
       Get.dialog(
@@ -1082,7 +1330,7 @@ class MessageScreen extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 CircularProgressIndicator(
-                  color: themeController.lightPinkColor,
+                  color: themeController.getAccentColor(),
                 ),
                 heightBox(10.h.toInt()),
                 TextConstant(
@@ -1102,7 +1350,7 @@ class MessageScreen extends StatelessWidget {
       final currentUserId = SupabaseService.currentUser?.id;
       if (currentUserId != null) {
         print('🔄 DEBUG: Current user ID: $currentUserId');
-        print('🔄 DEBUG: Match ID: $matchId');
+        print('🔄 DEBUG: Match ID: $widget.matchId');
         
         // Delete ALL messages for this match (both users' messages)
         print('🔄 DEBUG: Deleting all messages for this match...');
@@ -1110,7 +1358,7 @@ class MessageScreen extends StatelessWidget {
           final messagesResult = await SupabaseService.client
               .from('messages')
               .delete()
-              .eq('match_id', matchId);
+              .eq('match_id', widget.matchId);
           print('✅ DEBUG: All messages deleted: $messagesResult');
         } catch (e) {
           print('❌ DEBUG: Error deleting messages: $e');
@@ -1122,7 +1370,7 @@ class MessageScreen extends StatelessWidget {
           final photosResult = await SupabaseService.client
               .from('disappearing_photos')
               .delete()
-              .eq('match_id', matchId);
+              .eq('match_id', widget.matchId);
           print('✅ DEBUG: All disappearing photos deleted: $photosResult');
         } catch (e) {
           print('❌ DEBUG: Error deleting disappearing photos: $e');
@@ -1139,7 +1387,7 @@ class MessageScreen extends StatelessWidget {
       
       // Clear the messages from the controller to refresh UI
       try {
-        final MessageController controller = Get.find<MessageController>(tag: 'msg_$matchId');
+        final MessageController controller = Get.find<MessageController>(tag: 'msg_$widget.matchId');
         
         // Stop the real-time subscription temporarily to prevent refetching
         controller.dispose();
@@ -1149,14 +1397,14 @@ class MessageScreen extends StatelessWidget {
         print('✅ DEBUG: Controller messages cleared');
         
         // Force refresh by reinitializing the controller
-        await controller.ensureInitialized(matchId);
+        await controller.ensureInitialized(widget.matchId, isBffMatch: widget.isBffMatch);
         print('✅ DEBUG: Controller reinitialized');
       } catch (e) {
         print('❌ DEBUG: Could not find controller: $e');
         // Try to create a new controller instance
         try {
-          final newController = Get.put(MessageController(), tag: 'msg_$matchId');
-          await newController.ensureInitialized(matchId);
+          final newController = Get.put(MessageController(), tag: 'msg_${widget.matchId}');
+          await newController.ensureInitialized(widget.matchId, isBffMatch: widget.isBffMatch);
           print('✅ DEBUG: New controller created and initialized');
         } catch (e2) {
           print('❌ DEBUG: Could not create new controller: $e2');
@@ -1186,7 +1434,7 @@ class MessageScreen extends StatelessWidget {
 
   Future<void> _justUnmatch() async {
     try {
-      print('🔄 DEBUG: Starting to unmatch user for match: $matchId');
+      print('🔄 DEBUG: Starting to unmatch user for match: $widget.matchId');
       
       // Show loading indicator
       Get.dialog(
@@ -1201,7 +1449,7 @@ class MessageScreen extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 CircularProgressIndicator(
-                  color: themeController.lightPinkColor,
+                  color: themeController.getAccentColor(),
                 ),
                 heightBox(10.h.toInt()),
                 TextConstant(
@@ -1220,7 +1468,7 @@ class MessageScreen extends StatelessWidget {
       await SupabaseService.client
           .from('matches')
           .update({'status': 'unmatched'})
-          .eq('id', matchId);
+          .eq('id', widget.matchId);
       
       // Close loading dialog
       Get.back();
@@ -1251,7 +1499,7 @@ class MessageScreen extends StatelessWidget {
 
   Future<void> _reportUser() async {
     try {
-      print('🔄 DEBUG: Starting to report user for match: $matchId');
+      print('🔄 DEBUG: Starting to report user for match: $widget.matchId');
       
       // Show loading indicator
       Get.dialog(
@@ -1266,7 +1514,7 @@ class MessageScreen extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 CircularProgressIndicator(
-                  color: themeController.lightPinkColor,
+                  color: themeController.getAccentColor(),
                 ),
                 heightBox(10.h.toInt()),
                 TextConstant(
@@ -1305,7 +1553,7 @@ class MessageScreen extends StatelessWidget {
       await SupabaseService.client
           .from('matches')
           .update({'status': 'unmatched'})
-          .eq('id', matchId);
+          .eq('id', widget.matchId);
       
       // Close loading dialog
       Get.back();
@@ -1337,7 +1585,7 @@ class MessageScreen extends StatelessWidget {
   Future<String?> _getOtherUserId() async {
     try {
       // Get the match details to find the other user's ID
-      final match = await SupabaseService.getMatchById(matchId);
+      final match = await SupabaseService.getMatchById(widget.matchId);
       if (match != null) {
         final currentUserId = SupabaseService.currentUser?.id;
         final userId1 = match['user_id_1']?.toString();
@@ -1357,32 +1605,4 @@ class MessageScreen extends StatelessWidget {
     }
   }
 
-  Widget _buildMenuOption({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-    bool isDestructive = false,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: EdgeInsets.symmetric(vertical: 12.h, horizontal: 16.w),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              color: isDestructive ? Colors.red : themeController.lightPinkColor,
-              size: 20.sp,
-            ),
-            SizedBox(width: 12.w),
-            TextConstant(
-              title: title,
-              color: isDestructive ? Colors.red : themeController.whiteColor,
-              fontSize: 16,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }

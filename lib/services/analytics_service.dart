@@ -5,19 +5,37 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:convert';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:facebook_app_events/facebook_app_events.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 
 class AnalyticsService {
   static FirebaseAnalytics? _analytics;
+  static FacebookAppEvents? _facebookAppEvents;
   static SupabaseClient get _supabase => Supabase.instance.client;
   static String? _currentSessionId;
   static DateTime? _sessionStartTime;
   static Timer? _sessionTimer;
+  static PackageInfo? _packageInfo;
+  static DeviceInfoPlugin _deviceInfo = DeviceInfoPlugin();
   
   // Initialize Firebase Analytics
   static Future<void> initialize() async {
     try {
+      // Initialize Firebase Analytics
       _analytics = FirebaseAnalytics.instance;
       await _analytics?.setAnalyticsCollectionEnabled(true);
+      
+      // Initialize Facebook App Events
+      // _facebookAppEvents = FacebookAppEvents();
+      
+      // Initialize Google Mobile Ads
+      // await MobileAds.instance.initialize();
+      
+      // Get package info
+      _packageInfo = await PackageInfo.fromPlatform();
+      
       print('✅ Analytics Service initialized');
     } catch (e) {
       print('❌ Failed to initialize Analytics: $e');
@@ -437,7 +455,210 @@ class AnalyticsService {
   
   // Get app version
   static String _getAppVersion() {
-    // You can implement package_info_plus to get actual version
-    return '1.0.0';
+    return _packageInfo?.version ?? '1.0.0';
+  }
+  
+  // ===== UAC REQUIRED TRACKING EVENTS =====
+  
+  // Track App Install (called on first app launch)
+  static Future<void> trackAppInstall() async {
+    try {
+      // Firebase Analytics
+      await _analytics?.logEvent(name: 'app_install');
+      
+      // Facebook App Events
+      // await _facebookAppEvents?.logEvent(name: 'fb_mobile_activate_app');
+      
+      // Supabase
+      await _sendEventToSupabase(
+        eventType: 'app_install',
+        eventData: {
+          'timestamp': DateTime.now().toIso8601String(),
+          'app_version': _getAppVersion(),
+          'platform': _getDeviceType(),
+        },
+      );
+      
+      print('✅ App Install tracked');
+    } catch (e) {
+      print('❌ Failed to track app install: $e');
+    }
+  }
+  
+  // Track First Open (called on first app open after install)
+  static Future<void> trackFirstOpen() async {
+    try {
+      // Firebase Analytics
+      await _analytics?.logEvent(name: 'first_open');
+      
+      // Facebook App Events
+      // await _facebookAppEvents?.logEvent(name: 'fb_mobile_activate_app');
+      
+      // Supabase
+      await _sendEventToSupabase(
+        eventType: 'first_open',
+        eventData: {
+          'timestamp': DateTime.now().toIso8601String(),
+          'app_version': _getAppVersion(),
+          'platform': _getDeviceType(),
+        },
+      );
+      
+      print('✅ First Open tracked');
+    } catch (e) {
+      print('❌ Failed to track first open: $e');
+    }
+  }
+  
+  // Track Sign Up (called when user creates account)
+  static Future<void> trackSignUp(String method) async {
+    try {
+      // Firebase Analytics
+      await _analytics?.logSignUp(signUpMethod: method);
+      
+      // Facebook App Events
+      // await _facebookAppEvents?.logEvent(name: 'fb_mobile_complete_registration');
+      
+      // Supabase
+      await _sendEventToSupabase(
+        eventType: 'user_signup',
+        eventData: {
+          'method': method,
+          'timestamp': DateTime.now().toIso8601String(),
+          'user_id': _supabase.auth.currentUser?.id,
+        },
+      );
+      
+      print('✅ Sign Up tracked: $method');
+    } catch (e) {
+      print('❌ Failed to track sign up: $e');
+    }
+  }
+  
+  // Track Profile Completed (called when user completes profile setup)
+  static Future<void> trackProfileCompleted(Map<String, dynamic> profileData) async {
+    try {
+      // Firebase Analytics
+      await _analytics?.logEvent(
+        name: 'profile_completed',
+        parameters: {
+          'has_photos': (profileData['photos'] as List?)?.isNotEmpty ?? false,
+          'has_bio': (profileData['bio'] as String?)?.isNotEmpty ?? false,
+          'age': profileData['age'] ?? 0,
+          'gender': profileData['gender'] ?? 'unknown',
+        },
+      );
+      
+      // Facebook App Events
+      // await _facebookAppEvents?.logEvent(name: 'fb_mobile_complete_registration');
+      
+      // Supabase
+      await _sendEventToSupabase(
+        eventType: 'profile_completed',
+        eventData: {
+          'profile_data': profileData,
+          'timestamp': DateTime.now().toIso8601String(),
+          'user_id': _supabase.auth.currentUser?.id,
+        },
+      );
+      
+      print('✅ Profile Completed tracked');
+    } catch (e) {
+      print('❌ Failed to track profile completed: $e');
+    }
+  }
+  
+  // Track Subscription Purchased (called when user purchases subscription)
+  static Future<void> trackSubscriptionPurchased({
+    required String subscriptionId,
+    required String planName,
+    required double price,
+    required String currency,
+    required String paymentMethod,
+  }) async {
+    try {
+      // Firebase Analytics
+      await _analytics?.logPurchase(
+        currency: currency,
+        value: price,
+        transactionId: subscriptionId,
+        parameters: {
+          'plan_name': planName,
+          'payment_method': paymentMethod,
+        },
+      );
+      
+      // Facebook App Events
+      // await _facebookAppEvents?.logPurchase(
+      //   amount: price,
+      //   currency: currency,
+      //   parameters: {
+      //     'fb_content_id': subscriptionId,
+      //     'fb_content_type': 'subscription',
+      //   },
+      // );
+      
+      // Supabase
+      await _sendEventToSupabase(
+        eventType: 'subscription_purchased',
+        eventData: {
+          'subscription_id': subscriptionId,
+          'plan_name': planName,
+          'price': price,
+          'currency': currency,
+          'payment_method': paymentMethod,
+          'timestamp': DateTime.now().toIso8601String(),
+          'user_id': _supabase.auth.currentUser?.id,
+        },
+      );
+      
+      print('✅ Subscription Purchased tracked: $planName');
+    } catch (e) {
+      print('❌ Failed to track subscription purchase: $e');
+    }
+  }
+  
+  // Track Session Start (enhanced version of existing method)
+  static Future<void> trackSessionStart() async {
+    try {
+      // Firebase Analytics
+      await _analytics?.logEvent(name: 'session_start');
+      
+      // Facebook App Events
+      // await _facebookAppEvents?.logEvent(name: 'fb_mobile_activate_app');
+      
+      // Call existing session start logic
+      await startSession();
+      
+      print('✅ Session Start tracked');
+    } catch (e) {
+      print('❌ Failed to track session start: $e');
+    }
+  }
+  
+  
+  // Enhanced login tracking for UAC
+  static Future<void> trackLoginEnhanced(String method) async {
+    try {
+      // Firebase Analytics
+      await _analytics?.logLogin(loginMethod: method);
+      
+      // Facebook App Events
+      // await _facebookAppEvents?.logEvent(name: 'fb_mobile_login');
+      
+      // Supabase
+      await _sendEventToSupabase(
+        eventType: 'user_login',
+        eventData: {
+          'method': method,
+          'timestamp': DateTime.now().toIso8601String(),
+          'user_id': _supabase.auth.currentUser?.id,
+        },
+      );
+      
+      print('✅ Enhanced Login tracked: $method');
+    } catch (e) {
+      print('❌ Failed to track enhanced login: $e');
+    }
   }
 }

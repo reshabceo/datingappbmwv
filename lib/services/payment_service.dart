@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
 import '../config/supabase_config.dart';
 import '../config/cashfree_config.dart';
+import 'analytics_service.dart';
 
 class PaymentService {
   // static Razorpay? _razorpay; // COMMENTED OUT - SWITCHED TO CASHFREE
@@ -267,16 +268,16 @@ class PaymentService {
   static Future<String?> _getCurrentOrderId() async {
     try {
       // Get the most recent pending order for the current user
-      final response = await Supabase.instance.client
+      final row = await Supabase.instance.client
           .from('payment_orders')
           .select('order_id')
-          .eq('user_id', Supabase.instance.client.auth.currentUser?.id)
+          .eq('user_id', Supabase.instance.client.auth.currentUser?.id ?? '')
           .eq('status', 'pending')
           .order('created_at', ascending: false)
           .limit(1)
-          .single();
-      
-      return response['order_id'] as String?;
+          .maybeSingle();
+
+      return row?['order_id'] as String?;
     } catch (e) {
       print('Error getting order ID: $e');
       return null;
@@ -300,8 +301,12 @@ class PaymentService {
   }
 
 
-  static Future<void> _trackPaymentSuccess(String orderId) async {
+  static Future<void> _trackPaymentSuccess(String orderId, String planId) async {
     try {
+      // Get plan details
+      final plan = subscriptionPlans[planId];
+      if (plan == null) return;
+      
       // Track payment success in analytics
       await Supabase.instance.client.from('user_events').insert({
         'event_type': 'payment_success',
@@ -311,6 +316,15 @@ class PaymentService {
         },
         'user_id': Supabase.instance.client.auth.currentUser?.id,
       });
+      
+      // Track subscription purchase for UAC
+      await AnalyticsService.trackSubscriptionPurchased(
+        subscriptionId: orderId,
+        planName: plan['name'],
+        price: plan['price'].toDouble(),
+        currency: 'INR',
+        paymentMethod: 'cashfree',
+      );
     } catch (e) {
       print('Error tracking payment success: $e');
     }

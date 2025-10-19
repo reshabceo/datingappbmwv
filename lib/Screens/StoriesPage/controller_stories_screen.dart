@@ -123,7 +123,8 @@ class StoriesController extends GetxController {
       print('DEBUG: Final story groups count: ${groups.length}');
       
       // Add dummy stories for testing UI (after real stories are loaded)
-      _addDummyStories();
+      // TODO: Remove this in production
+      // _addDummyStories(); // DISABLED: Dummy stories cause match issues
     } catch (e) {
       print('Error loading stories: $e');
     } finally {

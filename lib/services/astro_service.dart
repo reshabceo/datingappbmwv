@@ -131,19 +131,11 @@ class AstroService {
   /// Get match enhancements for a specific match
   static Future<Map<String, dynamic>?> getMatchEnhancements(String matchId) async {
     try {
-      final response = await SupabaseService.client
+      final data = await SupabaseService.client
           .from(_tableName)
           .select('*')
           .eq('match_id', matchId)
           .maybeSingle();
-      
-      final data = response.data;
-      final error = response.error;
-
-      if (error != null) {
-        print('Error getting match enhancements: $error');
-        return null;
-      }
 
       return data;
     } catch (e) {
@@ -159,16 +151,7 @@ class AstroService {
         'generate-match-insights',
         body: {'matchId': matchId},
       );
-      
-      final data = response.data;
-      final error = response.error;
-
-      if (error != null) {
-        print('Error generating match insights: $error');
-        return null;
-      }
-
-      return data;
+      return response.data;
     } catch (e) {
       print('Exception generating match insights: $e');
       return null;
@@ -182,21 +165,13 @@ class AstroService {
     required String userId,
   }) async {
     try {
-      final response = await SupabaseService.client
+      await SupabaseService.client
           .from(_usageTableName)
           .insert({
         'match_id': matchId,
         'ice_breaker_text': iceBreakerText,
         'used_by_user_id': userId,
       });
-      
-      final error = response.error;
-
-      if (error != null) {
-        print('Error tracking ice breaker usage: $error');
-        return false;
-      }
-
       return true;
     } catch (e) {
       print('Exception tracking ice breaker usage: $e');
@@ -207,20 +182,12 @@ class AstroService {
   /// Get used ice breakers for a match
   static Future<List<String>> getUsedIceBreakers(String matchId) async {
     try {
-      final response = await SupabaseService.client
+      final rows = await SupabaseService.client
           .from(_usageTableName)
           .select('ice_breaker_text')
           .eq('match_id', matchId);
-      
-      final data = response.data;
-      final error = response.error;
 
-      if (error != null) {
-        print('Error getting used ice breakers: $error');
-        return [];
-      }
-
-      return (data as List<dynamic>)
+      return (rows as List<dynamic>)
           .map((item) => item['ice_breaker_text'] as String)
           .toList();
     } catch (e) {
@@ -234,21 +201,13 @@ class AstroService {
     try {
       final zodiacSign = calculateZodiacSign(birthDate);
       
-      final response = await SupabaseService.client
+      await SupabaseService.client
           .from('profiles')
           .update({
             'birth_date': birthDate.toIso8601String().split('T')[0],
             'zodiac_sign': zodiacSign,
           })
           .eq('id', userId);
-      
-      final error = response.error;
-
-      if (error != null) {
-        print('Error updating zodiac sign: $error');
-        return false;
-      }
-
       return true;
     } catch (e) {
       print('Exception updating zodiac sign: $e');

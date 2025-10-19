@@ -14,9 +14,9 @@ class SupabaseService {
   }
   
   // OAuth provider sign-in
-  static Future<void> signInWithProvider(Provider provider) async {
+  static Future<void> signInWithProvider(OAuthProvider provider) async {
     await client.auth.signInWithOAuth(
-      provider: provider,
+      provider,
       // On mobile, use external browser to avoid in-app webview issues
       authScreenLaunchMode: LaunchMode.externalApplication,
     );
@@ -63,6 +63,8 @@ class SupabaseService {
     double? userLat,
     double? userLon,
     double? maxDistanceKm,
+    int? limit,
+    int? offset,
   }) async {
     var query = client
         .from('profiles')
@@ -73,9 +75,20 @@ class SupabaseService {
     }
 
     // Note: Supabase Dart doesn't allow arbitrary SQL in lt on columns easily; we'll filter client-side for now
-
+    // For now, we'll load all profiles and handle pagination client-side
     final response = await query;
-    return (response as List).cast<Map<String, dynamic>>();
+    final allProfiles = (response as List).cast<Map<String, dynamic>>();
+    
+    // Apply client-side pagination
+    if (offset != null && limit != null) {
+      final start = offset;
+      final end = offset + limit;
+      return allProfiles.skip(start).take(limit).toList();
+    } else if (limit != null) {
+      return allProfiles.take(limit).toList();
+    }
+    
+    return allProfiles;
   }
   
   static Future<Map<String, dynamic>?> getProfile(String userId) async {
@@ -206,6 +219,161 @@ class SupabaseService {
     return combined;
   }
 
+  static Future<List<Map<String, dynamic>>> getBFFMatches() async {
+    final uid = currentUser?.id;
+    if (uid == null) return [];
+    // Query BFF matches table
+    final List<Map<String, dynamic>> combined = [];
+    try {
+      final rows1 = await client
+          .from('bff_matches')
+          .select('id,user_id_1,user_id_2,created_at,status')
+          .eq('status', 'matched')
+          .eq('user_id_1', uid) as List<dynamic>;
+      combined.addAll(rows1.cast<Map<String, dynamic>>());
+    } catch (_) {}
+    try {
+      final rows2 = await client
+          .from('bff_matches')
+          .select('id,user_id_1,user_id_2,created_at,status')
+          .eq('status', 'matched')
+          .eq('user_id_2', uid) as List<dynamic>;
+      // Merge without duplicates
+      final existing = combined.map((e) => (e['id'] ?? '').toString()).toSet();
+      for (final r in rows2) {
+        final id = (r['id'] ?? '').toString();
+        if (!existing.contains(id)) combined.add((r as Map).cast<String, dynamic>());
+      }
+    } catch (_) {}
+    return combined;
+  }
+
+  // Get profiles with super like status (for dating mode)
+  static Future<List<Map<String, dynamic>>> getProfilesWithSuperLikes() async {
+    final uid = currentUser?.id;
+    if (uid == null) return [];
+    
+    try {
+      print('🔍 DEBUG: Calling get_profiles_with_super_likes for user: $uid');
+      final response = await client.rpc('get_profiles_with_super_likes', params: {
+        'p_user_id': uid,
+        'p_limit': 20,
+      });
+      print('🔍 DEBUG: RPC response: $response');
+      final result = (response as List).cast<Map<String, dynamic>>();
+      print('🔍 DEBUG: Parsed result count: ${result.length}');
+      for (int i = 0; i < result.length && i < 3; i++) {
+        print('🔍 DEBUG: Profile $i: ${result[i]}');
+      }
+      return result;
+    } catch (e) {
+      print('Error fetching profiles with super likes: $e');
+      // Try fallback to get_dating_profiles function
+      try {
+        print('🔍 DEBUG: Trying fallback to get_dating_profiles');
+        final response = await client.rpc('get_dating_profiles', params: {
+          'p_user_id': uid,
+          'p_limit': 20,
+        });
+        final result = (response as List).cast<Map<String, dynamic>>();
+        print('🔍 DEBUG: Fallback result count: ${result.length}');
+        return result;
+      } catch (fallbackError) {
+        print('Fallback also failed: $fallbackError');
+        // Final fallback to regular getProfiles
+        return await getProfiles();
+      }
+    }
+  }
+
+  // Get BFF profiles (mode-specific)
+  static Future<List<Map<String, dynamic>>> getBffProfiles() async {
+    final uid = currentUser?.id;
+    if (uid == null) return [];
+    
+    try {
+      print('🔍 DEBUG: Calling get_bff_profiles for user: $uid');
+      final response = await client.rpc('get_bff_profiles', params: {
+        'p_user_id': uid,
+      });
+      print('🔍 DEBUG: BFF RPC response: $response');
+      final result = (response as List).cast<Map<String, dynamic>>();
+      print('🔍 DEBUG: BFF Parsed result count: ${result.length}');
+      for (int i = 0; i < result.length && i < 3; i++) {
+        print('🔍 DEBUG: BFF Profile $i: ${result[i]}');
+      }
+      return result;
+    } catch (e) {
+      print('Error fetching BFF profiles: $e');
+      // Return empty list instead of fallback to avoid showing dating profiles in BFF mode
+      print('🔍 DEBUG: Returning empty list for BFF profiles due to error');
+      return [];
+    }
+  }
+
+  // Record BFF interaction
+  static Future<void> recordBffInteraction(String targetUserId, String interactionType) async {
+    final uid = currentUser?.id;
+    if (uid == null) return;
+    
+    try {
+      print('🔍 DEBUG: Recording BFF interaction: $uid -> $targetUserId ($interactionType)');
+      await client.rpc('record_bff_interaction', params: {
+        'p_user_id': uid,
+        'p_target_user_id': targetUserId,
+        'p_interaction_type': interactionType,
+      });
+      print('✅ BFF interaction recorded successfully');
+    } catch (e) {
+      print('Error recording BFF interaction: $e');
+    }
+  }
+
+  // Update user's mode preferences
+  static Future<void> updateModePreferences(Map<String, bool> modePreferences) async {
+    final uid = currentUser?.id;
+    if (uid == null) return;
+    
+    try {
+      print('🔍 DEBUG: Updating mode preferences for user: $uid');
+      await client.from('profiles').update({
+        'mode_preferences': modePreferences,
+        'bff_enabled_at': modePreferences['bff'] == true ? DateTime.now().toIso8601String() : null,
+      }).eq('id', uid);
+      print('✅ Mode preferences updated successfully');
+    } catch (e) {
+      print('Error updating mode preferences: $e');
+    }
+  }
+
+  // Activity Feed methods
+  static Future<List<Map<String, dynamic>>> getUserActivities({int limit = 50}) async {
+    final uid = currentUser?.id;
+    if (uid == null) return [];
+    
+    try {
+      final response = await client.rpc('get_user_activities', params: {
+        'p_user_id': uid,
+        'p_limit': limit,
+      });
+      return (response as List).cast<Map<String, dynamic>>();
+    } catch (e) {
+      print('Error fetching activities: $e');
+      return [];
+    }
+  }
+
+  static Future<void> markMessageAsRead(String messageId) async {
+    try {
+      await client
+          .from('messages')
+          .update({'is_read': true})
+          .eq('id', messageId);
+    } catch (e) {
+      print('Error marking message as read: $e');
+    }
+  }
+
   static Future<Map<String, dynamic>?> getMatchById(String matchId) async {
     if (matchId.isEmpty) return null;
     final row = await client
@@ -222,6 +390,34 @@ class SupabaseService {
         .from('messages')
         .select('id,match_id,sender_id,content,created_at,story_id,is_story_reply,story_user_name,is_disappearing_photo,disappearing_photo_id')
         .eq('match_id', matchId)
+        .order('created_at', ascending: true);
+    return (response as List).cast<Map<String, dynamic>>();
+  }
+
+  static Future<List<Map<String, dynamic>>> getBffMessages(String matchId) async {
+    // Get the chat_id from bff_matches table
+    final bffMatch = await client
+        .from('bff_matches')
+        .select('id')
+        .eq('id', matchId)
+        .maybeSingle();
+    
+    if (bffMatch == null) return [];
+    
+    // Get the chat_id from bff_chats table
+    final chat = await client
+        .from('bff_chats')
+        .select('id')
+        .or('user_a_id.eq.${currentUser?.id},user_b_id.eq.${currentUser?.id}')
+        .maybeSingle();
+    
+    if (chat == null) return [];
+    
+    // Get BFF messages
+    final response = await client
+        .from('bff_messages')
+        .select('id,chat_id,sender_id,text,created_at')
+        .eq('chat_id', chat['id'])
         .order('created_at', ascending: true);
     return (response as List).cast<Map<String, dynamic>>();
   }
@@ -257,8 +453,14 @@ class SupabaseService {
   static Future<Map<String, dynamic>> handleSwipe({
     required String swipedId,
     required String action,
+    String mode = 'dating', // 'dating' or 'bff'
   }) async {
-    final result = await client.rpc('handle_swipe', params: {
+    // Use different RPC functions based on mode
+    final String rpcFunction = mode == 'bff' ? 'handle_bff_swipe' : 'handle_swipe';
+    
+    print('🔍 DEBUG: Using RPC function: $rpcFunction for mode: $mode');
+    
+    final result = await client.rpc(rpcFunction, params: {
       'p_swiped_id': swipedId,
       'p_action': action,
     });

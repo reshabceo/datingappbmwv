@@ -5,6 +5,7 @@ import 'package:lovebug/shared_prefrence_helper.dart';
 import 'package:lovebug/services/supabase_service.dart';
 import 'package:lovebug/services/analytics_service.dart';
 import 'package:lovebug/services/payment_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -14,6 +15,7 @@ import 'ThemeController/theme_controller.dart';
 // Firebase Analytics
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'Screens/BottomBarPage/bottombar_screen.dart';
 import 'Screens/ProfileFormPage/multi_step_profile_form.dart';
 import 'Screens/AuthPage/auth_ui_screen.dart';
@@ -26,20 +28,12 @@ Future<void> main() async {
   // Initialize Supabase
   await SupabaseService.initialize();
   
-<<<<<<< Updated upstream
   // Initialize Payment Service
   await PaymentService.initialize();
   
-  // Initialize Firebase
-  try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-    await AnalyticsService.initialize();
-    print('✅ Firebase Analytics initialized');
-  } catch (e) {
-    print('❌ Firebase initialization failed: $e');
-  }
+  // Initialize Firebase and Analytics for all platforms
+  // TEMPORARILY DISABLED TO PREVENT CRASHES
+  print('✅ Firebase Analytics temporarily disabled for debugging');
   
   // Initialize SharedPreferences
   await SharedPreferenceHelper.init();
@@ -51,6 +45,32 @@ Future<void> main() async {
   }
   
   runApp(MyApp());
+}
+
+// Track app launch events for UAC
+Future<void> _trackAppLaunch() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final isFirstLaunch = prefs.getBool('is_first_launch') ?? true;
+    final hasTrackedInstall = prefs.getBool('has_tracked_install') ?? false;
+    
+    if (isFirstLaunch) {
+      // Track first open
+      await AnalyticsService.trackFirstOpen();
+      await prefs.setBool('is_first_launch', false);
+    }
+    
+    if (!hasTrackedInstall) {
+      // Track app install
+      await AnalyticsService.trackAppInstall();
+      await prefs.setBool('has_tracked_install', true);
+    }
+    
+    // Always track session start
+    await AnalyticsService.trackSessionStart();
+  } catch (e) {
+    print('❌ Failed to track app launch: $e');
+  }
 }
 
 class MyApp extends StatelessWidget {

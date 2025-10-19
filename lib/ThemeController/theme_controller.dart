@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:lovebug/Screens/DiscoverPage/controller_discover_screen.dart';
 
 class ThemeController extends GetxController {
   final RxBool isDarkMode = false.obs;
@@ -28,6 +29,12 @@ class ThemeController extends GetxController {
   final Color transparentColor = Colors.transparent;
   final Color lightWhiteColor = Colors.white.withValues(alpha: 0.5);
 
+  // BFF Mode Colors
+  final Color bffPrimaryColor = Color(0xFF3B82F6); // Blue
+  final Color bffSecondaryColor = Color(0xFF60A5FA); // Light Blue
+  final Color bffAccentColor = Color(0xFF1E40AF); // Dark Blue
+  final Color bffLightColor = Color(0xFF93C5FD); // Very Light Blue
+
   final Color appBar1Color = Color(0xFF0F172A);
   final Color appBar2Color = Color(0xFF1E3A8A);
   final Color appBar3Color = Color(0xFF172554);
@@ -43,6 +50,47 @@ class ThemeController extends GetxController {
 
   final Color bgGradient1 = Color(0xFF1E3A8A);
 
+  // Mode-aware color methods
+  Color getAccentColor() {
+    // Check if we're in BFF mode by looking for DiscoverController
+    if (Get.isRegistered<DiscoverController>()) {
+      final discoverController = Get.find<DiscoverController>();
+      return discoverController.currentMode.value == 'bff' ? bffPrimaryColor : lightPinkColor;
+    }
+    return lightPinkColor; // Default to dating mode
+  }
+
+  Color getSecondaryColor() {
+    if (Get.isRegistered<DiscoverController>()) {
+      final discoverController = Get.find<DiscoverController>();
+      return discoverController.currentMode.value == 'bff' ? bffSecondaryColor : purpleColor;
+    }
+    return purpleColor; // Default to dating mode
+  }
+
+  Color getAccentLightColor() {
+    if (Get.isRegistered<DiscoverController>()) {
+      final discoverController = Get.find<DiscoverController>();
+      return discoverController.currentMode.value == 'bff' ? bffLightColor : lightPinkColor.withValues(alpha: 0.3);
+    }
+    return lightPinkColor.withValues(alpha: 0.3);
+  }
+
+  Color getAccentDarkColor() {
+    if (Get.isRegistered<DiscoverController>()) {
+      final discoverController = Get.find<DiscoverController>();
+      return discoverController.currentMode.value == 'bff' ? bffAccentColor : lightPinkColor;
+    }
+    return lightPinkColor;
+  }
+
+  bool get isBFFMode {
+    if (Get.isRegistered<DiscoverController>()) {
+      final discoverController = Get.find<DiscoverController>();
+      return discoverController.currentMode.value == 'bff';
+    }
+    return false;
+  }
 
   @override
   void onInit() {

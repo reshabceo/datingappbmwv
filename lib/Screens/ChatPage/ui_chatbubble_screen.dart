@@ -1,114 +1,399 @@
+import 'dart:typed_data';
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:lovebug/services/supabase_service.dart';
+import 'package:lovebug/services/disappearing_photo_service.dart';
+import 'package:lovebug/Screens/ChatPage/disappearing_photo_screen.dart';
 import 'package:lovebug/Common/text_constant.dart';
 import 'package:lovebug/Common/widget_constant.dart';
-import 'package:lovebug/Screens/ChatPage/controller_message_screen.dart';
-import 'package:lovebug/Screens/DiscoverPage/profile_detail_screen.dart';
-import 'package:lovebug/Screens/DiscoverPage/controller_discover_screen.dart';
-import 'package:lovebug/Screens/ChatPage/disappearing_photo_screen.dart';
-import 'package:lovebug/services/disappearing_photo_service.dart';
 import 'package:lovebug/ThemeController/theme_controller.dart';
-import 'package:lovebug/services/supabase_service.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:get/get.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-class ChatBubble extends StatelessWidget {
-  final Message message;
-  final String userImage;
+class EnhancedChatBubble extends StatelessWidget {
+  final dynamic message;
   final String userName;
-  final String? matchId;
+  final bool isBffMatch;
+  final String? userImage;
+  final String? otherUserImage;
 
-  ChatBubble({super.key, required this.message, required this.userImage, required this.userName, this.matchId});
+  const EnhancedChatBubble({
+    super.key,
+    required this.message,
+    required this.userName,
+    this.isBffMatch = false,
+    this.userImage,
+    this.otherUserImage,
+  });
 
-  final ThemeController themeController = Get.find<ThemeController>();
-
-  Profile _mapToProfile(Map<String, dynamic> profileData) {
-    final photos = <String>[];
-    if (profileData['photos'] != null) {
-      photos.addAll(List<String>.from(profileData['photos']));
-    }
-    if (profileData['image_urls'] != null) {
-      photos.addAll(List<String>.from(profileData['image_urls']));
-    }
+  @override
+  Widget build(BuildContext context) {
+    final ThemeController themeController = Get.find<ThemeController>();
+    final isMe = message.isUser;
     
-    final hobbies = <String>[];
-    if (profileData['hobbies'] != null) {
-      hobbies.addAll(List<String>.from(profileData['hobbies']));
-    }
-    if (profileData['interests'] != null) {
-      hobbies.addAll(List<String>.from(profileData['interests']));
-    }
-
-    return Profile(
-      id: profileData['id']?.toString() ?? '',
-      name: profileData['name']?.toString() ?? 'User',
-      age: (profileData['age'] ?? 25) as int,
-      imageUrl: photos.isNotEmpty ? photos.first : '',
-      photos: photos,
-      location: profileData['location']?.toString() ?? 'Unknown',
-      distance: profileData['distance']?.toString() ?? 'Unknown distance',
-      description: profileData['description']?.toString() ?? 
-                  profileData['bio']?.toString() ?? 
-                  'No description available',
-      hobbies: hobbies,
-      isVerified: (profileData['is_verified'] ?? false) as bool,
-      isActiveNow: (profileData['is_active'] ?? false) as bool,
+    return Container(
+      margin: EdgeInsets.symmetric(vertical: 4.h, horizontal: 16.w),
+      child: Row(
+        mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        children: [
+          if (!isMe) ...[
+            _buildProfilePicture(
+              imageUrl: otherUserImage,
+              isBffMatch: isBffMatch,
+              themeController: themeController,
+            ),
+            SizedBox(width: 8.w),
+          ],
+          Flexible(
+            child: Container(
+              constraints: BoxConstraints(
+                maxWidth: Get.width * 0.75, // Limit max width to 75% of screen
+                minWidth: 0, // Allow shrinking
+              ),
+              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.1), // Add subtle background
+                gradient: isMe 
+                    ? (isBffMatch 
+                        ? LinearGradient(
+                            colors: [
+                              themeController.bffPrimaryColor.withValues(alpha: 0.7),
+                              themeController.bffSecondaryColor.withValues(alpha: 0.5),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : LinearGradient(
+                            colors: [
+                              themeController.getAccentColor().withValues(alpha: 0.7),
+                              themeController.getSecondaryColor().withValues(alpha: 0.5),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ))
+                    : LinearGradient(
+                        colors: [
+                          themeController.greyColor.withValues(alpha: 0.5),
+                          themeController.greyColor.withValues(alpha: 0.3),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                borderRadius: BorderRadius.circular(20.r),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.1),
+                  width: 1,
+                ),
+              ),
+              child: IntrinsicWidth(
+                child: _buildMessageContent(themeController, isMe),
+              ),
+            ),
+          ),
+          if (isMe) ...[
+            SizedBox(width: 8.w),
+            _buildProfilePicture(
+              imageUrl: userImage,
+              isBffMatch: isBffMatch,
+              themeController: themeController,
+            ),
+          ],
+        ],
+      ),
     );
   }
 
-  Future<void> _viewProfile() async {
-    if (matchId == null) return;
-    
-    try {
-      // Get the match details to find the other user's ID
-      final match = await SupabaseService.getMatchById(matchId!);
-      if (match != null) {
-        final currentUserId = SupabaseService.currentUser?.id;
-        final userId1 = match['user_id_1']?.toString();
-        final userId2 = match['user_id_2']?.toString();
-        
-        // Find the other user's ID (not the current user)
-        String? otherUserId;
-        if (userId1 == currentUserId) {
-          otherUserId = userId2;
-        } else if (userId2 == currentUserId) {
-          otherUserId = userId1;
-        }
-        
-        if (otherUserId != null) {
-          // Get the other user's profile
-          final profileData = await SupabaseService.getProfile(otherUserId);
-          if (profileData != null) {
-            // Convert Map to Profile object
-            final profile = _mapToProfile(profileData);
-            // Navigate to profile detail screen (this is a matched profile)
-            Get.to(() => ProfileDetailScreen(profile: profile, isMatched: true));
-          } else {
-            Get.snackbar('Error', 'Profile not found');
-          }
-        } else {
-          Get.snackbar('Error', 'Could not find user profile');
-        }
-      } else {
-        Get.snackbar('Error', 'Match not found');
-      }
-    } catch (e) {
-      print('Error viewing profile: $e');
-      Get.snackbar('Error', 'Failed to load profile');
-    }
+  Widget _buildProfilePicture({
+    required String? imageUrl,
+    required bool isBffMatch,
+    required ThemeController themeController,
+  }) {
+    print('🔄 DEBUG: Building profile picture with imageUrl: $imageUrl');
+    print('🔄 DEBUG: isBffMatch: $isBffMatch');
+    return CircleAvatar(
+      radius: 16.r,
+      backgroundColor: isBffMatch ? themeController.bffPrimaryColor : themeController.lightPinkColor,
+      child: imageUrl != null && imageUrl.isNotEmpty && imageUrl.startsWith('http')
+          ? ClipOval(
+              child: Image.network(
+                imageUrl,
+                width: 32.w,
+                height: 32.h,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  print('❌ DEBUG: Error loading profile image: $error');
+                  return Icon(
+                    Icons.person,
+                    color: Colors.white,
+                    size: 16.sp,
+                  );
+                },
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) {
+                    print('✅ DEBUG: Profile image loaded successfully');
+                    return child;
+                  }
+                  print('🔄 DEBUG: Loading profile image...');
+                  return Icon(
+                    Icons.person,
+                    color: Colors.white,
+                    size: 16.sp,
+                  );
+                },
+              ),
+            )
+          : Icon(
+              Icons.person,
+              color: Colors.white,
+              size: 16.sp,
+            ),
+    );
   }
 
-  Future<void> _viewDisappearingPhoto() async {
-    if (message.disappearingPhotoId == null) {
-      Get.snackbar('Error', 'Disappearing photo ID not found');
-      return;
+  Widget _buildMessageContent(ThemeController themeController, bool isMe) {
+    // Check if it's a disappearing photo
+    if (message.isDisappearingPhoto == true && message.disappearingPhotoId != null) {
+      return _buildDisappearingPhotoContent(themeController, isMe);
     }
+    
+    // Check if it's a regular photo
+    if (message.text.toString().startsWith('📸 Photo: ')) {
+      return _buildRegularPhotoContent(themeController);
+    }
+    
+    // Regular text message
+    return Container(
+      width: double.infinity,
+      child: TextConstant(
+        title: message.text ?? '',
+        color: themeController.whiteColor,
+        fontSize: 16,
+        fontWeight: FontWeight.w400,
+        maxLines: null,
+        overflow: TextOverflow.visible,
+        softWrap: true,
+        textAlign: TextAlign.start,
+      ),
+    );
+  }
 
+  Widget _buildDisappearingPhotoContent(ThemeController themeController, bool isMe) {
+    final disappearingPhotoId = message.disappearingPhotoId.toString();
+    
+    // If it's the sender, show a placeholder message
+    if (isMe) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.visibility_off,
+            color: themeController.whiteColor.withValues(alpha: 0.7),
+            size: 16.sp,
+          ),
+          SizedBox(width: 8.w),
+          TextConstant(
+            title: 'Disappearing photo sent',
+            color: themeController.whiteColor.withValues(alpha: 0.7),
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+          ),
+        ],
+      );
+    }
+    
+    // If it's the receiver, show the disappearing photo option
+    return GestureDetector(
+      onTap: () => _viewDisappearingPhoto(disappearingPhotoId),
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+        decoration: BoxDecoration(
+          color: themeController.purpleColor.withValues(alpha: 0.2),
+          borderRadius: BorderRadius.circular(12.r),
+          border: Border.all(
+            color: themeController.purpleColor.withValues(alpha: 0.5),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.visibility_off,
+              color: themeController.purpleColor,
+              size: 20.sp,
+            ),
+            SizedBox(width: 8.w),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextConstant(
+                  title: 'Disappearing Photo',
+                  color: themeController.whiteColor,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+                TextConstant(
+                  title: 'Tap to view',
+                  color: themeController.whiteColor.withValues(alpha: 0.7),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w400,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRegularPhotoContent(ThemeController themeController) {
+    // Get photo URL from either the message.photoUrl property or extract from text
+    final photoUrl = message.photoUrl ?? 
+        (message.text.toString().startsWith('📸 Photo: ') 
+            ? message.text.toString().substring(10) 
+            : message.text.toString());
+    final isUploading = message.isUploading ?? false;
+    final photoBytes = message.photoBytes;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextConstant(
+          title: '📸 Photo',
+          color: themeController.whiteColor.withValues(alpha: 0.9),
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+        ),
+        SizedBox(height: 8.h),
+        Container(
+          constraints: BoxConstraints(
+            maxWidth: 200.w,
+            maxHeight: 200.h,
+          ),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8.r),
+            border: Border.all(
+              color: isBffMatch ? themeController.bffPrimaryColor : themeController.getAccentColor().withValues(alpha: 0.3),
+              width: 1.w,
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8.r),
+            child: Stack(
+              children: [
+                // Show instant preview if available, otherwise network image
+                if (photoBytes != null && isUploading)
+                  Image.memory(
+                    photoBytes,
+                    fit: BoxFit.cover,
+                    width: 200.w,
+                    height: 200.h,
+                  )
+                else if (photoUrl.isNotEmpty && photoUrl.startsWith('http'))
+                  Image.network(
+                    photoUrl,
+                    fit: BoxFit.cover,
+                    width: 200.w,
+                    height: 200.h,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Container(
+                        width: 200.w,
+                        height: 200.h,
+                        color: themeController.greyColor.withValues(alpha: 0.3),
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            color: isBffMatch ? themeController.bffPrimaryColor : themeController.getAccentColor(),
+                          ),
+                        ),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        width: 200.w,
+                        height: 200.h,
+                        color: themeController.greyColor.withValues(alpha: 0.3),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              color: themeController.whiteColor.withValues(alpha: 0.7),
+                              size: 24.sp,
+                            ),
+                            SizedBox(height: 4.h),
+                            TextConstant(
+                              title: 'Failed to load',
+                              color: themeController.whiteColor.withValues(alpha: 0.7),
+                              fontSize: 12,
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  )
+                else
+                  Container(
+                    width: 200.w,
+                    height: 200.h,
+                    color: themeController.greyColor.withValues(alpha: 0.3),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.image,
+                          color: themeController.whiteColor.withValues(alpha: 0.7),
+                          size: 24.sp,
+                        ),
+                        SizedBox(height: 4.h),
+                        TextConstant(
+                          title: 'Photo',
+                          color: themeController.whiteColor.withValues(alpha: 0.7),
+                          fontSize: 12,
+                        ),
+                      ],
+                    ),
+                  ),
+                // Show loading overlay if uploading
+                if (isUploading)
+                  Container(
+                    width: 200.w,
+                    height: 200.h,
+                    color: Colors.black.withValues(alpha: 0.3),
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2.0,
+                          ),
+                          SizedBox(height: 8.h),
+                          TextConstant(
+                            title: 'Uploading...',
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _viewDisappearingPhoto(String photoId) async {
     try {
-      print('🔄 DEBUG: Viewing disappearing photo: ${message.disappearingPhotoId}');
+      print('🔄 DEBUG: Viewing disappearing photo: $photoId');
       
       // Get the disappearing photo details
-      final photoData = await DisappearingPhotoService.getDisappearingPhoto(message.disappearingPhotoId!);
+      final photoData = await EnhancedDisappearingPhotoService.getDisappearingPhoto(photoId);
       
       if (photoData == null) {
         Get.snackbar('Error', 'Photo not found or expired');
@@ -132,7 +417,7 @@ class ChatBubble extends StatelessWidget {
       }
 
       // Mark as viewed in database BEFORE opening
-      await DisappearingPhotoService.markPhotoAsViewed(message.disappearingPhotoId!);
+      await EnhancedDisappearingPhotoService.markPhotoAsViewed(photoId);
 
       // Navigate to disappearing photo viewer
       Get.to(() => DisappearingPhotoScreen(
@@ -145,397 +430,6 @@ class ChatBubble extends StatelessWidget {
     } catch (e) {
       print('❌ DEBUG: Error viewing disappearing photo: $e');
       Get.snackbar('Error', 'Failed to load photo: $e');
-    }
-  }
-
-  Widget _buildMessageContent() {
-    // Check if it's a photo message
-    if (message.text.startsWith('📸 Photo: ')) {
-      final photoUrl = message.text.substring(10); // Remove "📸 Photo: " prefix
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextConstant(
-            title: '📸 Photo',
-            color: themeController.whiteColor.withValues(alpha: 0.9),
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-          ),
-          SizedBox(height: 8.h),
-          Container(
-            constraints: BoxConstraints(
-              maxWidth: 200.w,
-              maxHeight: 200.h,
-            ),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8.r),
-              border: Border.all(
-                color: themeController.lightPinkColor.withValues(alpha: 0.3),
-                width: 1.w,
-              ),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(7.r),
-              child: Image.network(
-                photoUrl,
-                fit: BoxFit.cover,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return Container(
-                    height: 100.h,
-                    child: Center(
-                      child: CircularProgressIndicator(
-                        value: loadingProgress.expectedTotalBytes != null
-                            ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                            : null,
-                        color: themeController.lightPinkColor,
-                      ),
-                    ),
-                  );
-                },
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    height: 100.h,
-                    color: themeController.lightPinkColor.withValues(alpha: 0.2),
-                    child: Icon(
-                      LucideIcons.image,
-                      color: themeController.lightPinkColor,
-                      size: 30,
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-    
-    // Check if it's a disappearing photo
-    if (message.isDisappearingPhoto) {
-      return GestureDetector(
-        onTap: () => _viewDisappearingPhoto(),
-        onLongPress: () => _viewDisappearingPhoto(), // Tap and hold also works
-        child: Container(
-          padding: EdgeInsets.all(8.w),
-          decoration: BoxDecoration(
-            border: Border.all(
-              color: themeController.purpleColor.withValues(alpha: 0.5),
-              width: 1.w,
-            ),
-            borderRadius: BorderRadius.circular(8.r),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                LucideIcons.eyeOff,
-                color: themeController.purpleColor,
-                size: 16,
-              ),
-              SizedBox(width: 8.w),
-              TextConstant(
-                title: '📸 Disappearing Photo',
-                color: themeController.whiteColor.withValues(alpha: 0.9),
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-              SizedBox(width: 4.w),
-              Icon(
-                LucideIcons.play,
-                color: themeController.purpleColor,
-                size: 12,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-    
-    // Regular text message
-    return TextConstant(
-      title: message.text,
-      color: themeController.whiteColor.withValues(alpha: 0.9),
-      softWrap: true, 
-      fontSize: 14, 
-      height: 1.3,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 4.h, horizontal: 4.w),
-      child: Column(
-        crossAxisAlignment: message.isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-        children: [
-          // Story Reply Header with Full Content (like reference image)
-          if (message.isUser && message.isStoryReply) ...[
-            Container(
-              margin: EdgeInsets.only(bottom: 12.h),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Story Reply Header
-                  TextConstant(
-                    title: "You replied to ${message.storyUserName ?? 'their'} story",
-                    fontSize: 12,
-                    color: themeController.whiteColor.withValues(alpha: 0.7),
-                    fontWeight: FontWeight.w500,
-                  ),
-                  SizedBox(height: 8.h),
-                  // Story Image Preview (below the text, same ratio as story cards but smaller)
-                  if (message.storyImageUrl != null) ...[
-                    Container(
-                      width: Get.width * 0.4, // Smaller than story cards but same ratio
-                      height: (Get.width * 0.4) * 1.5, // Same aspect ratio as story cards
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12.r),
-                        border: Border.all(
-                          color: themeController.lightPinkColor.withValues(alpha: 0.5),
-                          width: 2.w,
-                        ),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(10.r),
-                        child: Image.network(
-                          message.storyImageUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              color: themeController.lightPinkColor.withValues(alpha: 0.2),
-                              child: Icon(
-                                LucideIcons.image,
-                                color: themeController.lightPinkColor,
-                                size: 30,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: 8.h),
-                  ],
-                  // Story Content Display
-                  if (message.storyContent != null && message.storyContent!.isNotEmpty) ...[
-                    Container(
-                      width: Get.width * 0.85,
-                      padding: EdgeInsets.all(12.w),
-                      decoration: BoxDecoration(
-                        color: themeController.blackColor.withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(12.r),
-                        border: Border.all(
-                          color: themeController.lightPinkColor.withValues(alpha: 0.2),
-                          width: 1.w,
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Story Author Info
-                          if (message.storyAuthorName != null) ...[
-                            Row(
-                              children: [
-                                TextConstant(
-                                  title: message.storyAuthorName!,
-                                  fontSize: 12,
-                                  color: themeController.lightPinkColor,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                if (message.storyCreatedAt != null) ...[
-                                  SizedBox(width: 8.w),
-                                  TextConstant(
-                                    title: _formatStoryTime(message.storyCreatedAt!),
-                                    fontSize: 10,
-                                    color: themeController.whiteColor.withValues(alpha: 0.5),
-                                  ),
-                                ],
-                              ],
-                            ),
-                            SizedBox(height: 6.h),
-                          ],
-                          // Story Content
-                          TextConstant(
-                            title: message.storyContent!,
-                            fontSize: 13,
-                            color: themeController.whiteColor.withValues(alpha: 0.9),
-                            height: 1.4,
-                            softWrap: true,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
-          if (!message.isUser) ...[
-            // Other user's message - LEFT SIDE (dynamic width, no name, timestamp below)
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Profile picture
-                GestureDetector(
-                  onTap: _viewProfile,
-                  child: Stack(
-                    alignment: Alignment.bottomRight,
-                    children: [
-                      ProfileAvatar(
-                        imageUrl: userImage, 
-                        size: 32, 
-                        borderWidth: 2.w,
-                      ),
-                      Container(
-                        height: 10.h,
-                        width: 10.h,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: themeController.lightPinkColor,
-                          border: Border.all(
-                            color: themeController.whiteColor,
-                            width: 1.5.w,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(width: 8.w),
-                // Message bubble (dynamic width)
-                Flexible(
-                  child: Container(
-                    constraints: BoxConstraints(
-                      maxWidth: Get.width * 0.75, // Max width but can be smaller
-                    ),
-                    padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          themeController.lightPinkColor.withValues(alpha: 0.15),
-                          themeController.purpleColor.withValues(alpha: 0.1),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      border: Border.all(
-                        color: themeController.lightPinkColor.withValues(alpha: 0.3),
-                        width: 1.w,
-                      ),
-                      borderRadius: BorderRadius.circular(18.r),
-                      boxShadow: [
-                        BoxShadow(
-                          color: themeController.lightPinkColor.withValues(alpha: 0.1),
-                          blurRadius: 8,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: _buildMessageContent(),
-                  ),
-                ),
-              ],
-            ),
-            // Timestamp below (left aligned)
-            Padding(
-              padding: EdgeInsets.only(left: 40.w, top: 4.h),
-              child: TextConstant(
-                title: formatTime(message.timestamp),
-                fontSize: 11,
-                color: themeController.whiteColor.withValues(alpha: 0.5),
-                fontWeight: FontWeight.w400,
-              ),
-            ),
-          ] else ...[
-            // My message - RIGHT SIDE (dynamic width, timestamp below)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Message bubble (dynamic width)
-                Flexible(
-                  child: Container(
-                    constraints: BoxConstraints(
-                      maxWidth: Get.width * 0.75, // Max width but can be smaller
-                    ),
-                    padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          themeController.lightPinkColor.withValues(alpha: 0.15),
-                          themeController.purpleColor.withValues(alpha: 0.1),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      border: Border.all(
-                        color: themeController.lightPinkColor.withValues(alpha: 0.3),
-                        width: 1.w,
-                      ),
-                      borderRadius: BorderRadius.circular(18.r),
-                      boxShadow: [
-                        BoxShadow(
-                          color: themeController.lightPinkColor.withValues(alpha: 0.1),
-                          blurRadius: 8,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: _buildMessageContent(),
-                  ),
-                ),
-              ],
-            ),
-            // Timestamp below (right aligned)
-            Padding(
-              padding: EdgeInsets.only(right: 0.w, top: 4.h),
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: TextConstant(
-                  title: formatTime(message.timestamp),
-                  fontSize: 11,
-                  color: themeController.whiteColor.withValues(alpha: 0.5),
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  String formatTime(DateTime dateTime) {
-    // Convert to local timezone
-    final localTime = dateTime.toLocal();
-    String period = localTime.hour >= 12 ? 'PM' : 'AM';
-    int hour = localTime.hour > 12 ? localTime.hour - 12 : localTime.hour;
-    if (hour == 0) hour = 12;
-    final minute = localTime.minute.toString().padLeft(2, '0');
-    
-    // Debug logging for disappearing photos
-    if (message.isDisappearingPhoto) {
-      print('🕐 DEBUG: Disappearing photo timestamp conversion:');
-      print('  - Original UTC: $dateTime');
-      print('  - Local time: $localTime');
-      print('  - Formatted: $hour:$minute $period');
-    }
-    
-    return '$hour:$minute $period';
-  }
-
-  String _formatStoryTime(DateTime dateTime) {
-    final now = DateTime.now();
-    final difference = now.difference(dateTime);
-    
-    if (difference.inDays > 0) {
-      return '${difference.inDays}d ago';
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours}h ago';
-    } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes}m ago';
-    } else {
-      return 'just now';
     }
   }
 }

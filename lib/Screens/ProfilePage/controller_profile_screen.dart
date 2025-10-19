@@ -22,6 +22,9 @@ class ProfileController extends GetxController {
 
   final RxString selectedCountry = ''.obs;
   RxBool isReorderMode = false.obs;
+  
+  // Toggle between View and Edit modes
+  RxBool isEditMode = false.obs;
 
   FocusNode focusNode = FocusNode();
 
@@ -80,6 +83,12 @@ class ProfileController extends GetxController {
             myInterestList.value = List<String>.from((profile['hobbies'] as List).map((e) => e.toString()));
           }
           isVerified.value = (profile['is_verified'] ?? false) as bool;
+          // Load verification status for the new verification system
+          if (profile['verification_status'] != null) {
+            userProfile.value['verification_status'] = profile['verification_status'];
+          } else {
+            userProfile.value['verification_status'] = 'unverified';
+          }
           
           print('Profile data set: ${userProfile.value}');
           print('Name: ${userProfile.value['name']}');
@@ -172,6 +181,52 @@ class ProfileController extends GetxController {
     } finally {
       isLoading.value = false;
     }
+  }
+
+  // Toggle between View and Edit modes
+  void toggleEditMode() {
+    print('🔄 Toggling edit mode from ${isEditMode.value} to ${!isEditMode.value}');
+    isEditMode.value = !isEditMode.value;
+    if (isEditMode.value) {
+      // Entering edit mode - populate controllers with current data
+      print('📝 Entering edit mode - populating controllers');
+      nameController.text = userProfile['name']?.toString() ?? '';
+      ageController.text = userProfile['age']?.toString() ?? '';
+      locationController.text = userProfile['location']?.toString() ?? '';
+      aboutController.text = userProfile['bio']?.toString() ?? userProfile['description']?.toString() ?? '';
+      print('📝 Controllers populated - Name: ${nameController.text}, Age: ${ageController.text}');
+    } else {
+      // Exiting edit mode - clear any unsaved changes
+      print('👁️ Exiting edit mode');
+      textInputEmoji.value = false;
+      textInputBold.value = false;
+      textInputItalic.value = false;
+    }
+  }
+
+  // Save changes and exit edit mode
+  Future<void> saveChanges() async {
+    try {
+      await updateProfile();
+      isEditMode.value = false;
+      Get.snackbar('Success', 'Profile updated successfully!');
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to save changes');
+    }
+  }
+
+  // Cancel changes and exit edit mode
+  void cancelChanges() {
+    // Reset controllers to original values
+    nameController.text = userProfile['name']?.toString() ?? '';
+    ageController.text = userProfile['age']?.toString() ?? '';
+    locationController.text = userProfile['location']?.toString() ?? '';
+    aboutController.text = userProfile['bio']?.toString() ?? userProfile['description']?.toString() ?? '';
+    
+    isEditMode.value = false;
+    textInputEmoji.value = false;
+    textInputBold.value = false;
+    textInputItalic.value = false;
   }
 
   @override

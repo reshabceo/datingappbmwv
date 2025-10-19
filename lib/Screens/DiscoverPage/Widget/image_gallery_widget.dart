@@ -40,16 +40,45 @@ class _ImageGalleryWidgetState extends State<ImageGalleryWidget> {
 
   @override
   Widget build(BuildContext context) {
+    print('🖼️ ImageGalleryWidget: images.length = ${widget.images.length}');
+    for (int i = 0; i < widget.images.length; i++) {
+      print('🖼️ Image $i: "${widget.images[i]}"');
+    }
+    
     if (widget.images.isEmpty) {
+      print('🖼️ No images available, showing placeholder');
       return Container(
         height: widget.height,
         width: widget.width,
-        color: widget.themeController.blackColor,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.grey.shade800,
+              Colors.grey.shade900,
+            ],
+          ),
+        ),
         child: Center(
-          child: Icon(
-            Icons.image_not_supported_outlined,
-            color: widget.themeController.whiteColor.withValues(alpha: 0.6),
-            size: 36.sp,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.person,
+                color: Colors.white.withValues(alpha: 0.8),
+                size: 80.sp,
+              ),
+              SizedBox(height: 16.h),
+              Text(
+                'No Photos Available',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.8),
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
         ),
       );
@@ -70,17 +99,43 @@ class _ImageGalleryWidgetState extends State<ImageGalleryWidget> {
             },
             itemCount: widget.images.length,
             itemBuilder: (context, index) {
+              // Unique key per image to avoid showing stale image during reuse
               return Image.network(
                 widget.images[index],
+                key: ValueKey('img_${widget.images[index]}_${index}'),
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stack) {
+                  print('🖼️ Image load error: $error');
                   return Container(
-                    color: widget.themeController.blackColor,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.grey.shade800,
+                          Colors.grey.shade900,
+                        ],
+                      ),
+                    ),
                     alignment: Alignment.center,
-                    child: Icon(
-                      Icons.image_not_supported_outlined,
-                      color: widget.themeController.whiteColor.withValues(alpha: 0.6),
-                      size: 36.sp,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.person,
+                          color: Colors.white.withValues(alpha: 0.8),
+                          size: 60.sp,
+                        ),
+                        SizedBox(height: 12.h),
+                        Text(
+                          'Photo Unavailable',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.8),
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
                   );
                 },

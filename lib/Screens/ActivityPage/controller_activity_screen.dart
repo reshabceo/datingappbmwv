@@ -1,43 +1,144 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../services/supabase_service.dart';
+import '../ChatPage/chat_integration_helper.dart';
+import './models/activity_model.dart';
 
 class ActivityController extends GetxController {
-  RxBool isOn = false.obs;
+  final RxList<Activity> activities = <Activity>[].obs;
+  final RxBool isLoading = false.obs;
+  final RxBool hasError = false.obs;
 
-  toggle() {
-    isOn.value = !isOn.value;
+  @override
+  void onInit() {
+    super.onInit();
+    loadActivities();
   }
 
-  final List<String> recentActivity = [
-    "You matched with 3 new people this week",
-    "Your profile popularity increased by 27%",
-    "Complete your profile to get more matches",
-  ];
+  Future<void> loadActivities() async {
+    try {
+      isLoading.value = true;
+      hasError.value = false;
+      
+      print('📊 Loading activities...');
+      final response = await SupabaseService.getUserActivities();
+      
+      activities.value = response
+          .map((data) => Activity.fromMap(data))
+          .toList();
+      
+      print('✅ Loaded ${activities.length} activities');
+    } catch (e) {
+      print('❌ Error loading activities: $e');
+      hasError.value = true;
+    } finally {
+      isLoading.value = false;
+    }
+  }
 
-  final RxList<ActivityItem> activityList = <ActivityItem>[
-    ActivityItem(
-      message: "liked your profile",
-      time: "5 min ago",
-      icon: Icons.favorite_outlined,
-    ),
-    ActivityItem(
-      message: "New message from Daniel",
-      time: "20 min ago",
-      icon: Icons.chat_bubble_rounded,
-    ),
-    ActivityItem(
-      message: "You got a new match with Emma!",
-      time: "1 hour ago",
-      icon: Icons.star_rounded,
-    ),
-    ActivityItem(
-      message: "12 people viewed your profile today",
-      time: "3 hours ago",
-      icon: Icons.remove_red_eye,
-    ),
-  ].obs;
+  Future<void> refresh() async {
+    await loadActivities();
+  }
+
+  void onActivityTap(Activity activity) {
+    print('🔔 Activity tapped: ${activity.type} - ${activity.otherUserName}');
+    
+    // Mark message as read if it's a message
+    if (activity.type == ActivityType.message && activity.isUnread) {
+      SupabaseService.markMessageAsRead(activity.id);
+      // Reload activities to update read status
+      loadActivities();
+    }
+
+    // Navigate based on activity type
+    switch (activity.type) {
+      case ActivityType.like:
+      case ActivityType.superLike:
+        // Navigate to discover screen (where they can see this person's profile)
+        Get.toNamed('/discover');
+        Get.snackbar(
+          '💡 Tip',
+          'Swipe right on ${activity.otherUserName} to match!',
+          backgroundColor: Get.theme.colorScheme.primary.withOpacity(0.9),
+          colorText: Get.theme.colorScheme.onPrimary,
+          duration: Duration(seconds: 3),
+        );
+        break;
+      
+      case ActivityType.match:
+      case ActivityType.bffMatch:
+      case ActivityType.message:
+      case ActivityType.bffMessage:
+      case ActivityType.storyReply:
+        // Navigate to chat - need to find the match ID first
+        _navigateToChat(activity);
+        break;
+    }
+  }
+
+  Future<void> _navigateToChat(Activity activity) async {
+    try {
+      final currentUserId = SupabaseService.currentUser?.id;
+      String? matchId;
+      
+      // Handle BFF matches and messages
+      if (activity.type == ActivityType.bffMatch || activity.type == ActivityType.bffMessage) {
+        final bffMatches = await SupabaseService.getBFFMatches();
+        
+        for (final match in bffMatches) {
+          final userId1 = match['user_id_1']?.toString();
+          final userId2 = match['user_id_2']?.toString();
+          
+          if ((userId1 == currentUserId && userId2 == activity.otherUserId) ||
+              (userId1 == activity.otherUserId && userId2 == currentUserId)) {
+            matchId = match['id']?.toString();
+            break;
+          }
+        }
+      } else {
+        // Handle regular dating matches and messages
+        final matches = await SupabaseService.getMatches();
+        
+        for (final match in matches) {
+          final userId1 = match['user_id_1']?.toString();
+          final userId2 = match['user_id_2']?.toString();
+          
+          if ((userId1 == currentUserId && userId2 == activity.otherUserId) ||
+              (userId1 == activity.otherUserId && userId2 == currentUserId)) {
+            matchId = match['id']?.toString();
+            break;
+          }
+        }
+      }
+      
+      if (matchId != null) {
+        // Navigate to chat screen using the proper helper
+        ChatIntegrationHelper.navigateToChat(
+          userImage: activity.otherUserPhoto ?? '',
+          userName: activity.otherUserName,
+          matchId: matchId,
+        );
+      } else {
+        Get.snackbar(
+          'Error',
+          'Could not find chat with ${activity.otherUserName}',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      }
+    } catch (e) {
+      print('Error navigating to chat: $e');
+      Get.snackbar(
+        'Error',
+        'Could not open chat',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
 }
 
+// Keep old ActivityItem for backward compatibility (in case it's used elsewhere)
 class ActivityItem {
   final String message;
   final String time;

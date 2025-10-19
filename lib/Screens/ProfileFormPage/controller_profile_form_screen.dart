@@ -396,6 +396,16 @@ class ProfileFormController extends GetxController {
         'languages_count': selectedLanguage.length,
       });
       
+      // Track profile completion for UAC
+      await AnalyticsService.trackProfileCompleted({
+        'photos': uploadedImageUrls.toList(),
+        'bio': aboutController.text,
+        'age': age,
+        'gender': selectedGender.value,
+        'interests': selectedInterests.toList(),
+        'languages': selectedLanguage.toList(),
+      });
+      
       Get.snackbar('Success', 'Profile created successfully!');
       
       // Hide profile completion banner (if BottomBarController exists)

@@ -101,45 +101,45 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 10.h),
       child: Row(
         children: [
-          Container(
-            width: 40.w,
-            height: 40.w,
-            decoration: BoxDecoration(
-              color: themeController.blackColor.withValues(alpha: 0.6),
-              borderRadius: BorderRadius.circular(20.r),
-              border: Border.all(
-                color: themeController.lightPinkColor.withValues(alpha: 0.3),
-                width: 1.w,
+          GestureDetector(
+            onTap: () => Get.back(),
+            child: Container(
+              width: 40.h,
+              height: 40.h,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.purple[800]!, Colors.pink[800]!],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                shape: BoxShape.circle,
               ),
-            ),
-            child: IconButton(
-              icon: Icon(
+              child: Icon(
                 Icons.arrow_back_ios_new,
-                color: themeController.whiteColor,
+                color: Colors.white,
                 size: 20.sp,
               ),
-              onPressed: () => Get.back(),
             ),
           ),
           Spacer(),
-          Container(
-            width: 40.w,
-            height: 40.w,
-            decoration: BoxDecoration(
-              color: themeController.blackColor.withValues(alpha: 0.6),
-              borderRadius: BorderRadius.circular(20.r),
-              border: Border.all(
-                color: themeController.lightPinkColor.withValues(alpha: 0.3),
-                width: 1.w,
+          GestureDetector(
+            onTap: () {},
+            child: Container(
+              width: 40.h,
+              height: 40.h,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.purple[800]!, Colors.pink[800]!],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                shape: BoxShape.circle,
               ),
-            ),
-            child: IconButton(
-              icon: Icon(
+              child: Icon(
                 Icons.more_vert,
-                color: themeController.whiteColor,
+                color: Colors.white,
                 size: 20.sp,
               ),
-              onPressed: () {},
             ),
           ),
         ],
@@ -414,6 +414,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
 
   Widget _buildBioSection(ThemeController themeController) {
     return Container(
+      width: double.infinity,
       margin: EdgeInsets.fromLTRB(20.w, 16.h, 20.w, 0),
       padding: EdgeInsets.all(20.w),
       decoration: BoxDecoration(
@@ -435,11 +436,14 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
             color: themeController.whiteColor,
           ),
           SizedBox(height: 10.h),
-          TextConstant(
-            title: widget.profile.description,
-            fontSize: 16.sp,
-            color: themeController.whiteColor.withValues(alpha: 0.9),
-            height: 1.5,
+          Text(
+            widget.profile.description,
+            style: TextStyle(
+              fontSize: 16.sp,
+              color: themeController.whiteColor.withValues(alpha: 0.9),
+              height: 1.5,
+            ),
+            textAlign: TextAlign.left,
           ),
         ],
       ),

@@ -50,9 +50,22 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get match data from database
-    const { data: matchData, error: matchError } = await supabase
-      .rpc('generate_match_insights', { p_match_id: matchId });
+    // Get match data from database (works for both dating and BFF matches)
+    let { data: matchData, error: matchError } = await supabase
+      .rpc('generate_match_insights_unified', { p_match_id: matchId });
+
+    // If unified function fails, try the original function
+    if (matchError || !matchData || matchData.error) {
+      console.log('Unified function failed, trying original function...');
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .rpc('generate_match_insights', { p_match_id: matchId });
+      
+      if (!fallbackError && fallbackData && !fallbackData.error) {
+        matchData = fallbackData;
+        matchError = null;
+        console.log('Original function succeeded');
+      }
+    }
 
     if (matchError) {
       console.error('Database error:', matchError);

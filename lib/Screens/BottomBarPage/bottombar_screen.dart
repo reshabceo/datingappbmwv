@@ -90,7 +90,7 @@ class BottombarScreen extends StatelessWidget {
           return GlassmorphicContainer(
             blur: 15,
             border: 0,
-            height: 60.h,
+            height: 70.h,
             borderRadius: 0,
             width: Get.width,
             alignment: Alignment.center,
@@ -135,26 +135,32 @@ class BottombarScreen extends StatelessWidget {
       onTap: () {
         controller.currentIndex.value = index;
       },
-      child: Column(
-        spacing: 5.h,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          svgIconWidget(
-            width: 17.h,
-            height: 17.h,
-            icon: icon,
-            color: controller.currentIndex.value == index
-                ? themeController.lightPinkColor
-                : themeController.unselectedColor,
-          ),
-          TextConstant(
-            title: title,
-            fontSize: 12,
-            color: controller.currentIndex.value == index
-                ? themeController.lightPinkColor
-                : themeController.unselectedColor,
-          ),
-        ],
+      child: Container(
+        padding: EdgeInsets.symmetric(vertical: 8.h),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            svgIconWidget(
+              width: 20.h,
+              height: 20.h,
+              icon: icon,
+              color: controller.currentIndex.value == index
+                  ? themeController.getAccentColor()
+                  : themeController.unselectedColor,
+            ),
+            SizedBox(height: 4.h),
+            TextConstant(
+              title: title,
+              fontSize: 11,
+              color: controller.currentIndex.value == index
+                  ? themeController.getAccentColor()
+                  : themeController.unselectedColor,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
       ),
     );
   }

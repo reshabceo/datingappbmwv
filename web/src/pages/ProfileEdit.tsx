@@ -608,6 +608,26 @@ export default function ProfileEdit() {
             </div>
           </div>
 
+          {/* Verification Section */}
+          <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700">
+            <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                <span className="text-white text-sm">✓</span>
+              </div>
+              Profile Verification
+            </h3>
+            <p className="text-gray-400 mb-4">
+              Get your profile verified to increase trust and get more matches
+            </p>
+            <a
+              href="/verification"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            >
+              <span>Get Verified</span>
+              <span>→</span>
+            </a>
+          </div>
+
           {/* Save Button */}
           <div className="flex justify-center">
             <button

@@ -7,6 +7,7 @@ import 'auth_service.dart';
 import '../ProfileFormPage/multi_step_profile_form.dart';
 import '../BottomBarPage/bottombar_screen.dart';
 import '../../services/supabase_service.dart';
+import '../../services/analytics_service.dart';
 import 'email_code_verify_screen.dart';
 import 'auth_ui_screen.dart';
 import '../WelcomePage/welcome_screen.dart';
@@ -80,6 +81,8 @@ class AuthController extends GetxController {
       );
       if (res.user != null) {
         Get.snackbar('Success', 'Verified!');
+        // Track login for UAC
+        await AnalyticsService.trackLoginEnhanced('phone_otp');
         await _checkUserProfileAndNavigate();
       } else {
         Get.snackbar('Error', 'Invalid code.');
@@ -195,6 +198,8 @@ class AuthController extends GetxController {
 
       if (response?.user != null) {
         Get.snackbar('Success', 'Account created successfully!');
+        // Track sign up for UAC
+        await AnalyticsService.trackSignUp('phone');
         Get.to(() => MultiStepProfileForm());
       } else {
         Get.snackbar('Error', 'Failed to create account');
@@ -241,6 +246,8 @@ class AuthController extends GetxController {
       
       if (res.user != null) {
         print('Email verified successfully, navigating...');
+        // Track login for UAC
+        await AnalyticsService.trackLoginEnhanced('email_otp');
         await _checkUserProfileAndNavigate();
       } else {
         Get.snackbar('Error', 'Invalid code');
@@ -325,6 +332,8 @@ class AuthController extends GetxController {
     try {
       isLoading.value = true;
       await SupabaseService.signInWithEmail(email: email, password: password);
+      // Track login for UAC
+      await AnalyticsService.trackLoginEnhanced('email_password');
       await _checkUserProfileAndNavigate();
     } on AuthApiException catch (e) {
       Get.snackbar('Sign in failed', e.message);
@@ -399,11 +408,12 @@ class AuthController extends GetxController {
     }
   }
 
-<<<<<<< Updated upstream
   Future<void> continueWithGoogle() async {
     try {
       isLoading.value = true;
-      await SupabaseService.signInWithProvider(Provider.google);
+      await SupabaseService.signInWithProvider(OAuthProvider.google);
+      // Track login for UAC
+      await AnalyticsService.trackLoginEnhanced('google');
       await _checkUserProfileAndNavigate();
     } catch (e) {
       Get.snackbar('Google sign-in failed', e.toString());
@@ -415,7 +425,9 @@ class AuthController extends GetxController {
   Future<void> continueWithApple() async {
     try {
       isLoading.value = true;
-      await SupabaseService.signInWithProvider(Provider.apple);
+      await SupabaseService.signInWithProvider(OAuthProvider.apple);
+      // Track login for UAC
+      await AnalyticsService.trackLoginEnhanced('apple');
       await _checkUserProfileAndNavigate();
     } catch (e) {
       Get.snackbar('Apple sign-in failed', e.toString());
@@ -514,7 +526,6 @@ class AuthController extends GetxController {
         colorText: Colors.white,
         duration: Duration(seconds: 3),
       );
->>>>>>> Stashed changes
     }
   }
 

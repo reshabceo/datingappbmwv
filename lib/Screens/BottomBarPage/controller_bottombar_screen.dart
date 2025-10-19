@@ -20,9 +20,9 @@ class BottomBarController extends GetxController {
     // Refresh chats whenever Chat tab selected
     ever<int>(currentIndex, (idx) {
       if (idx == 2) {
-        final chat = Get.isRegistered<ChatController>()
-            ? Get.find<ChatController>()
-            : Get.put(ChatController());
+        final chat = Get.isRegistered<EnhancedChatController>()
+            ? Get.find<EnhancedChatController>()
+            : Get.put(EnhancedChatController());
         chat.loadChats();
         // Update last seen when opening chat tab
         SupabaseService.updateLastSeen();

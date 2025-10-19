@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../services/supabase_service.dart';
@@ -57,6 +58,9 @@ class MessageController extends GetxController {
       await SupabaseService.sendMessage(matchId: matchId, content: text.trim());
       textController.clear();
       
+      // Mark ice breakers as used (so they disappear for both users)
+      await _markIceBreakersAsUsed(matchId);
+      
       // Track message sent
       await AnalyticsService.trackMessageSent(matchId, 'text');
       
@@ -70,9 +74,39 @@ class MessageController extends GetxController {
     }
   }
 
+  // Mark ice breakers as used when any message is sent
+  Future<void> _markIceBreakersAsUsed(String matchId) async {
+    try {
+      final currentUserId = SupabaseService.client.auth.currentUser?.id;
+      if (currentUserId == null) return;
+
+      // Check if ice breakers are already marked as used
+      final existing = await SupabaseService.client
+          .from('ice_breaker_usage')
+          .select('id')
+          .eq('match_id', matchId)
+          .limit(1);
+
+      if ((existing as List).isEmpty) {
+        // Mark ice breakers as used with a generic message
+        await SupabaseService.client
+            .from('ice_breaker_usage')
+            .insert({
+          'match_id': matchId,
+          'ice_breaker_text': 'User sent custom message',
+          'used_by_user_id': currentUserId,
+        });
+        print('DEBUG: Ice breakers marked as used for match $matchId');
+      }
+    } catch (e) {
+      print('DEBUG: Error marking ice breakers as used: $e');
+      // Don't show error to user, this is background logic
+    }
+  }
+
   void generateAutoResponse() {}
 
-  Future<void> ensureInitialized(String matchId) async {
+  Future<void> ensureInitialized(String matchId, {bool isBffMatch = false}) async {
     if (matchId.isEmpty) return; // stories entry without a chat
     if (_currentMatchId == matchId && _msgStreamSub != null) return;
     _currentMatchId = matchId;
@@ -84,7 +118,9 @@ class MessageController extends GetxController {
 
     // Load initial messages
     try {
-      final rows = await SupabaseService.getMessages(matchId);
+      final rows = isBffMatch 
+          ? await SupabaseService.getBffMessages(matchId)
+          : await SupabaseService.getMessages(matchId);
       final myId = SupabaseService.currentUser?.id;
       // Fetch story data separately for story reply messages
       final storyReplyMessages = rows.where((r) => (r['is_story_reply'] ?? false) as bool).toList();
@@ -119,18 +155,20 @@ class MessageController extends GetxController {
         final storyData = storyId.isNotEmpty ? storyDataMap[storyId] : null;
         
         final message = Message(
-          text: (r['content'] ?? '').toString(),
+          text: isBffMatch 
+              ? (r['text'] ?? '').toString()
+              : (r['content'] ?? '').toString(),
           isUser: (r['sender_id'] ?? '').toString() == (myId ?? ''),
           timestamp: DateTime.tryParse((r['created_at'] ?? '').toString()) ?? DateTime.now(),
           storyId: storyId.isEmpty ? null : storyId,
-          isStoryReply: (r['is_story_reply'] ?? false) as bool,
-          storyUserName: (r['story_user_name'] ?? '').toString().isEmpty ? null : (r['story_user_name'] ?? '').toString(),
-          storyImageUrl: storyData?['media_url']?.toString(),
-          storyContent: storyData?['content']?.toString(),
-          storyAuthorName: storyData?['user_id']?.toString(), // We'll use user_id for now
-          storyCreatedAt: storyData?['created_at'] != null ? DateTime.tryParse(storyData!['created_at'].toString()) : null,
-          isDisappearingPhoto: (r['is_disappearing_photo'] ?? false) as bool,
-          disappearingPhotoId: (r['disappearing_photo_id'] ?? '').toString().isEmpty ? null : (r['disappearing_photo_id'] ?? '').toString(),
+          isStoryReply: isBffMatch ? false : (r['is_story_reply'] ?? false) as bool, // BFF messages don't have story replies
+          storyUserName: isBffMatch ? null : ((r['story_user_name'] ?? '').toString().isEmpty ? null : (r['story_user_name'] ?? '').toString()),
+          storyImageUrl: isBffMatch ? null : storyData?['media_url']?.toString(),
+          storyContent: isBffMatch ? null : storyData?['content']?.toString(),
+          storyAuthorName: isBffMatch ? null : storyData?['user_id']?.toString(), // We'll use user_id for now
+          storyCreatedAt: isBffMatch ? null : (storyData?['created_at'] != null ? DateTime.tryParse(storyData!['created_at'].toString()) : null),
+          isDisappearingPhoto: isBffMatch ? false : (r['is_disappearing_photo'] ?? false) as bool, // BFF messages don't have disappearing photos
+          disappearingPhotoId: isBffMatch ? null : ((r['disappearing_photo_id'] ?? '').toString().isEmpty ? null : (r['disappearing_photo_id'] ?? '').toString()),
         );
         
         // Debug logging for story reply messages
@@ -254,6 +292,11 @@ class Message {
   final DateTime? storyCreatedAt;
   final bool isDisappearingPhoto;
   final String? disappearingPhotoId;
+  final String? id;
+  final bool? isPhoto;
+  final bool? isUploading;
+  final Uint8List? photoBytes;
+  final String? photoUrl;
 
   Message({
     required this.text, 
@@ -268,5 +311,10 @@ class Message {
     this.storyCreatedAt,
     this.isDisappearingPhoto = false,
     this.disappearingPhotoId,
+    this.id,
+    this.isPhoto = false,
+    this.isUploading = false,
+    this.photoBytes,
+    this.photoUrl,
   });
 }
