@@ -77,6 +77,46 @@ class EnhancedDisappearingPhotoService {
     }
   }
   
+  /// Send a regular photo (non-disappearing)
+  static Future<String?> sendRegularPhoto({
+    required String matchId,
+    required Uint8List photoBytes,
+    required String fileName,
+  }) async {
+    try {
+      print('🔄 DEBUG: Starting regular photo upload');
+      print('  - matchId: $matchId');
+      print('  - fileName: $fileName');
+      print('  - currentUser: ${SupabaseService.currentUser?.id}');
+      
+      // Upload photo to Supabase storage
+      print('🔄 DEBUG: Uploading to storage...');
+      final photoUrl = await SupabaseService.uploadFile(
+        bucket: 'chat-photos', // Use regular chat photos bucket
+        path: '${DateTime.now().millisecondsSinceEpoch}_$fileName',
+        fileBytes: photoBytes,
+      );
+      print('✅ DEBUG: Storage upload successful: $photoUrl');
+      
+      // Add to messages table as regular photo (store URL in content like other photos)
+      final messageData = {
+        'match_id': matchId,
+        'sender_id': SupabaseService.currentUser?.id,
+        'content': '📸 Photo: $photoUrl',
+        'is_disappearing_photo': false,
+      };
+      
+      print('🔄 DEBUG: Adding to messages table: $messageData');
+      await SupabaseService.client.from('messages').insert(messageData);
+      print('✅ DEBUG: Message added to chat successfully');
+      
+      return photoUrl;
+    } catch (e) {
+      print('❌ DEBUG: Error sending regular photo: $e');
+      return null;
+    }
+  }
+
   /// Get disappearing photos for a match (receiver only)
   static Future<List<Map<String, dynamic>>> getDisappearingPhotos(String matchId) async {
     try {

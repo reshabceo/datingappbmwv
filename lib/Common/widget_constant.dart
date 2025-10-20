@@ -583,15 +583,63 @@ class ProfileAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    print('🔄 DEBUG: ProfileAvatar - imageUrl: "$imageUrl", length: ${imageUrl.length}');
+    
     return Container(
-      width: size?.h ?? 30.h,
-      height: size?.w ?? 30.w,
+      width: size?.w ?? 30.w,
+      height: size?.h ?? 30.h,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(color: borderColor ?? themeController.lightPinkColor, width: borderWidth?.w ?? 1.w),
       ),
       child: ClipOval(
-        child: Image.network(imageUrl, fit: BoxFit.cover, width: size?.h ?? 30.h, height: size?.w ?? 30.w),
+        child: imageUrl.isNotEmpty && imageUrl.startsWith('http')
+            ? Image.network(
+                imageUrl,
+                fit: BoxFit.cover,
+                width: size?.w ?? 30.w,
+                height: size?.h ?? 30.h,
+                errorBuilder: (context, error, stackTrace) {
+                  print('❌ DEBUG: ProfileAvatar error loading image: $error');
+                  return Container(
+                    width: size?.h ?? 30.h,
+                    height: size?.w ?? 30.w,
+                    color: themeController.lightPinkColor,
+                    child: Icon(
+                      Icons.person,
+                      color: Colors.white,
+                      size: (size?.w ?? 30.w) * 0.6,
+                    ),
+                  );
+                },
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) {
+                    print('✅ DEBUG: ProfileAvatar image loaded successfully');
+                    return child;
+                  }
+                  print('🔄 DEBUG: ProfileAvatar loading image...');
+                  return Container(
+                    width: size?.h ?? 30.h,
+                    height: size?.w ?? 30.w,
+                    color: themeController.lightPinkColor,
+                    child: Icon(
+                      Icons.person,
+                      color: Colors.white,
+                      size: (size?.w ?? 30.w) * 0.6,
+                    ),
+                  );
+                },
+              )
+            : Container(
+                width: size?.w ?? 30.w,
+                height: size?.h ?? 30.h,
+                color: themeController.lightPinkColor,
+                child: Icon(
+                  Icons.person,
+                  color: Colors.white,
+                  size: (size?.w ?? 30.w) * 0.6,
+                ),
+              ),
       ),
     );
   }

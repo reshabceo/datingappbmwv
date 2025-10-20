@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:ui';
 import 'package:lovebug/Common/text_constant.dart';
 import 'package:lovebug/Common/widget_constant.dart';
@@ -10,8 +11,10 @@ import 'package:lovebug/Screens/ChatPage/disappearing_photo_screen.dart';
 import 'package:lovebug/services/disappearing_photo_service.dart';
 import 'package:lovebug/ThemeController/theme_controller.dart';
 import 'package:lovebug/Screens/ChatPage/enhanced_photo_upload_service.dart';
+import 'package:lovebug/Screens/ChatPage/ui_simple_camera_screen.dart';
 import 'package:lovebug/services/supabase_service.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -199,6 +202,16 @@ class _MessageScreenState extends State<MessageScreen> {
     } catch (e) {
       print('Error sending disappearing photo: $e');
       Get.snackbar('Error', 'Failed to send disappearing photo');
+    }
+  }
+
+  Future<void> _showCameraGalleryPicker(MessageController controller) async {
+    try {
+      // Navigate directly to simple camera screen since permissions are requested at startup
+      Get.to(() => SimpleCameraScreen(matchId: widget.matchId));
+    } catch (e) {
+      print('Error opening camera: $e');
+      Get.snackbar('Error', 'Failed to open camera');
     }
   }
 
@@ -750,9 +763,9 @@ class _MessageScreenState extends State<MessageScreen> {
             ButtonSquare(
               height: 35,
               width: 35,
-              onTap: () => _showPhotoOptions(controller),
+              onTap: () => _showCameraGalleryPicker(controller),
               iconSize: 16,
-              icon: LucideIcons.paperclip,
+              icon: Icons.camera_alt_outlined,
               iconColor: themeController.whiteColor,
               borderColor: themeController.transparentColor,
               backgroundColor: themeController.getAccentColor(),

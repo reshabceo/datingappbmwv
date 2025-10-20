@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:ui';
 import 'package:lovebug/Common/text_constant.dart';
 import 'package:lovebug/Common/widget_constant.dart';
@@ -10,11 +11,14 @@ import 'package:lovebug/Screens/ChatPage/disappearing_photo_screen.dart';
 import 'package:lovebug/Screens/ChatPage/astro_compatibility_widget.dart';
 import 'package:lovebug/Screens/ChatPage/ice_breaker_widget.dart';
 import 'package:lovebug/Screens/ChatPage/enhanced_photo_upload_service.dart';
+import 'package:lovebug/Screens/ChatPage/ui_simple_camera_screen.dart';
+import 'package:lovebug/Screens/ChatPage/controller_chat_screen.dart';
 import 'package:lovebug/services/disappearing_photo_service.dart';
 import 'package:lovebug/services/supabase_service.dart';
 import 'package:lovebug/services/astro_service.dart';
 import 'package:lovebug/ThemeController/theme_controller.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -250,6 +254,16 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
     } catch (e) {
       print('Error sending disappearing photo: $e');
       Get.snackbar('Error', 'Failed to send disappearing photo');
+    }
+  }
+
+  Future<void> _showCameraGalleryPicker(MessageController controller) async {
+    try {
+      // Navigate directly to simple camera screen since permissions are requested at startup
+      Get.to(() => SimpleCameraScreen(matchId: widget.matchId));
+    } catch (e) {
+      print('Error opening camera: $e');
+      Get.snackbar('Error', 'Failed to open camera');
     }
   }
 
@@ -721,9 +735,9 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
             ),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Get.back();
-              Get.snackbar('Success', 'User unmatched successfully');
+              await _unmatchUser();
             },
             child: TextConstant(
               title: 'Unmatch',
@@ -733,6 +747,93 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _unmatchUser() async {
+    try {
+      print('🔄 DEBUG: Starting to unmatch user for match: ${widget.matchId}');
+      
+      // Show loading indicator
+      Get.dialog(
+        Center(
+          child: Container(
+            padding: EdgeInsets.all(20.w),
+            decoration: BoxDecoration(
+              color: themeController.blackColor,
+              borderRadius: BorderRadius.circular(10.r),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(
+                  color: themeController.getAccentColor(),
+                ),
+                heightBox(10.h.toInt()),
+                TextConstant(
+                  title: 'Unmatching...',
+                  color: themeController.whiteColor,
+                ),
+              ],
+            ),
+          ),
+        ),
+        barrierDismissible: false,
+      );
+      
+      // Update match status to unmatched
+      final updateResult = await SupabaseService.client
+          .from('matches')
+          .update({'status': 'unmatched'})
+          .eq('id', widget.matchId)
+          .select();
+      
+      print('🔄 DEBUG: Unmatch update result: $updateResult');
+      
+      // Close loading dialog
+      Get.back();
+      
+      if (updateResult != null && updateResult.isNotEmpty) {
+        print('✅ DEBUG: User unmatched successfully');
+        Get.snackbar(
+          'Success',
+          'You have unmatched with this user',
+          backgroundColor: themeController.blackColor,
+          colorText: themeController.whiteColor,
+          duration: Duration(seconds: 2),
+        );
+        
+        // Navigate back to chat list and refresh
+        Get.back();
+        
+        // Force refresh the chat list
+        try {
+          final chatController = Get.find<EnhancedChatController>();
+          chatController.loadChats();
+          print('✅ DEBUG: Chat list refreshed after unmatch');
+        } catch (e) {
+          print('❌ DEBUG: Could not refresh chat list: $e');
+        }
+      } else {
+        print('❌ DEBUG: No rows updated - match might not exist');
+        Get.snackbar(
+          'Error',
+          'Failed to unmatch user - match not found',
+          backgroundColor: themeController.blackColor,
+          colorText: themeController.whiteColor,
+          duration: Duration(seconds: 3),
+        );
+      }
+    } catch (e) {
+      print('❌ DEBUG: Error unmatching user: $e');
+      Get.back(); // Close loading dialog
+      Get.snackbar(
+        'Error', 
+        'Failed to unmatch user: $e',
+        backgroundColor: themeController.blackColor,
+        colorText: themeController.whiteColor,
+        duration: Duration(seconds: 3),
+      );
+    }
   }
 
   Widget _buildPhotoSourceOption({
@@ -1022,7 +1123,7 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             GestureDetector(
-              onTap: () => _showPhotoOptions(controller),
+              onTap: () => _showCameraGalleryPicker(controller),
               child: Container(
                 width: 35.h,
                 height: 35.h,
@@ -1037,7 +1138,7 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
-                  LucideIcons.paperclip,
+                  Icons.camera_alt_outlined,
                   color: Colors.white,
                   size: 16.sp,
                 ),

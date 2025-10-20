@@ -97,9 +97,6 @@ export default function Login() {
           </div>
 
           <div className="mt-6 text-center space-y-2">
-            <Link to="/auth/phone" className="text-light-white hover:text-white transition-colors text-sm font-medium">
-              Sign in with phone number
-            </Link>
             <div>
               <span className="text-light-white text-sm">Don't have an account? </span>
               <Link to={`/signup?email=${encodeURIComponent(email)}`} className="text-white font-semibold">

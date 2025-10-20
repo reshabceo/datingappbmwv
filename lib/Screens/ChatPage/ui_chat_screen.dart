@@ -34,13 +34,15 @@ class ChatScreen extends StatelessWidget {
             end: Alignment.bottomCenter,
           ),
         ),
-        child: screenPadding(customPadding: EdgeInsets.fromLTRB(15.w, 56.h, 15.w, 0),
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(15.w, 56.h, 15.w, 0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               heightBox(8),
               Expanded(
                 child: SingleChildScrollView(
+                  physics: BouncingScrollPhysics(),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -81,7 +83,7 @@ class ChatScreen extends StatelessWidget {
                               }
                               
                               return SizedBox(
-                                height: 75.h,
+                                height: 100.h, // Increased height to prevent overflow
                                 child: ListView.separated(
                                   padding: EdgeInsets.zero,
                                   shrinkWrap: true,
@@ -170,8 +172,8 @@ class ChatScreen extends StatelessWidget {
                           color: themeController.whiteColor,
                         );
                       }),
-                        heightBox(8),
-                        GetX<EnhancedChatController>(builder: (c) {
+                      heightBox(8),
+                      GetX<EnhancedChatController>(builder: (c) {
                           if (c.isLoading.value) {
                             return Center(
                               child: Padding(
@@ -320,16 +322,16 @@ class ChatScreen extends StatelessWidget {
                             );
                           },
                         );
-                        }),
-                        heightBox(20),
-                      ],
-                    ),
+                      }),
+                      heightBox(80), // Increased bottom padding to prevent overflow
+                    ],
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
+      ),
     );
   }
 }

@@ -56,6 +56,16 @@ class SharedPreferenceHelper {
     return _preferences.getStringList(key) ?? defaultValue;
   }
 
+  // Set a double value
+  static Future<void> setDouble(String key, double value) async {
+    await _preferences.setDouble(key, value);
+  }
+
+  // Get a double value
+  static double? getDouble(String key) {
+    return _preferences.getDouble(key);
+  }
+
   // Remove a key-value pair
   static Future<void> remove(String key) async {
     await _preferences.remove(key);

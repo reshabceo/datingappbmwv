@@ -36,13 +36,13 @@ class EnhancedPhotoUploadService {
         barrierDismissible: false,
       );
 
-      // Remove only the specific preview message by ID
-      controller.messages.removeWhere((m) => m.id == previewMessageId);
-
       if (result == 'normal') {
         await _sendNormalPhoto(controller, matchId, imageBytes, fileName);
       } else if (result == 'disappearing') {
         await _sendDisappearingPhoto(controller, matchId, imageBytes, fileName);
+      } else {
+        // Remove preview if cancelled
+        controller.messages.removeWhere((m) => m.id == previewMessageId);
       }
     } catch (e) {
       print('Error showing photo options: $e');
@@ -62,7 +62,7 @@ class EnhancedPhotoUploadService {
       // Create instant photo preview message (like WhatsApp)
       final previewMessageId = 'photo_preview_${DateTime.now().millisecondsSinceEpoch}';
       final previewMessage = Message(
-        text: '📸 Photo: ${Uri.dataFromBytes(imageBytes).toString()}',
+        text: '📸 Photo',
         isUser: true,
         timestamp: DateTime.now(),
         id: previewMessageId,
@@ -94,23 +94,83 @@ class EnhancedPhotoUploadService {
         borderRadius: 12,
       );
       
-      // Upload to Supabase storage with retry logic
+      // Update the preview message to show progress
+      final messageIndex = controller.messages.indexWhere((m) => m.id == previewMessageId);
+      if (messageIndex != -1) {
+        controller.messages[messageIndex] = Message(
+          text: '📸 Photo',
+          isUser: true,
+          timestamp: DateTime.now(),
+          id: previewMessageId,
+          isPhoto: true,
+          photoBytes: imageBytes,
+          isUploading: true,
+        );
+        controller.messages.refresh();
+      }
+      
+      // Upload to Supabase storage with retry logic and timeout
       String photoUrl = '';
       int retryCount = 0;
       const maxRetries = 3;
       
       while (photoUrl.isEmpty && retryCount < maxRetries) {
         try {
-          photoUrl = await SupabaseService.uploadFile(
-            bucket: 'chat-photos',
-            path: '${DateTime.now().millisecondsSinceEpoch}_${retryCount}_$fileName',
-            fileBytes: imageBytes,
-          );
+          // Update progress to show uploading
+          final progressMessageIndex = controller.messages.indexWhere((m) => m.id == previewMessageId);
+          if (progressMessageIndex != -1) {
+            controller.messages[progressMessageIndex] = Message(
+              text: '📸 Photo',
+              isUser: true,
+              timestamp: DateTime.now(),
+              id: previewMessageId,
+              isPhoto: true,
+              photoBytes: imageBytes,
+              isUploading: true,
+            );
+            controller.messages.refresh();
+          }
+          
+          // Add timeout to prevent hanging
+          photoUrl = await Future.any([
+            SupabaseService.uploadFile(
+              bucket: 'chat-photos',
+              path: '${DateTime.now().millisecondsSinceEpoch}_${retryCount}_$fileName',
+              fileBytes: imageBytes,
+            ),
+            Future.delayed(Duration(seconds: 30), () {
+              throw Exception('Upload timeout - please check your connection and try again');
+            }),
+          ]);
+          
+          // Update progress to show almost done
+          final progressMessageIndex2 = controller.messages.indexWhere((m) => m.id == previewMessageId);
+          if (progressMessageIndex2 != -1) {
+            controller.messages[progressMessageIndex2] = Message(
+              text: '📸 Photo',
+              isUser: true,
+              timestamp: DateTime.now(),
+              id: previewMessageId,
+              isPhoto: true,
+              photoBytes: imageBytes,
+              isUploading: true,
+            );
+            controller.messages.refresh();
+          }
         } catch (e) {
           retryCount++;
           print('Upload attempt $retryCount failed: $e');
           if (retryCount < maxRetries) {
-            await Future.delayed(Duration(seconds: 1)); // Wait before retry
+            // Show progress to user
+            Get.snackbar(
+              'Retrying Upload',
+              'Attempt ${retryCount + 1} of $maxRetries...',
+              duration: Duration(seconds: 2),
+              snackPosition: SnackPosition.TOP,
+              backgroundColor: Colors.orange.withValues(alpha: 0.9),
+              colorText: Colors.white,
+            );
+            await Future.delayed(Duration(seconds: 2)); // Wait before retry
           }
         }
       }
@@ -146,13 +206,13 @@ class EnhancedPhotoUploadService {
         // Remove preview on failure
         controller.messages.removeWhere((m) => m.id == previewMessageId);
         Get.snackbar(
-          'Error',
-          'Failed to upload photo. Please try again.',
-          duration: Duration(seconds: 3),
+          'Upload Failed',
+          'Please check your internet connection and try again',
+          duration: Duration(seconds: 4),
           snackPosition: SnackPosition.TOP,
           backgroundColor: Colors.red.withValues(alpha: 0.9),
           colorText: Colors.white,
-          icon: Icon(Icons.error, color: Colors.white),
+          icon: Icon(Icons.wifi_off, color: Colors.white),
         );
       }
     } catch (e) {

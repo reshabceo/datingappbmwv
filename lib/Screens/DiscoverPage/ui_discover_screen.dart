@@ -532,6 +532,96 @@ class DiscoverScreen extends StatelessWidget {
 
                     SizedBox(height: 8.h),
 
+                    // Location Refresh Button
+                    Row(
+                      children: [
+                        Text(
+                          'Location',
+                          style: TextStyle(
+                            color: themeController.whiteColor
+                                .withValues(alpha: 0.8),
+                          ),
+                        ),
+                        const Spacer(),
+                        TextButton.icon(
+                          onPressed: () async {
+                            // Show loading indicator
+                            Get.dialog(
+                              Center(
+                                child: Container(
+                                  padding: EdgeInsets.all(20),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.8),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      CircularProgressIndicator(
+                                        color: controller.currentMode.value == 'bff'
+                                            ? themeController.getSecondaryColor()
+                                            : themeController.lightPinkColor,
+                                      ),
+                                      SizedBox(height: 10),
+                                      Text(
+                                        'Updating location...',
+                                        style: TextStyle(
+                                          color: themeController.whiteColor,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              barrierDismissible: false,
+                            );
+                            
+                            // Update location
+                            final success = await controller.refreshLocation();
+                            
+                            // Close loading dialog
+                            Get.back();
+                            
+                            if (success) {
+                              Get.snackbar(
+                                'Location Updated',
+                                'Your location has been refreshed successfully!',
+                                backgroundColor: Colors.green,
+                                colorText: Colors.white,
+                                duration: Duration(seconds: 2),
+                              );
+                            } else {
+                              Get.snackbar(
+                                'Location Update Failed',
+                                'Could not update location. Please check your GPS settings.',
+                                backgroundColor: Colors.red,
+                                colorText: Colors.white,
+                                duration: Duration(seconds: 3),
+                              );
+                            }
+                          },
+                          icon: Icon(
+                            Icons.my_location,
+                            size: 16,
+                            color: controller.currentMode.value == 'bff'
+                                ? themeController.getSecondaryColor()
+                                : themeController.lightPinkColor,
+                          ),
+                          label: Text(
+                            'Refresh',
+                            style: TextStyle(
+                              color: controller.currentMode.value == 'bff'
+                                  ? themeController.getSecondaryColor()
+                                  : themeController.lightPinkColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    SizedBox(height: 8.h),
+
                     // Gender
                     Text(
                       'Gender',

@@ -3,6 +3,8 @@ import 'package:lovebug/Common/widget_constant.dart';
 import 'package:lovebug/Screens/StoriesPage/controller_stories_screen.dart';
 import 'package:lovebug/Screens/StoriesPage/widget_stories_screen.dart';
 import 'package:lovebug/Screens/StoriesPage/ui_instagram_story_viewer.dart';
+import 'package:lovebug/Screens/StoriesPage/ui_create_story_screen.dart';
+import 'package:lovebug/Screens/StoriesPage/ui_story_camera_screen.dart';
 import 'package:lovebug/Screens/DiscoverPage/profile_detail_screen.dart';
 import 'package:lovebug/Screens/DiscoverPage/controller_discover_screen.dart';
 import 'package:lovebug/ThemeController/theme_controller.dart';
@@ -405,27 +407,63 @@ class StoriesScreen extends StatelessWidget {
   }
 
   Future<void> _addStory() async {
-    // For testing, let's add a sample story
-    final testImageUrl = 'https://picsum.photos/400/600?random=${DateTime.now().millisecondsSinceEpoch}';
-    await controller.addStory(testImageUrl);
-    
     final theme = themeController;
+    print('🔄 DEBUG: _addStory() called');
     try {
-      final picker = ImagePicker();
-      final img = await picker.pickImage(source: ImageSource.gallery);
-      if (img == null) return;
       final uid = SupabaseService.currentUser?.id;
       if (uid == null) {
+        print('❌ DEBUG: No user ID found');
         Get.snackbar('Login required', 'Please sign in to add a story');
         return;
       }
-      final bytes = await img.readAsBytes();
-      final path = uid + '/story_' + DateTime.now().millisecondsSinceEpoch.toString() + '.jpg';
-      final url = await SupabaseService.uploadFile(bucket: 'story-media', path: path, fileBytes: bytes);
-      await controller.addStory(url);
-      Get.snackbar('Story added', 'Your story is live for 24 hours');
+      
+      // Navigate to story camera screen
+      print('🔄 DEBUG: Opening story camera screen...');
+      Get.to(() => StoryCameraScreen());
+      print('✅ DEBUG: Navigation completed');
+      
     } catch (e) {
+      print('❌ DEBUG: Error in _addStory: $e');
       Get.snackbar('Error', e.toString(), backgroundColor: theme.blackColor);
+    }
+  }
+
+  // Show upload progress indicator
+  void _showUploadProgress() {
+    Get.dialog(
+      Center(
+        child: Container(
+          padding: EdgeInsets.all(20.w),
+          decoration: BoxDecoration(
+            color: themeController.blackColor.withValues(alpha: 0.8),
+            borderRadius: BorderRadius.circular(20.r),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(
+                color: themeController.getAccentColor(),
+                strokeWidth: 3.0,
+              ),
+              heightBox(16),
+              TextConstant(
+                title: 'Uploading Story...',
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: themeController.whiteColor,
+              ),
+            ],
+          ),
+        ),
+      ),
+      barrierDismissible: false,
+    );
+  }
+
+  // Hide upload progress indicator
+  void _hideUploadProgress() {
+    if (Get.isDialogOpen == true) {
+      Get.back();
     }
   }
 }

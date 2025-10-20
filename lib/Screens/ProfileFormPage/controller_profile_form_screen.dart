@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart' as image_cropper;
 import '../../services/supabase_service.dart';
 import '../../services/analytics_service.dart';
+import '../../services/location_service.dart';
 import '../BottomBarPage/bottombar_screen.dart';
 import '../BottomBarPage/controller_bottombar_screen.dart';
 
@@ -422,6 +423,29 @@ class ProfileFormController extends GetxController {
       Get.snackbar('Error', 'Failed to save profile: ${e.toString()}');
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  /// Request location permission during profile completion
+  Future<void> requestLocationPermission() async {
+    try {
+      print('📍 ProfileFormController: Requesting location permission...');
+      final granted = await LocationService.requestLocationPermission();
+      
+      if (granted) {
+        print('✅ ProfileFormController: Location permission granted');
+        // Update user location after permission is granted
+        await LocationService.updateUserLocation();
+        Get.snackbar('Success', 'Location access enabled!', 
+          backgroundColor: Colors.green, colorText: Colors.white);
+      } else {
+        print('❌ ProfileFormController: Location permission denied');
+        Get.snackbar('Permission Required', 'Location access is needed to show you nearby profiles', 
+          backgroundColor: Colors.orange, colorText: Colors.white);
+      }
+    } catch (e) {
+      print('❌ ProfileFormController: Error requesting location permission: $e');
+      Get.snackbar('Error', 'Failed to request location permission: ${e.toString()}');
     }
   }
 }

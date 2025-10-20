@@ -5,9 +5,6 @@ import 'package:lovebug/ThemeController/theme_controller.dart';
 import 'package:lovebug/Common/widget_constant.dart';
 import 'package:lovebug/Common/text_constant.dart';
 import 'package:lovebug/Common/textfield_constant.dart';
-import 'package:lovebug/Common/glass_butto.dart';
-import 'package:lovebug/Constant/app_assets.dart';
-import 'auth_ui_screen.dart';
 import 'auth_controller.dart';
 
 class GetStartedAuthScreen extends StatelessWidget {
@@ -38,21 +35,22 @@ class GetStartedAuthScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                heightBox(40),
+                heightBox(24),
+                // App logo
+                Center(
+                  child: Image.asset(
+                    'assets/images/lovebug_logo.png',
+                    height: 48,
+                  ),
+                ),
+                heightBox(24),
                 TextConstant(
                   title: 'Log in or sign up',
                   fontSize: 32,
                   fontWeight: FontWeight.w700,
                   color: theme.whiteColor,
                 ),
-                heightBox(20),
-                TextConstant(
-                  title: "You'll get smarter responses and can upload files, images, and more.",
-                  fontSize: 16,
-                  color: theme.whiteColor.withValues(alpha: 0.8),
-                  height: 1.5,
-                ),
-                heightBox(40),
+                heightBox(32),
 
                 // Email field (styled with existing component)
                 TextFieldConstant(
@@ -143,7 +141,9 @@ class GetStartedAuthScreen extends StatelessWidget {
                   child: Material(
                     color: Colors.transparent,
                     child: InkWell(
-                      onTap: () {},
+                      onTap: () {
+                        authController.continueWithGoogle();
+                      },
                       borderRadius: BorderRadius.circular(28.r),
                       child: Center(
                         child: TextConstant(
@@ -185,97 +185,13 @@ class GetStartedAuthScreen extends StatelessWidget {
                   child: Material(
                     color: Colors.transparent,
                     child: InkWell(
-                      onTap: () {},
-                      borderRadius: BorderRadius.circular(28.r),
-                      child: Center(
-                        child: TextConstant(
-                          title: 'Continue with Microsoft Account',
-                          color: theme.whiteColor.withValues(alpha: 0.9),
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                heightBox(12),
-                Container(
-                  width: double.infinity,
-                  height: 56.h,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        theme.lightPinkColor.withValues(alpha: 0.15),
-                        theme.purpleColor.withValues(alpha: 0.1),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    border: Border.all(
-                      color: theme.lightPinkColor.withValues(alpha: 0.3),
-                      width: 1.w,
-                    ),
-                    borderRadius: BorderRadius.circular(28.r),
-                    boxShadow: [
-                      BoxShadow(
-                        color: theme.lightPinkColor.withValues(alpha: 0.1),
-                        blurRadius: 8,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () {},
-                      borderRadius: BorderRadius.circular(28.r),
-                      child: Center(
-                        child: TextConstant(
-                          title: 'Continue with Apple',
-                          color: theme.whiteColor.withValues(alpha: 0.9),
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                heightBox(12),
-                Container(
-                  width: double.infinity,
-                  height: 56.h,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        theme.lightPinkColor.withValues(alpha: 0.15),
-                        theme.purpleColor.withValues(alpha: 0.1),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    border: Border.all(
-                      color: theme.lightPinkColor.withValues(alpha: 0.3),
-                      width: 1.w,
-                    ),
-                    borderRadius: BorderRadius.circular(28.r),
-                    boxShadow: [
-                      BoxShadow(
-                        color: theme.lightPinkColor.withValues(alpha: 0.1),
-                        blurRadius: 8,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
                       onTap: () {
-                        Get.to(() => AuthScreen(startMode: 'phone'));
+                        authController.continueWithApple();
                       },
                       borderRadius: BorderRadius.circular(28.r),
                       child: Center(
                         child: TextConstant(
-                          title: 'Continue with phone',
+                          title: 'Continue with Apple',
                           color: theme.whiteColor.withValues(alpha: 0.9),
                           fontSize: 16,
                           fontWeight: FontWeight.w600,

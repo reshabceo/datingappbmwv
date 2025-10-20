@@ -7,6 +7,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../Common/widget_constant.dart';
 import '../../Common/textfield_constant.dart';
 import '../../ThemeController/theme_controller.dart';
+import '../../services/location_service.dart';
 import 'controller_profile_form_screen.dart';
 
 class DateInputFormatter extends TextInputFormatter {
@@ -192,8 +193,8 @@ class _MultiStepProfileFormState extends State<MultiStepProfileForm> {
                     child: elevatedButton(
                       title: currentStep == totalSteps - 1 ? 'Complete' : 'Next',
                       textColor: themeController.whiteColor,
-                      onPressed: () {
-                        if (_validateCurrentStep()) {
+                      onPressed: () async {
+                        if (await _validateCurrentStep()) {
                           if (currentStep == totalSteps - 1) {
                             controller.saveProfile();
                           } else {
@@ -848,7 +849,7 @@ class _MultiStepProfileFormState extends State<MultiStepProfileForm> {
     );
   }
 
-  bool _validateCurrentStep() {
+  Future<bool> _validateCurrentStep() async {
     switch (currentStep) {
       case 0: // Gender Selection
         if (controller.selectedGender.value.isEmpty) {
@@ -906,6 +907,13 @@ class _MultiStepProfileFormState extends State<MultiStepProfileForm> {
         }
         return true;
       case 5: // Location
+        // Check if location permission is granted
+        final hasPermission = await LocationService.hasLocationPermission();
+        if (!hasPermission) {
+          Get.snackbar('Permission Required', 'Please enable location access to continue', 
+            backgroundColor: Colors.orange, colorText: Colors.white);
+          return false;
+        }
         return true;
       default:
         return true;
@@ -954,7 +962,7 @@ class _MultiStepProfileFormState extends State<MultiStepProfileForm> {
                 ),
                 SizedBox(height: 16.h),
                 Text(
-                  'Location services will be enabled',
+                  'Enable location access',
                   style: TextStyle(
                     color: themeController.whiteColor,
                     fontSize: 16.sp,
@@ -969,6 +977,27 @@ class _MultiStepProfileFormState extends State<MultiStepProfileForm> {
                     fontSize: 14.sp,
                   ),
                   textAlign: TextAlign.center,
+                ),
+                SizedBox(height: 16.h),
+                ElevatedButton(
+                  onPressed: () async {
+                    await controller.requestLocationPermission();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: themeController.lightPinkColor,
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 12.h),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8.r),
+                    ),
+                  ),
+                  child: Text(
+                    'Enable Location',
+                    style: TextStyle(
+                      fontSize: 16.sp,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ],
             ),

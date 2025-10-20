@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:lovebug/services/supabase_service.dart';
 import 'package:lovebug/services/analytics_service.dart';
 import 'package:lovebug/Common/widget_constant.dart';
@@ -42,17 +43,17 @@ class EnhancedDiscoverController extends GetxController {
       final currentUserId = SupabaseService.currentUser?.id;
       if (currentUserId == null) return;
 
-      final { data: preferences } = await SupabaseService.client
+      final response = await SupabaseService.client
           .from('user_preferences')
           .select('preferred_gender, min_age, max_age, max_distance')
           .eq('user_id', currentUserId)
           .maybeSingle();
 
-      if (preferences != null) {
-        selectedGenders.value = List<String>.from(preferences['preferred_gender'] ?? []);
-        minAge.value = preferences['min_age'] ?? 18;
-        maxAge.value = preferences['max_age'] ?? 100;
-        maxDistance.value = preferences['max_distance'] ?? 50;
+      if (response != null) {
+        selectedGenders.value = List<String>.from(response['preferred_gender'] ?? []);
+        minAge.value = response['min_age'] ?? 18;
+        maxAge.value = response['max_age'] ?? 100;
+        maxDistance.value = response['max_distance'] ?? 50;
       }
     } catch (e) {
       print('Error loading user preferences: $e');
@@ -95,20 +96,20 @@ class EnhancedDiscoverController extends GetxController {
       }
 
       // Use the new filtered function
-      final { data: profileData, error } = await SupabaseService.client
+      final response = await SupabaseService.client
           .rpc('get_filtered_profiles', params: {
         'p_user_id': currentUserId,
         'p_limit': profilesPerPage,
         'p_offset': currentOffset,
       });
 
-      if (error != null) {
-        print('Error loading profiles: $error');
+      if (response.error != null) {
+        print('Error loading profiles: ${response.error}');
         return;
       }
 
-      if (profileData != null) {
-        final newProfiles = (profileData as List<dynamic>)
+      if (response.data != null) {
+        final newProfiles = (response.data as List<dynamic>)
             .map((data) => _mapToProfile(data))
             .where((profile) => profile.id.isNotEmpty)
             .toList();
@@ -135,20 +136,20 @@ class EnhancedDiscoverController extends GetxController {
       final currentUserId = SupabaseService.currentUser?.id;
       if (currentUserId == null) return;
 
-      final { data: profileData, error } = await SupabaseService.client
+      final response = await SupabaseService.client
           .rpc('get_filtered_profiles', params: {
         'p_user_id': currentUserId,
         'p_limit': profilesPerPage,
         'p_offset': currentOffset,
       });
 
-      if (error != null) {
-        print('Error loading more profiles: $error');
+      if (response.error != null) {
+        print('Error loading more profiles: ${response.error}');
         return;
       }
 
-      if (profileData != null) {
-        final newProfiles = (profileData as List<dynamic>)
+      if (response.data != null) {
+        final newProfiles = (response.data as List<dynamic>)
             .map((data) => _mapToProfile(data))
             .where((profile) => profile.id.isNotEmpty)
             .toList();

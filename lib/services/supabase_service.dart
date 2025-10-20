@@ -46,11 +46,30 @@ class SupabaseService {
   }
   
   static Future<void> signOut() async {
-    await client.auth.signOut(scope: SignOutScope.global);
-    // Wait briefly until session is cleared to avoid race conditions on web
-    for (int i = 0; i < 10; i++) {
-      if (client.auth.currentSession == null) break;
-      await Future.delayed(const Duration(milliseconds: 100));
+    try {
+      print('🔄 DEBUG: Starting sign out process...');
+      await client.auth.signOut(scope: SignOutScope.global);
+      print('🔄 DEBUG: Sign out called, waiting for session to clear...');
+      
+      // Wait briefly until session is cleared to avoid race conditions on web
+      for (int i = 0; i < 10; i++) {
+        if (client.auth.currentSession == null) {
+          print('✅ DEBUG: Session cleared successfully');
+          break;
+        }
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+      
+      // Final check
+      if (client.auth.currentSession != null) {
+        print('⚠️ DEBUG: Session still exists after sign out');
+      } else {
+        print('✅ DEBUG: Sign out completed successfully');
+      }
+    } catch (e) {
+      print('❌ DEBUG: Error during sign out: $e');
+      // Even if sign out fails, we should still try to clear local state
+      rethrow;
     }
   }
   
@@ -580,7 +599,7 @@ class SupabaseService {
     // Joinless select to work even if FK is not registered in schema cache
     final rows = await client
         .from('stories')
-        .select('id,user_id,media_url,created_at,expires_at')
+        .select('id,user_id,media_url,content,created_at,expires_at')
         .gt('expires_at', DateTime.now().toIso8601String())
         .order('created_at', ascending: false);
     

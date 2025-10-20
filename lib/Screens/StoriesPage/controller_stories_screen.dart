@@ -22,6 +22,9 @@ class StoriesController extends GetxController {
         return;
       }
 
+      // Clean up expired stories first
+      await _cleanupExpiredStories();
+
       // Get all active stories (without join)
       final rows = await SupabaseService.getActiveStories();
       print('DEBUG: Found ${rows.length} total active stories');
@@ -43,6 +46,10 @@ class StoriesController extends GetxController {
       // Always include current user's own stories
       matchedUserIds.add(currentUserId);
       
+      // Always include SS (BFF chat story) - special user ID
+      const ssUserId = 'c1ffb3e0-0e25-4176-9736-0db8522fd357';
+      matchedUserIds.add(ssUserId);
+      
       print('DEBUG: Matched user IDs: $matchedUserIds');
       
       // Group stories by user, but only for matched users
@@ -60,7 +67,7 @@ class StoriesController extends GetxController {
         try {
           final prows = await SupabaseService.client
               .from('profiles')
-              .select('id,name,photos')
+              .select('id,name,photos,image_urls')
               .inFilter('id', neededIds);
           if (prows is List) {
             for (final p in prows) {
@@ -79,13 +86,33 @@ class StoriesController extends GetxController {
 
         final profile = idToProfile[storyUserId];
         final List photos = (profile?['photos'] ?? []) as List? ?? [];
+        final List imageUrls = (profile?['image_urls'] ?? []) as List? ?? [];
+        
+        // Debug logging for profile pictures
+        print('🔄 DEBUG: Story user $storyUserId - photos: $photos, image_urls: $imageUrls');
+        print('🔄 DEBUG: Profile data for $storyUserId: ${profile?.toString()}');
+        
+        // Try both photos and image_urls fields
+        String avatarUrl = '';
+        if (photos.isNotEmpty) {
+          avatarUrl = photos.first.toString();
+          print('🔄 DEBUG: Using photos field for $storyUserId: $avatarUrl');
+        } else if (imageUrls.isNotEmpty) {
+          avatarUrl = imageUrls.first.toString();
+          print('🔄 DEBUG: Using image_urls field for $storyUserId: $avatarUrl');
+        } else {
+          print('❌ DEBUG: No photos or image_urls found for $storyUserId');
+        }
+        
+        print('🔄 DEBUG: Final avatarUrl for $storyUserId: "$avatarUrl" (length: ${avatarUrl.length})');
 
         final story = StoryItem(
           id: (row['id'] ?? '').toString(),
           userId: storyUserId,
           userName: StringUtils.formatName((profile?['name'] ?? 'User').toString()),
-          avatarUrl: photos.isNotEmpty ? photos.first.toString() : '',
+          avatarUrl: avatarUrl,
           mediaUrl: (row['media_url'] ?? '').toString(),
+          content: (row['content'] ?? '').toString().isNotEmpty ? (row['content'] ?? '').toString() : null,
           timeLabel: _timeAgo((row['created_at'] ?? '').toString()),
           postedAt: DateTime.tryParse((row['created_at'] ?? '').toString()) ?? DateTime.now(),
         );
@@ -97,7 +124,9 @@ class StoriesController extends GetxController {
       print('DEBUG: Grouped stories for ${groupedStories.length} users');
       
       // Convert to StoryGroup objects and sort by most recent
-      final groups = groupedStories.entries.map((entry) {
+      final groups = groupedStories.entries
+          .where((entry) => entry.value.isNotEmpty) // Only include users with stories
+          .map((entry) {
         final stories = entry.value;
         stories.sort((a, b) => b.postedAt.compareTo(a.postedAt));
         
@@ -109,6 +138,21 @@ class StoriesController extends GetxController {
           hasUnviewed: true, // TODO: Implement viewed tracking
         );
       }).toList();
+      
+      // Ensure SS always has a story group (even if no stories)
+      final hasSSGroup = groups.any((group) => group.userId == ssUserId);
+      if (!hasSSGroup) {
+        // Create a placeholder story group for SS
+        final ssGroup = StoryGroup(
+          userId: ssUserId,
+          userName: 'SS',
+          avatarUrl: '', // Will be handled by the UI
+          stories: [], // Empty stories list
+          hasUnviewed: false,
+        );
+        groups.add(ssGroup);
+        print('DEBUG: Added placeholder SS story group');
+      }
       
       // Sort groups by most recent story, but prioritize current user's stories
       groups.sort((a, b) {
@@ -146,7 +190,7 @@ class StoriesController extends GetxController {
     }
   }
 
-  Future<void> addStory(String mediaUrl) async {
+  Future<void> addStory(String mediaUrl, {String? content}) async {
     try {
       final uid = SupabaseService.currentUser?.id;
       if (uid == null) return;
@@ -155,6 +199,7 @@ class StoriesController extends GetxController {
       final result = await SupabaseService.client.from('stories').insert({
         'user_id': uid,
         'media_url': mediaUrl,
+        'content': content,
         'expires_at': expiresAt,
       }).select().single();
       
@@ -170,12 +215,89 @@ class StoriesController extends GetxController {
     }
   }
 
+  void removeStoryFromGroup(int groupIndex, int storyIndex) {
+    try {
+      if (groupIndex < storyGroups.length && 
+          storyIndex < storyGroups[groupIndex].stories.length) {
+        storyGroups[groupIndex].stories.removeAt(storyIndex);
+        
+        // If no stories left in this group, remove the entire group
+        if (storyGroups[groupIndex].stories.isEmpty) {
+          storyGroups.removeAt(groupIndex);
+        }
+        
+        print('✅ DEBUG: Story removed from controller - group: $groupIndex, story: $storyIndex');
+      }
+    } catch (e) {
+      print('❌ DEBUG: Error removing story from controller: $e');
+    }
+  }
+
+  void removeStoryById(String storyId) {
+    try {
+      print('🔄 DEBUG: Removing story by ID: $storyId');
+      
+      // Find the story group and story index
+      for (int groupIndex = 0; groupIndex < storyGroups.length; groupIndex++) {
+        final group = storyGroups[groupIndex];
+        final storyIndex = group.stories.indexWhere((story) => story.id == storyId);
+        
+        if (storyIndex >= 0) {
+          print('🔄 DEBUG: Found story in group $groupIndex, story $storyIndex');
+          
+          // Create a new list without the deleted story
+          final updatedStories = List<StoryItem>.from(group.stories);
+          updatedStories.removeAt(storyIndex);
+          
+          if (updatedStories.isEmpty) {
+            // If no stories left in this group, remove the entire group
+            storyGroups.removeAt(groupIndex);
+            print('✅ DEBUG: Removed empty story group');
+          } else {
+            // Create a new StoryGroup with updated stories list
+            final updatedGroup = StoryGroup(
+              userId: group.userId,
+              userName: group.userName,
+              avatarUrl: group.avatarUrl,
+              stories: updatedStories,
+              hasUnviewed: group.hasUnviewed,
+            );
+            
+            // Replace the old group with the new one
+            storyGroups[groupIndex] = updatedGroup;
+            print('✅ DEBUG: Updated story group with ${updatedStories.length} stories');
+          }
+          
+          return; // Story found and removed
+        }
+      }
+      
+      print('❌ DEBUG: Story not found in any group');
+    } catch (e) {
+      print('❌ DEBUG: Error removing story by ID: $e');
+    }
+  }
+
   Future<void> deleteStory(String storyId) async {
     try {
       await SupabaseService.client.from('stories').delete().eq('id', storyId);
       await loadStories();
     } catch (e) {
       print('Error deleting story: $e');
+    }
+  }
+
+  Future<void> _cleanupExpiredStories() async {
+    try {
+      print('🔄 DEBUG: Cleaning up expired stories...');
+      final result = await SupabaseService.client
+          .from('stories')
+          .delete()
+          .lt('expires_at', DateTime.now().toIso8601String());
+      
+      print('✅ DEBUG: Cleaned up expired stories: $result');
+    } catch (e) {
+      print('❌ DEBUG: Error cleaning up expired stories: $e');
     }
   }
   
@@ -299,6 +421,7 @@ class StoryItem {
   final String userName;
   final String avatarUrl;
   final String mediaUrl;
+  final String? content;
   final String timeLabel;
   final DateTime postedAt;
 
@@ -308,6 +431,7 @@ class StoryItem {
     required this.userName,
     required this.avatarUrl,
     required this.mediaUrl,
+    this.content,
     required this.timeLabel,
     required this.postedAt,
   });

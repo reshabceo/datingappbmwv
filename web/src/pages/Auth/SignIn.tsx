@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { useLocation, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../../supabaseClient'
+import { useAuth } from '../../context/AuthContext'
 
 export default function SignIn() {
   const nav = useNavigate()
@@ -8,6 +9,7 @@ export default function SignIn() {
   const params = new URLSearchParams(loc.search)
   const initialEmail = (params.get('email') || (loc.state as any)?.email || '').trim()
   const adminMode = params.get('admin') === '1'
+  const { signInWithOAuth } = useAuth()
   const [email] = useState(initialEmail)
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -92,14 +94,14 @@ export default function SignIn() {
 
             <div className="mt-6 grid grid-cols-2 gap-3">
               <button
-                onClick={() => (window.location.href = '#')}
+                onClick={() => signInWithOAuth('google')}
                 className="w-full inline-flex justify-center py-3 px-4 border border-border-white-10 rounded-xl bg-white/90 text-sm font-medium text-gray-700 hover:bg-white transition-colors"
               >
                 <img src="/assets/icons/google_logo.png" alt="Google" className="h-5 w-5 mr-2" />
                 Google
               </button>
               <button
-                onClick={() => (window.location.href = '#')}
+                onClick={() => signInWithOAuth('apple')}
                 className="w-full inline-flex justify-center py-3 px-4 border border-border-white-10 rounded-xl bg-white/90 text-sm font-medium text-gray-700 hover:bg-white transition-colors"
               >
                 <img src="/assets/icons/apple_logo.png" alt="Apple" className="h-5 w-5 mr-2" />
@@ -109,9 +111,6 @@ export default function SignIn() {
           </div>
 
           <div className="mt-6 text-center space-y-2">
-            <Link to="/auth/phone" className="text-light-white hover:text-white transition-colors text-sm font-medium">
-              Sign in with phone number
-            </Link>
             <div>
               <span className="text-light-white text-sm">Don't have an account? </span>
               <Link to={`/signup?email=${encodeURIComponent(email)}`} className="text-white font-semibold">

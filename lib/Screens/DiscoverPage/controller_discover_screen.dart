@@ -10,6 +10,7 @@ import 'dart:math' as math;
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:lovebug/shared_prefrence_helper.dart';
+import 'package:lovebug/services/location_service.dart';
 import 'package:collection/collection.dart';
 import '../ChatPage/controller_chat_screen.dart';
 
@@ -350,25 +351,60 @@ class DiscoverController extends GetxController {
 
   Future<void> _ensureLocationThenLoad() async {
     try {
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        // proceed without location
-        await _loadActiveProfiles();
-        return;
+      // Use LocationService to get location with auto-update
+      final location = await LocationService.getLocationWithAutoUpdate();
+      if (location != null) {
+        _userLat = location['latitude'];
+        _userLon = location['longitude'];
+        print('📍 DiscoverPage: Using location - Lat: $_userLat, Lon: $_userLon');
+      } else {
+        print('📍 DiscoverPage: No location available, proceeding without location filter');
       }
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      if (permission == LocationPermission.deniedForever || permission == LocationPermission.denied) {
-        await _loadActiveProfiles();
-        return;
-      }
-      final pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
-      _userLat = pos.latitude;
-      _userLon = pos.longitude;
-    } catch (_) {}
+    } catch (e) {
+      print('❌ DiscoverPage: Error getting location: $e');
+    }
     await _loadActiveProfiles();
+  }
+
+  /// Refresh user location and reload profiles
+  Future<bool> refreshLocation() async {
+    try {
+      print('📍 DiscoverPage: Refreshing location...');
+      
+      // First request permission explicitly
+      print('📍 DiscoverPage: Requesting location permission...');
+      final hasPermission = await LocationService.hasLocationPermission();
+      if (!hasPermission) {
+        print('📍 DiscoverPage: No permission, requesting...');
+        final granted = await LocationService.requestLocationPermission();
+        if (!granted) {
+          print('❌ DiscoverPage: Location permission denied');
+          return false;
+        }
+      }
+      
+      // Force location update
+      final success = await LocationService.forceLocationUpdate();
+      
+      if (success) {
+        // Get the updated location
+        final location = await LocationService.getCachedLocation();
+        if (location != null) {
+          _userLat = location['latitude'];
+          _userLon = location['longitude'];
+          print('📍 DiscoverPage: Location refreshed - Lat: $_userLat, Lon: $_userLon');
+          
+          // Reload profiles with new location
+          await _loadActiveProfiles();
+          return true;
+        }
+      }
+      
+      return false;
+    } catch (e) {
+      print('❌ DiscoverPage: Error refreshing location: $e');
+      return false;
+    }
   }
 
   double? _userLat;

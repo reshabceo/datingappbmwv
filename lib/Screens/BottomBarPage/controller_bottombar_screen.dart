@@ -8,6 +8,7 @@ import 'package:lovebug/services/supabase_service.dart';
 import 'package:lovebug/services/analytics_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class BottomBarController extends GetxController {
   RxInt currentIndex = 0.obs;
@@ -17,6 +18,7 @@ class BottomBarController extends GetxController {
   void onInit() {
     super.onInit();
     _checkProfileCompletion();
+    _requestPermissions();
     // Refresh chats whenever Chat tab selected
     ever<int>(currentIndex, (idx) {
       if (idx == 2) {
@@ -31,6 +33,36 @@ class BottomBarController extends GetxController {
       // Track feature usage for tab navigation
       _trackTabUsage(idx);
     });
+  }
+
+  /// Request camera and photo permissions when app starts
+  Future<void> _requestPermissions() async {
+    try {
+      print('🔍 DEBUG: Requesting camera and photo permissions...');
+      
+      // Request camera permission using permission_handler (doesn't open camera interface)
+      final PermissionStatus cameraStatus = await Permission.camera.request();
+      print('🔍 DEBUG: Camera permission status: $cameraStatus');
+      
+      if (cameraStatus.isGranted) {
+        print('✅ Camera permission granted');
+      } else {
+        print('❌ Camera permission denied: $cameraStatus');
+      }
+      
+      // Request photo library permission using permission_handler
+      final PermissionStatus photosStatus = await Permission.photos.request();
+      print('🔍 DEBUG: Photos permission status: $photosStatus');
+      
+      if (photosStatus.isGranted) {
+        print('✅ Photos permission granted');
+      } else {
+        print('❌ Photos permission denied: $photosStatus');
+      }
+      
+    } catch (e) {
+      print('❌ Error requesting permissions: $e');
+    }
   }
 
   Future<void> _checkProfileCompletion() async {

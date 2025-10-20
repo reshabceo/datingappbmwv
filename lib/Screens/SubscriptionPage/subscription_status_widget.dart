@@ -35,7 +35,7 @@ class SubscriptionStatusWidget extends StatelessWidget {
               Row(
                 children: [
                   Icon(
-                    controller.isPremiumActive ? Icons.crown : Icons.person,
+                    controller.isPremiumActive ? Icons.star : Icons.person,
                     color: controller.isPremiumActive
                         ? Colors.yellow
                         : Colors.grey,

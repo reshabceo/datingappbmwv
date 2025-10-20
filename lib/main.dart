@@ -10,6 +10,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:geolocator/geolocator.dart';
+import 'services/location_service.dart';
 
 import 'ThemeController/theme_controller.dart';
 // Firebase Analytics
@@ -31,6 +34,9 @@ Future<void> main() async {
   // Initialize Payment Service
   await PaymentService.initialize();
   
+  // Request camera, photo, and location permissions on app startup
+  await _requestPermissions();
+  
   // Initialize Firebase and Analytics for all platforms
   // TEMPORARILY DISABLED TO PREVENT CRASHES
   print('✅ Firebase Analytics temporarily disabled for debugging');
@@ -45,6 +51,82 @@ Future<void> main() async {
   }
   
   runApp(MyApp());
+}
+
+/// Request necessary permissions when app starts
+Future<void> _requestPermissions() async {
+  try {
+    print('🔍 DEBUG: Requesting camera, photo, and location permissions on app startup...');
+    
+    // Request camera permission
+    final cameraStatus = await Permission.camera.request();
+    print('🔍 DEBUG: Camera permission status: $cameraStatus');
+    
+    // Request photo library permission
+    final photosStatus = await Permission.photos.request();
+    print('🔍 DEBUG: Photos permission status: $photosStatus');
+    
+    // Request location permission
+    print('🔍 DEBUG: Requesting location permission...');
+    final locationStatus = await Permission.locationWhenInUse.request();
+    print('🔍 DEBUG: Location permission status: $locationStatus');
+    
+    if (cameraStatus.isGranted) {
+      print('✅ Camera permission granted');
+    } else {
+      print('❌ Camera permission denied: $cameraStatus');
+    }
+    
+    if (photosStatus.isGranted) {
+      print('✅ Photos permission granted');
+    } else {
+      print('❌ Photos permission denied: $photosStatus');
+    }
+    
+    if (locationStatus.isGranted) {
+      print('✅ Location permission granted');
+      // Automatically detect and update user location
+      await LocationService.updateUserLocation();
+    } else if (locationStatus.isPermanentlyDenied) {
+      print('❌ Location permission permanently denied - user needs to enable in settings');
+      // Show dialog to guide user to settings
+      _showLocationPermissionDialog();
+    } else {
+      print('❌ Location permission denied: $locationStatus');
+      // Try to get location anyway (might work with cached location)
+      await LocationService.updateUserLocation();
+    }
+  } catch (e) {
+    print('❌ Error requesting permissions: $e');
+  }
+}
+
+/// Show dialog to guide user to enable location permission
+void _showLocationPermissionDialog() {
+  Get.dialog(
+    AlertDialog(
+      title: Text('Location Permission Required'),
+      content: Text(
+        'LoveBug needs location access to show you nearby profiles and help you find matches in your area.\n\n'
+        'Please go to Settings > Privacy & Security > Location Services > LoveBug and enable location access.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Get.back(),
+          child: Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () {
+            Get.back();
+            // Open app settings
+            openAppSettings();
+          },
+          child: Text('Open Settings'),
+        ),
+      ],
+    ),
+    barrierDismissible: false,
+  );
 }
 
 // Track app launch events for UAC
@@ -175,6 +257,9 @@ class _AuthGateState extends State<_AuthGate> {
             _hasProfile = profile != null && profile.isNotEmpty && profile['name'] != null;
             _checkingProfile = false;
           });
+          
+          // Detect and update location for authenticated user
+          await LocationService.updateUserLocation();
           
           // Start analytics session for authenticated user - Temporarily disabled
           // await AnalyticsService.startSession();

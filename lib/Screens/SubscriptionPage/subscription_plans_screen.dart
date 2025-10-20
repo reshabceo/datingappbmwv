@@ -384,7 +384,7 @@ class SubscriptionPlansScreen extends StatelessWidget {
               Row(
                 children: [
                   Icon(
-                    Icons.crown,
+                    Icons.star,
                     color: const Color(0xFFE91E63),
                     size: 24.w,
                   ),

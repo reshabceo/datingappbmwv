@@ -14,6 +14,7 @@ import '../Setting/Screens/account_screen.dart';
 import '../VerificationPage/verification_screen.dart';
 import '../../Widgets/optimized_toggle_button.dart';
 import '../VerificationPage/test_verification_screen.dart';
+import '../WelcomePage/welcome_screen.dart';
 
 class _NoGlowBehavior extends ScrollBehavior {
   const _NoGlowBehavior();
@@ -152,6 +153,74 @@ class ProfileScreen extends StatelessWidget {
                                              title: controller.userProfile['location']?.toString() ?? 'New York',
                                              fontWeight: FontWeight.w400,
                                              color: themeController.whiteColor,
+                                           ),
+                                         ),
+                                         widthBox(4),
+                                         // Location update button
+                                         GestureDetector(
+                                           onTap: () async {
+                                             // Show loading
+                                             Get.dialog(
+                                               Center(
+                                                 child: Container(
+                                                   padding: EdgeInsets.all(20),
+                                                   decoration: BoxDecoration(
+                                                     color: Colors.black.withValues(alpha: 0.8),
+                                                     borderRadius: BorderRadius.circular(10),
+                                                   ),
+                                                   child: Column(
+                                                     mainAxisSize: MainAxisSize.min,
+                                                     children: [
+                                                       CircularProgressIndicator(
+                                                         color: discoverController.currentMode.value == 'bff'
+                                                             ? themeController.bffPrimaryColor
+                                                             : themeController.lightPinkColor,
+                                                       ),
+                                                       SizedBox(height: 10),
+                                                       Text(
+                                                         'Updating location...',
+                                                         style: TextStyle(
+                                                           color: themeController.whiteColor,
+                                                           fontSize: 14,
+                                                         ),
+                                                       ),
+                                                     ],
+                                                   ),
+                                                 ),
+                                               ),
+                                               barrierDismissible: false,
+                                             );
+                                             
+                                             // Update location
+                                             final success = await controller.updateLocation();
+                                             
+                                             // Close loading dialog
+                                             Get.back();
+                                             
+                                             if (success) {
+                                               Get.snackbar(
+                                                 'Location Updated',
+                                                 'Your location has been refreshed successfully!',
+                                                 backgroundColor: Colors.green,
+                                                 colorText: Colors.white,
+                                                 duration: Duration(seconds: 2),
+                                               );
+                                             } else {
+                                               Get.snackbar(
+                                                 'Location Update Failed',
+                                                 'Could not update location. Please check your GPS settings.',
+                                                 backgroundColor: Colors.red,
+                                                 colorText: Colors.white,
+                                                 duration: Duration(seconds: 3),
+                                               );
+                                             }
+                                           },
+                                           child: Icon(
+                                             Icons.my_location,
+                                             color: discoverController.currentMode.value == 'bff'
+                                                 ? themeController.bffPrimaryColor
+                                                 : themeController.lightPinkColor,
+                                             size: 16.sp,
                                            ),
                                          ),
                                          widthBox(8),
@@ -554,9 +623,52 @@ class ProfileScreen extends StatelessWidget {
                                                         onTap: () async {
                                                           try {
                                                             Get.back();
+                                                            
+                                                            // Show loading indicator
+                                                            Get.dialog(
+                                                              Center(
+                                                                child: Container(
+                                                                  padding: EdgeInsets.all(20),
+                                                                  decoration: BoxDecoration(
+                                                                    color: Colors.black.withValues(alpha: 0.8),
+                                                                    borderRadius: BorderRadius.circular(10),
+                                                                  ),
+                                                                  child: Column(
+                                                                    mainAxisSize: MainAxisSize.min,
+                                                                    children: [
+                                                                      CircularProgressIndicator(
+                                                                        color: Colors.red,
+                                                                      ),
+                                                                      SizedBox(height: 10),
+                                                                      Text(
+                                                                        'Signing out...',
+                                                                        style: TextStyle(
+                                                                          color: Colors.white,
+                                                                          fontSize: 14,
+                                                                        ),
+                                                                      ),
+                                                                    ],
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                              barrierDismissible: false,
+                                                            );
+                                                            
                                                             await SupabaseService.signOut();
-                                                          } catch (e) {
+                                                            
+                                                            // Close loading dialog
                                                             Get.back();
+                                                            
+                                                            // Force navigation to welcome screen after logout
+                                                            Get.offAll(() => WelcomeScreen());
+                                                          } catch (e) {
+                                                            print('❌ Error during logout: $e');
+                                                            // Close loading dialog if it's still open
+                                                            if (Get.isDialogOpen == true) {
+                                                              Get.back();
+                                                            }
+                                                            // Even if signOut fails, navigate to welcome screen
+                                                            Get.offAll(() => WelcomeScreen());
                                                           }
                                                         },
                                                         child: Container(

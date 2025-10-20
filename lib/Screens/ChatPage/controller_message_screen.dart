@@ -209,26 +209,61 @@ class MessageController extends GetxController {
             .stream(primaryKey: ['id'])
             .eq('match_id', matchId)
             .order('created_at', ascending: true)
-            .listen((rows) {
+            .listen((rows) async {
               print('DEBUG: Stream received ${rows.length} messages');
               final myId = SupabaseService.currentUser?.id;
+              
+              // Fetch story data for story reply messages in stream
+              final storyReplyMessages = rows.where((r) => (r['is_story_reply'] ?? false) as bool).toList();
+              Map<String, Map<String, dynamic>> storyDataMap = {};
+              
+              if (storyReplyMessages.isNotEmpty) {
+                try {
+                  final storyIds = storyReplyMessages
+                      .map((r) => (r['story_id'] ?? '').toString())
+                      .where((id) => id.isNotEmpty)
+                      .toSet()
+                      .toList();
+                  
+                  if (storyIds.isNotEmpty) {
+                    final stories = await SupabaseService.client
+                        .from('stories')
+                        .select('id,media_url,content,created_at,user_id')
+                        .inFilter('id', storyIds);
+                    
+                    for (final story in stories) {
+                      final storyId = (story['id'] ?? '').toString();
+                      storyDataMap[storyId] = (story as Map).cast<String, dynamic>();
+                    }
+                  }
+                } catch (e) {
+                  print('DEBUG: Error fetching story data in stream: $e');
+                }
+              }
+              
               final loaded = rows.map((r) {
-                final storyData = r['stories'] as Map<String, dynamic>?;
-                final profileData = storyData?['profiles'] as Map<String, dynamic>?;
+                final storyId = (r['story_id'] ?? '').toString();
+                final storyData = storyId.isNotEmpty ? storyDataMap[storyId] : null;
+                
                 final message = Message(
                   text: (r['content'] ?? '').toString(),
                   isUser: (r['sender_id'] ?? '').toString() == (myId ?? ''),
                   timestamp: DateTime.tryParse((r['created_at'] ?? '').toString()) ?? DateTime.now(),
-                  storyId: (r['story_id'] ?? '').toString().isEmpty ? null : (r['story_id'] ?? '').toString(),
+                  storyId: storyId.isEmpty ? null : storyId,
                   isStoryReply: (r['is_story_reply'] ?? false) as bool,
                   storyUserName: (r['story_user_name'] ?? '').toString().isEmpty ? null : (r['story_user_name'] ?? '').toString(),
                   storyImageUrl: storyData?['media_url']?.toString(),
                   storyContent: storyData?['content']?.toString(),
-                  storyAuthorName: profileData?['name']?.toString(),
+                  storyAuthorName: storyData?['user_id']?.toString(),
                   storyCreatedAt: storyData?['created_at'] != null ? DateTime.tryParse(storyData!['created_at'].toString()) : null,
                   isDisappearingPhoto: (r['is_disappearing_photo'] ?? false) as bool,
                   disappearingPhotoId: (r['disappearing_photo_id'] ?? '').toString().isEmpty ? null : (r['disappearing_photo_id'] ?? '').toString(),
                 );
+                
+                // Debug logging for story reply messages
+                if (message.isStoryReply) {
+                  print('DEBUG: Stream - Story reply message - Image: ${message.storyImageUrl}, Content: ${message.storyContent}, Author: ${message.storyAuthorName}');
+                }
                 
                 // Debug logging for regular messages
                 if (!message.isDisappearingPhoto && !message.isStoryReply) {

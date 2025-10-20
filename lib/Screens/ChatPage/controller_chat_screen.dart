@@ -124,11 +124,12 @@ class EnhancedChatController extends GetxController {
 
       print('🔍 DEBUG: Loading dating chats for user: $uid');
       
-      // Load ALL matches first (simplified query)
+      // Load ALL matches first (simplified query) - exclude unmatched
       final allMatches = await SupabaseService.client
           .from('matches')
-          .select('id, user_id_1, user_id_2, created_at')
-          .or('user_id_1.eq.$uid,user_id_2.eq.$uid');
+          .select('id, user_id_1, user_id_2, created_at, status')
+          .or('user_id_1.eq.$uid,user_id_2.eq.$uid')
+          .neq('status', 'unmatched');
 
       print('🔍 DEBUG: Found ${allMatches.length} total matches for user');
 
@@ -215,11 +216,12 @@ class EnhancedChatController extends GetxController {
 
       print('🔍 DEBUG: Loading BFF chats for user: $uid');
       
-      // Get BFF matches only (simplified query)
+      // Get BFF matches only (simplified query) - exclude unmatched
       final bffMatches = await SupabaseService.client
           .from('bff_matches')
-          .select('id, user_id_1, user_id_2, created_at')
-          .or('user_id_1.eq.$uid,user_id_2.eq.$uid');
+          .select('id, user_id_1, user_id_2, created_at, status')
+          .or('user_id_1.eq.$uid,user_id_2.eq.$uid')
+          .neq('status', 'unmatched');
 
       print('🔍 DEBUG: Found ${bffMatches.length} BFF matches for user: $uid');
       

@@ -1,9 +1,7 @@
 import 'package:lovebug/global_data.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'auth_service.dart';
 import '../ProfileFormPage/multi_step_profile_form.dart';
 import '../BottomBarPage/bottombar_screen.dart';
 import '../../services/supabase_service.dart';
@@ -13,8 +11,6 @@ import 'auth_ui_screen.dart';
 import '../WelcomePage/welcome_screen.dart';
 
 class AuthController extends GetxController {
-  TextEditingController phoneController = TextEditingController();
-  TextEditingController otpController = TextEditingController();
   TextEditingController passwordController = TextEditingController();
   TextEditingController confirmPasswordController = TextEditingController();
   TextEditingController emailController = TextEditingController();
@@ -23,15 +19,12 @@ class AuthController extends GetxController {
   String _emailAction = 'auto'; // 'signin' or 'signup'
 
   RxString selectedLanguage = 'English'.obs;
-  RxString selectedCountryCode = '+1'.obs;
   RxBool isLoading = false.obs;
-  RxBool isOTPSent = false.obs;
   RxBool isExistingEmail = false.obs;
   RxBool isSignupMode = false.obs;
   RxBool didProbeEmail = false.obs;
-  RxString currentPhone = ''.obs;
-  RxString currentOTP = ''.obs;
-  RxString authMode = 'phone'.obs; // 'phone' or 'email'
+  RxBool isOTPSent = false.obs;
+  RxString authMode = 'email'.obs; // Always email mode
 
   final Map<String, String> languagesMap = {
     'English': 'en',
@@ -46,91 +39,8 @@ class AuthController extends GetxController {
     super.onInit();
   }
 
-  Future<void> sendOTP() async {
-    if (phoneController.text.isEmpty) {
-      Get.snackbar('Error', 'Please enter phone number');
-      return;
-    }
 
-    try {
-      isLoading.value = true;
-      await SupabaseService.sendPhoneOtp(phoneController.text);
-      currentPhone.value = phoneController.text;
-      isOTPSent.value = true;
-      _startResendTimer();
-      Get.snackbar('Success', 'OTP sent to ${phoneController.text}');
-    } catch (e) {
-      Get.snackbar('Error', 'Failed to send OTP');
-    } finally {
-      isLoading.value = false;
-    }
-  }
 
-  Future<void> verifyOTP() async {
-    if (otpController.text.isEmpty) {
-      Get.snackbar('Error', 'Please enter OTP');
-      return;
-    }
-
-    try {
-      isLoading.value = true;
-      
-      final res = await SupabaseService.verifyPhoneOtp(
-        phone: currentPhone.value,
-        token: otpController.text,
-      );
-      if (res.user != null) {
-        Get.snackbar('Success', 'Verified!');
-        // Track login for UAC
-        await AnalyticsService.trackLoginEnhanced('phone_otp');
-        await _checkUserProfileAndNavigate();
-      } else {
-        Get.snackbar('Error', 'Invalid code.');
-      }
-    } catch (e) {
-      Get.snackbar('Error', 'Failed to verify OTP');
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  Future<void> _createDemoUser() async {
-    try {
-      // Create a demo user with phone number as email
-      final email = '${currentPhone.value}@demo.com';
-      final password = 'demo123456';
-      
-      // Sign up the user
-      final response = await SupabaseService.client.auth.signUp(
-        email: email,
-        password: password,
-      );
-      
-      if (response.user != null) {
-        print('Demo user created: ${response.user!.id}');
-        // Update the user metadata with phone number
-        await SupabaseService.client.auth.updateUser(
-          UserAttributes(
-            data: {'phone': currentPhone.value}
-          )
-        );
-      }
-    } catch (e) {
-      print('Error creating demo user: $e');
-      // If user already exists, try to sign in
-      try {
-        final email = '${currentPhone.value}@demo.com';
-        final password = 'demo123456';
-        await SupabaseService.client.auth.signInWithPassword(
-          email: email,
-          password: password,
-        );
-        print('Demo user signed in: ${SupabaseService.currentUser?.id}');
-      } catch (signInError) {
-        print('Error signing in demo user: $signInError');
-      }
-    }
-  }
 
   Future<void> signUpWithEmail() async {
     if (emailController.text.isEmpty || passwordController.text.isEmpty || confirmPasswordController.text.isEmpty) {
@@ -183,33 +93,6 @@ class AuthController extends GetxController {
     }
   }
 
-  Future<void> signUp() async {
-    if (phoneController.text.isEmpty || passwordController.text.isEmpty) {
-      Get.snackbar('Error', 'Please fill all fields');
-      return;
-    }
-
-    try {
-      isLoading.value = true;
-      final response = await AuthService.signUpWithPhone(
-        phone: phoneController.text,
-        password: passwordController.text,
-      );
-
-      if (response?.user != null) {
-        Get.snackbar('Success', 'Account created successfully!');
-        // Track sign up for UAC
-        await AnalyticsService.trackSignUp('phone');
-        Get.to(() => MultiStepProfileForm());
-      } else {
-        Get.snackbar('Error', 'Failed to create account');
-      }
-    } catch (e) {
-      Get.snackbar('Error', 'Failed to create account');
-    } finally {
-      isLoading.value = false;
-    }
-  }
 
   Future<void> signInWithEmail() async {
     if (emailController.text.isEmpty) {
@@ -278,7 +161,7 @@ class AuthController extends GetxController {
       isExistingEmail.value = true;
       isSignupMode.value = false;
       didProbeEmail.value = true;
-      Get.to(() => AuthScreen(startMode: 'email', prefillEmail: email, isPasswordMode: true));
+      Get.to(() => AuthScreen(prefillEmail: email, isPasswordMode: true));
     } on AuthApiException catch (e) {
       final code = (e.code ?? '').toLowerCase();
       final msg = (e.message).toLowerCase();
@@ -287,27 +170,27 @@ class AuthController extends GetxController {
         isExistingEmail.value = false;
         isSignupMode.value = true;
         didProbeEmail.value = true;
-        Get.to(() => AuthScreen(startMode: 'email', prefillEmail: email, isSignupMode: true));
+        Get.to(() => AuthScreen(prefillEmail: email, isSignupMode: true));
       } else if (code.contains('over_email_send_rate_limit') || msg.contains('rate limit')) {
         // Rate limited while sending OTP → email exists. Route to sign in and show message.
         isExistingEmail.value = true;
         isSignupMode.value = false;
         didProbeEmail.value = true;
-        Get.to(() => AuthScreen(startMode: 'email', prefillEmail: email, isPasswordMode: true));
+        Get.to(() => AuthScreen(prefillEmail: email, isPasswordMode: true));
         Get.snackbar('Please wait', 'Too many attempts. Try again shortly.');
       } else {
         // Any other error: conservatively treat as non-existing
         isExistingEmail.value = false;
         isSignupMode.value = true;
         didProbeEmail.value = true;
-        Get.to(() => AuthScreen(startMode: 'email', prefillEmail: email, isSignupMode: true));
+        Get.to(() => AuthScreen(prefillEmail: email, isSignupMode: true));
       }
     } catch (e) {
       // Network/unknown → default to signup to avoid blocking
       isExistingEmail.value = false;
       isSignupMode.value = true;
       didProbeEmail.value = true;
-      Get.to(() => AuthScreen(startMode: 'email', prefillEmail: email, isSignupMode: true));
+      Get.to(() => AuthScreen(prefillEmail: email, isSignupMode: true));
     }
   }
 
@@ -382,31 +265,6 @@ class AuthController extends GetxController {
     });
   }
 
-  Future<void> signIn() async {
-    if (phoneController.text.isEmpty || passwordController.text.isEmpty) {
-      Get.snackbar('Error', 'Please fill all fields');
-      return;
-    }
-
-    try {
-      isLoading.value = true;
-      final response = await AuthService.signInWithPhone(
-        phone: phoneController.text,
-        password: passwordController.text,
-      );
-
-      if (response?.user != null) {
-        Get.snackbar('Success', 'Signed in successfully!');
-        Get.offAll(() => BottombarScreen());
-      } else {
-        Get.snackbar('Error', 'Failed to sign in');
-      }
-    } catch (e) {
-      Get.snackbar('Error', 'Failed to sign in');
-    } finally {
-      isLoading.value = false;
-    }
-  }
 
   Future<void> continueWithGoogle() async {
     try {
@@ -573,14 +431,28 @@ class AuthController extends GetxController {
           Get.offAll(() => MultiStepProfileForm());
         }
       } else {
-        print('No current user found, navigating to profile creation');
-        // No user - go to profile creation
-        Get.offAll(() => MultiStepProfileForm());
+        print('No current user found, staying on auth screen');
+        // No user - stay on auth screen, don't navigate to profile creation
+        // This prevents the "complete your profile" issue when auth was cancelled
+        Get.snackbar(
+          'Sign-in Required',
+          'Please complete sign-in to continue',
+          backgroundColor: Colors.orange,
+          colorText: Colors.white,
+          duration: Duration(seconds: 3),
+        );
+        return;
       }
     } catch (e) {
       print('Error in _checkUserProfileAndNavigate: $e');
-      // On error, go to profile creation to be safe
-      Get.offAll(() => MultiStepProfileForm());
+      // On error, stay on auth screen instead of going to profile creation
+      Get.snackbar(
+        'Authentication Error',
+        'Please try signing in again',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        duration: Duration(seconds: 3),
+      );
     }
   }
 }

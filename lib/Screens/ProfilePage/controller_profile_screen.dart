@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../services/supabase_service.dart';
+import '../../services/location_service.dart';
 
 class ProfileController extends GetxController {
   TextEditingController nameController = TextEditingController();
@@ -364,5 +365,45 @@ class ProfileController extends GetxController {
 
   showDistance() {
     isShowDistance.value = !isShowDistance.value;
+  }
+
+  /// Update user location and refresh profile
+  Future<bool> updateLocation() async {
+    try {
+      print('📍 ProfileController: Updating location...');
+      
+      // First request permission explicitly
+      print('📍 ProfileController: Requesting location permission...');
+      final hasPermission = await LocationService.hasLocationPermission();
+      if (!hasPermission) {
+        print('📍 ProfileController: No permission, requesting...');
+        final granted = await LocationService.requestLocationPermission();
+        if (!granted) {
+          print('❌ ProfileController: Location permission denied');
+          return false;
+        }
+      }
+      
+      // Force location update
+      final success = await LocationService.forceLocationUpdate();
+      
+      if (success) {
+        // Get the updated location
+        final location = await LocationService.getCachedLocation();
+        if (location != null) {
+          print('📍 ProfileController: Location updated - Lat: ${location['latitude']}, Lon: ${location['longitude']}');
+          
+          // Update the profile data with new location
+          await loadUserProfile();
+          
+          return true;
+        }
+      }
+      
+      return false;
+    } catch (e) {
+      print('❌ ProfileController: Error updating location: $e');
+      return false;
+    }
   }
 }

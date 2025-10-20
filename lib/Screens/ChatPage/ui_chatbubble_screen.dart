@@ -32,71 +32,90 @@ class EnhancedChatBubble extends StatelessWidget {
     
     return Container(
       margin: EdgeInsets.symmetric(vertical: 4.h, horizontal: 16.w),
-      child: Row(
-        mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          if (!isMe) ...[
-            _buildProfilePicture(
-              imageUrl: otherUserImage,
-              isBffMatch: isBffMatch,
-              themeController: themeController,
-            ),
-            SizedBox(width: 8.w),
-          ],
-          Flexible(
-            child: Container(
-              constraints: BoxConstraints(
-                maxWidth: Get.width * 0.75, // Limit max width to 75% of screen
-                minWidth: 0, // Allow shrinking
-              ),
-              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.1), // Add subtle background
-                gradient: isMe 
-                    ? (isBffMatch 
-                        ? LinearGradient(
-                            colors: [
-                              themeController.bffPrimaryColor.withValues(alpha: 0.7),
-                              themeController.bffSecondaryColor.withValues(alpha: 0.5),
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          )
+          Row(
+            mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+            children: [
+              if (!isMe) ...[
+                _buildProfilePicture(
+                  imageUrl: otherUserImage,
+                  isBffMatch: isBffMatch,
+                  themeController: themeController,
+                ),
+                SizedBox(width: 8.w),
+              ],
+              Flexible(
+                child: Container(
+                  constraints: BoxConstraints(
+                    maxWidth: Get.width * 0.75, // Limit max width to 75% of screen
+                    minWidth: 0, // Allow shrinking
+                  ),
+                  padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.1), // Add subtle background
+                    gradient: isMe 
+                        ? (isBffMatch 
+                            ? LinearGradient(
+                                colors: [
+                                  themeController.bffPrimaryColor.withValues(alpha: 0.7),
+                                  themeController.bffSecondaryColor.withValues(alpha: 0.5),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              )
+                            : LinearGradient(
+                                colors: [
+                                  themeController.getAccentColor().withValues(alpha: 0.7),
+                                  themeController.getSecondaryColor().withValues(alpha: 0.5),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ))
                         : LinearGradient(
                             colors: [
-                              themeController.getAccentColor().withValues(alpha: 0.7),
-                              themeController.getSecondaryColor().withValues(alpha: 0.5),
+                              themeController.greyColor.withValues(alpha: 0.5),
+                              themeController.greyColor.withValues(alpha: 0.3),
                             ],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
-                          ))
-                    : LinearGradient(
-                        colors: [
-                          themeController.greyColor.withValues(alpha: 0.5),
-                          themeController.greyColor.withValues(alpha: 0.3),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                borderRadius: BorderRadius.circular(20.r),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.1),
-                  width: 1,
+                          ),
+                    borderRadius: BorderRadius.circular(20.r),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.1),
+                      width: 1,
+                    ),
+                  ),
+                  child: IntrinsicWidth(
+                    child: _buildMessageContent(themeController, isMe),
+                  ),
                 ),
               ),
-              child: IntrinsicWidth(
-                child: _buildMessageContent(themeController, isMe),
-              ),
+              if (isMe) ...[
+                SizedBox(width: 8.w),
+                _buildProfilePicture(
+                  imageUrl: userImage,
+                  isBffMatch: isBffMatch,
+                  themeController: themeController,
+                ),
+              ],
+            ],
+          ),
+          // Timestamp outside the bubble
+          SizedBox(height: 4.h),
+          Padding(
+            padding: EdgeInsets.only(
+              left: isMe ? 0 : 8.w,
+              right: isMe ? 8.w : 0,
+            ),
+            child: TextConstant(
+              title: _formatTimestamp(message.timestamp),
+              color: themeController.whiteColor.withValues(alpha: 0.6),
+              fontSize: 12,
+              fontWeight: FontWeight.w400,
             ),
           ),
-          if (isMe) ...[
-            SizedBox(width: 8.w),
-            _buildProfilePicture(
-              imageUrl: userImage,
-              isBffMatch: isBffMatch,
-              themeController: themeController,
-            ),
-          ],
         ],
       ),
     );
@@ -155,24 +174,32 @@ class EnhancedChatBubble extends StatelessWidget {
       return _buildDisappearingPhotoContent(themeController, isMe);
     }
     
+    // Check if it's a story reply
+    if (message.isStoryReply == true) {
+      return _buildStoryReplyContent(themeController, isMe);
+    }
+    
     // Check if it's a regular photo
     if (message.text.toString().startsWith('📸 Photo: ')) {
       return _buildRegularPhotoContent(themeController);
     }
     
-    // Regular text message
-    return Container(
-      width: double.infinity,
-      child: TextConstant(
-        title: message.text ?? '',
-        color: themeController.whiteColor,
-        fontSize: 16,
-        fontWeight: FontWeight.w400,
-        maxLines: null,
-        overflow: TextOverflow.visible,
-        softWrap: true,
-        textAlign: TextAlign.start,
-      ),
+    // Regular text message with timestamp
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextConstant(
+          title: message.text ?? '',
+          color: themeController.whiteColor,
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+          maxLines: null,
+          overflow: TextOverflow.visible,
+          softWrap: true,
+          textAlign: TextAlign.start,
+        ),
+      ],
     );
   }
 
@@ -181,21 +208,28 @@ class EnhancedChatBubble extends StatelessWidget {
     
     // If it's the sender, show a placeholder message
     if (isMe) {
-      return Row(
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.visibility_off,
-            color: themeController.whiteColor.withValues(alpha: 0.7),
-            size: 16.sp,
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.visibility_off,
+                color: themeController.whiteColor.withValues(alpha: 0.7),
+                size: 16.sp,
+              ),
+              SizedBox(width: 8.w),
+              TextConstant(
+                title: 'Disappearing photo sent',
+                color: themeController.whiteColor.withValues(alpha: 0.7),
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+              ),
+            ],
           ),
-          SizedBox(width: 8.w),
-          TextConstant(
-            title: 'Disappearing photo sent',
-            color: themeController.whiteColor.withValues(alpha: 0.7),
-            fontSize: 14,
-            fontWeight: FontWeight.w400,
-          ),
+          SizedBox(height: 4.h),
         ],
       );
     }
@@ -266,41 +300,22 @@ class EnhancedChatBubble extends StatelessWidget {
           fontWeight: FontWeight.w500,
         ),
         SizedBox(height: 8.h),
-        Container(
-          constraints: BoxConstraints(
-            maxWidth: 200.w,
-            maxHeight: 200.h,
-          ),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8.r),
-            border: Border.all(
-              color: isBffMatch ? themeController.bffPrimaryColor : themeController.getAccentColor().withValues(alpha: 0.3),
-              width: 1.w,
-            ),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(8.r),
-            child: Stack(
-              children: [
+        // Remove container constraints and decoration to show full image
+        Stack(
+          children: [
                 // Show instant preview if available, otherwise network image
                 if (photoBytes != null && isUploading)
                   Image.memory(
                     photoBytes,
-                    fit: BoxFit.cover,
-                    width: 200.w,
-                    height: 200.h,
+                    fit: BoxFit.contain, // Show full image without cropping
                   )
                 else if (photoUrl.isNotEmpty && photoUrl.startsWith('http'))
                   Image.network(
                     photoUrl,
-                    fit: BoxFit.cover,
-                    width: 200.w,
-                    height: 200.h,
+                    fit: BoxFit.contain, // Show full image without cropping
                     loadingBuilder: (context, child, loadingProgress) {
                       if (loadingProgress == null) return child;
                       return Container(
-                        width: 200.w,
-                        height: 200.h,
                         color: themeController.greyColor.withValues(alpha: 0.3),
                         child: Center(
                           child: CircularProgressIndicator(
@@ -311,8 +326,6 @@ class EnhancedChatBubble extends StatelessWidget {
                     },
                     errorBuilder: (context, error, stackTrace) {
                       return Container(
-                        width: 200.w,
-                        height: 200.h,
                         color: themeController.greyColor.withValues(alpha: 0.3),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -335,8 +348,6 @@ class EnhancedChatBubble extends StatelessWidget {
                   )
                 else
                   Container(
-                    width: 200.w,
-                    height: 200.h,
                     color: themeController.greyColor.withValues(alpha: 0.3),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -358,8 +369,6 @@ class EnhancedChatBubble extends StatelessWidget {
                 // Show loading overlay if uploading
                 if (isUploading)
                   Container(
-                    width: 200.w,
-                    height: 200.h,
                     color: Colors.black.withValues(alpha: 0.3),
                     child: Center(
                       child: Column(
@@ -380,12 +389,147 @@ class EnhancedChatBubble extends StatelessWidget {
                       ),
                     ),
                   ),
-              ],
-            ),
-          ),
+          ],
         ),
       ],
     );
+  }
+
+  Widget _buildStoryReplyContent(ThemeController themeController, bool isMe) {
+    // Debug logging for story reply data
+    print('🔄 DEBUG: Story reply data - ImageUrl: ${message.storyImageUrl}, Content: ${message.storyContent}, Author: ${message.storyAuthorName}');
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Story reply header - Smaller
+        Container(
+          padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 3.h),
+          decoration: BoxDecoration(
+            color: themeController.whiteColor.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(6.r),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.reply,
+                color: themeController.whiteColor.withValues(alpha: 0.8),
+                size: 12.sp,
+              ),
+              SizedBox(width: 3.w),
+              TextConstant(
+                title: isMe ? "You replied to their story" : "Replied to your story",
+                color: themeController.whiteColor.withValues(alpha: 0.8),
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: 6.h),
+        // Story preview - Show full image without constraints
+        if (message.storyImageUrl != null && message.storyImageUrl!.isNotEmpty)
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6.r),
+              border: Border.all(
+                color: themeController.whiteColor.withValues(alpha: 0.3),
+                width: 1,
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(6.r),
+              child: Image.network(
+                message.storyImageUrl!,
+                fit: BoxFit.cover, // Use cover to fill naturally
+                errorBuilder: (context, error, stackTrace) {
+                  print('❌ DEBUG: Story image error: $error');
+                  return Container(
+                    height: 120.h,
+                    color: themeController.greyColor.withValues(alpha: 0.3),
+                    child: Icon(
+                      Icons.image,
+                      color: themeController.whiteColor.withValues(alpha: 0.7),
+                      size: 20.sp,
+                    ),
+                  );
+                },
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) {
+                    print('✅ DEBUG: Story image loaded successfully');
+                    return child;
+                  }
+                  print('🔄 DEBUG: Loading story image...');
+                  return Container(
+                    height: 120.h,
+                    color: themeController.greyColor.withValues(alpha: 0.3),
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        color: themeController.whiteColor,
+                        strokeWidth: 2.0,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        SizedBox(height: 6.h),
+        // Story content preview - Smaller
+        if (message.storyContent != null && message.storyContent!.isNotEmpty)
+          Container(
+            padding: EdgeInsets.all(6.w),
+            decoration: BoxDecoration(
+              color: themeController.whiteColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(6.r),
+            ),
+            child: TextConstant(
+              title: message.storyContent!,
+              color: themeController.whiteColor.withValues(alpha: 0.8),
+              fontSize: 10,
+              fontWeight: FontWeight.w400,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        SizedBox(height: 6.h),
+        // Reply message
+        TextConstant(
+          title: message.text ?? '',
+          color: themeController.whiteColor,
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+          maxLines: null,
+          overflow: TextOverflow.visible,
+          softWrap: true,
+          textAlign: TextAlign.start,
+        ),
+        // Note: Timestamp moved outside the bubble in the main build method
+      ],
+    );
+  }
+
+  String _formatTimestamp(DateTime timestamp) {
+    // Format as absolute time with AM/PM: HH:MM AM/PM or DD/MM HH:MM AM/PM
+    final now = DateTime.now();
+    final isToday = timestamp.year == now.year && 
+                    timestamp.month == now.month && 
+                    timestamp.day == now.day;
+    
+    // Convert to 12-hour format with AM/PM
+    final hour12 = timestamp.hour == 0 ? 12 : (timestamp.hour > 12 ? timestamp.hour - 12 : timestamp.hour);
+    final amPm = timestamp.hour < 12 ? 'AM' : 'PM';
+    final timeString = '${hour12.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')} $amPm';
+    
+    if (isToday) {
+      // Show time only for today: 2:30 PM
+      return timeString;
+    } else {
+      // Show date and time for other days: 19/10 2:30 PM
+      return '${timestamp.day.toString().padLeft(2, '0')}/${timestamp.month.toString().padLeft(2, '0')} $timeString';
+    }
   }
 
   Future<void> _viewDisappearingPhoto(String photoId) async {
