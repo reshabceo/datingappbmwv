@@ -182,7 +182,7 @@ class StoriesScreen extends StatelessWidget {
                             ),
                           ),
                           
-                          // Floating Add Story Button
+                          // Floating Add Story Button (no text label)
                           Positioned(
                             bottom: 20.h,
                             left: 0,
@@ -190,38 +190,43 @@ class StoriesScreen extends StatelessWidget {
                             child: Center(
                               child: GestureDetector(
                                 onTap: _addStory,
-                                child: Container(
-                                  width: 56.w,
-                                  height: 56.w,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                      colors: [
-                                        themeController.lightPinkColor,
-                                        themeController.lightPinkColor.withValues(alpha: 0.9),
-                                        Colors.purple.withValues(alpha: 0.9),
-                                      ],
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 64.w,
+                                      height: 64.w,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                          colors: [
+                                            themeController.lightPinkColor,
+                                            themeController.lightPinkColor.withValues(alpha: 0.9),
+                                            Colors.purple.withValues(alpha: 0.9),
+                                          ],
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: themeController.lightPinkColor.withValues(alpha: 0.4),
+                                            blurRadius: 20,
+                                            offset: Offset(0, 8),
+                                          ),
+                                          BoxShadow(
+                                            color: Colors.black.withValues(alpha: 0.2),
+                                            blurRadius: 10,
+                                            offset: Offset(0, 4),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Icon(
+                                        Icons.add,
+                                        color: Colors.white,
+                                        size: 28,
+                                      ),
                                     ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: themeController.lightPinkColor.withValues(alpha: 0.4),
-                                        blurRadius: 16,
-                                        offset: Offset(0, 6),
-                                      ),
-                                      BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.2),
-                                        blurRadius: 8,
-                                        offset: Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Icon(
-                                    Icons.add,
-                                    color: Colors.white,
-                                    size: 24,
-                                  ),
+                                  ],
                                 ),
                               ),
                             ),

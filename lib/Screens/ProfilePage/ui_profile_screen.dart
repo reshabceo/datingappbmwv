@@ -3,6 +3,7 @@ import 'package:lovebug/Common/widget_constant.dart';
 import 'package:lovebug/Screens/ProfilePage/controller_profile_screen.dart';
 import 'package:lovebug/Screens/DiscoverPage/controller_discover_screen.dart';
 import 'package:lovebug/ThemeController/theme_controller.dart';
+import 'package:lovebug/widgets/premium_indicator.dart';
 import 'package:lovebug/services/supabase_service.dart';
 import 'package:flutter/material.dart';
 import 'dart:ui';
@@ -10,6 +11,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:gradient_borders/box_borders/gradient_box_border.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:reorderable_grid_view/reorderable_grid_view.dart';
 import '../Setting/Screens/account_screen.dart';
 import '../VerificationPage/verification_screen.dart';
 import '../../Widgets/optimized_toggle_button.dart';
@@ -117,7 +119,7 @@ class ProfileScreen extends StatelessWidget {
                                    crossAxisAlignment: CrossAxisAlignment.start,
                                    mainAxisSize: MainAxisSize.min,
                                    children: [
-                                     Row(
+                                    Row(
                                        children: [
                                          Flexible(
                                            child: TextConstant(
@@ -135,6 +137,25 @@ class ProfileScreen extends StatelessWidget {
                                                ? themeController.bffPrimaryColor
                                                : themeController.lightPinkColor,
                                          ),
+                                        widthBox(8),
+                                        Obx(() => controller.isPremium.value
+                                            ? PremiumBadge(size: 12.sp, showText: true)
+                                            : Container(
+                                                padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                                                decoration: BoxDecoration(
+                                                  borderRadius: BorderRadius.circular(12.r),
+                                                  border: Border.all(color: themeController.whiteColor.withValues(alpha: 0.3)),
+                                                  color: themeController.whiteColor.withValues(alpha: 0.08),
+                                                ),
+                                                child: Text(
+                                                  'Free',
+                                                  style: TextStyle(
+                                                    color: themeController.whiteColor.withValues(alpha: 0.8),
+                                                    fontSize: 10.sp,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              )),
                                        ],
                                      ),
                                      Row(
@@ -968,77 +989,105 @@ class ProfileScreen extends StatelessWidget {
           color: themeController.whiteColor,
         ),
         Padding(
-          padding: EdgeInsets.only(top: 15.h),
-          child: GridView.builder(
+          padding: EdgeInsets.only(top: 0),
+          child: ReorderableGridView.count(
+            crossAxisCount: 2,
+            childAspectRatio: 1.0,
+            crossAxisSpacing: 8.w,
+            mainAxisSpacing: 8.h,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            padding: EdgeInsets.zero,
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              childAspectRatio: 1.0,
-              crossAxisSpacing: 8.w,
-              mainAxisSpacing: 8.h,
-            ),
-            itemCount: controller.myPhotos.length + 1,
-            itemBuilder: (context, index) {
-              if (index == controller.myPhotos.length) {
-                return GestureDetector(
-                  onTap: () {
-                    controller.pickImageFromCamera(ImageSource.gallery);
-                  },
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: discoverController.currentMode.value == 'bff'
-                            ? [
-                                themeController.bffPrimaryColor.withValues(alpha: 0.1),
-                                themeController.bffSecondaryColor.withValues(alpha: 0.05),
-                              ]
-                            : [
-                                themeController.lightPinkColor.withValues(alpha: 0.1),
-                                themeController.purpleColor.withValues(alpha: 0.05),
-                              ],
-                      ),
-                      border: Border.all(
-                        color: discoverController.currentMode.value == 'bff'
-                            ? themeController.bffPrimaryColor.withValues(alpha: 0.3)
-                            : themeController.lightPinkColor.withValues(alpha: 0.3),
-                        width: 1.w,
-                      ),
-                      borderRadius: BorderRadius.circular(12.r),
+            semanticChildCount: controller.myPhotos.length,
+            dragEnabled: true,
+            onReorder: (oldIndex, newIndex) async {
+              final moved = controller.myPhotos.removeAt(oldIndex);
+              controller.myPhotos.insert(newIndex, moved);
+              controller.myPhotos.refresh();
+              // Persist new order immediately so it survives hot reloads
+              await controller.updateProfile();
+            },
+            footer: [
+              GestureDetector(
+                onTap: () {
+                  controller.pickImageFromCamera(ImageSource.gallery);
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: discoverController.currentMode.value == 'bff'
+                          ? [
+                              themeController.bffPrimaryColor.withValues(alpha: 0.1),
+                              themeController.bffSecondaryColor.withValues(alpha: 0.05),
+                            ]
+                          : [
+                              themeController.lightPinkColor.withValues(alpha: 0.1),
+                              themeController.purpleColor.withValues(alpha: 0.05),
+                            ],
                     ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.add,
-                          color: discoverController.currentMode.value == 'bff'
-                              ? themeController.bffPrimaryColor
-                              : themeController.lightPinkColor,
-                          size: 30.sp,
-                        ),
-                        heightBox(4),
-                        TextConstant(
-                          title: 'Add Photo',
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: themeController.whiteColor,
-                        ),
-                      ],
+                    border: Border.all(
+                      color: discoverController.currentMode.value == 'bff'
+                          ? themeController.bffPrimaryColor.withValues(alpha: 0.3)
+                          : themeController.lightPinkColor.withValues(alpha: 0.3),
+                      width: 1.w,
                     ),
+                    borderRadius: BorderRadius.circular(12.r),
                   ),
-                );
-              }
-              return Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12.r),
-                  image: DecorationImage(
-                    image: NetworkImage(controller.myPhotos[index]),
-                    fit: BoxFit.cover,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.add,
+                        color: discoverController.currentMode.value == 'bff'
+                            ? themeController.bffPrimaryColor
+                            : themeController.lightPinkColor,
+                        size: 30.sp,
+                      ),
+                      heightBox(4),
+                      TextConstant(
+                        title: 'Add Photo',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: themeController.whiteColor,
+                      ),
+                    ],
                   ),
                 ),
+              ),
+            ],
+            children: controller.myPhotos
+                .asMap()
+                .entries
+                .map((entry) {
+              final index = entry.key;
+              final photo = entry.value;
+              return Stack(
+                key: ValueKey(index),
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12.r),
+                    child: Image.network(photo, fit: BoxFit.cover, width: double.infinity, height: double.infinity),
+                  ),
+                  Positioned(
+                    top: 6.w,
+                    right: 6.w,
+                    child: GestureDetector(
+                      onTap: () {
+                        controller.myPhotos.removeAt(index);
+                        controller.myPhotos.refresh();
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.45),
+                          shape: BoxShape.circle,
+                        ),
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(Icons.close, color: Colors.white, size: 16.sp),
+                      ),
+                    ),
+                  ),
+                ],
               );
-            },
+            }).toList(),
           ),
         ),
         heightBox(16),
@@ -1108,46 +1157,105 @@ class ProfileScreen extends StatelessWidget {
           color: themeController.whiteColor,
         ),
         heightBox(8),
-        Wrap(
-          spacing: 8.w,
-          runSpacing: 8.h,
-          children: (controller.myInterestList.isNotEmpty
-                  ? controller.myInterestList
-                  : ['Sports', 'Travel', 'Food', 'Music', 'Movies'])
-              .map((interest) => Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+        Obx(() {
+          if (controller.isEditMode.value) {
+            final Set<String> allInterests = {
+              ...controller.popularInterestList,
+              'Music', 'Travel', 'Sports', 'Movies', 'Art', 'Food', 'Reading', 'Gaming',
+              'Cooking', 'Yoga', 'Hiking', 'Photography', 'Coffee', 'Fitness', 'Technology',
+              ...controller.myInterestList,
+            };
+            return Wrap(
+              spacing: 8.w,
+              runSpacing: 8.h,
+              children: allInterests.map((interest) {
+                final bool selected = controller.myInterestList.contains(interest);
+                return GestureDetector(
+                  onTap: () {
+                    if (selected) {
+                      controller.myInterestList.remove(interest);
+                    } else {
+                      if (controller.myInterestList.length >= 10) {
+                        Get.snackbar('Limit', 'You can select up to 10 interests');
+                        return;
+                      }
+                      controller.myInterestList.add(interest);
+                    }
+                    controller.myInterestList.refresh();
+                  },
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: discoverController.currentMode.value == 'bff'
-                            ? [
-                                themeController.bffPrimaryColor.withValues(alpha: 0.1),
-                                themeController.bffSecondaryColor.withValues(alpha: 0.05),
-                              ]
-                            : [
-                                themeController.lightPinkColor.withValues(alpha: 0.1),
-                                themeController.purpleColor.withValues(alpha: 0.05),
-                              ],
-                      ),
-                      border: Border.all(
-                        color: discoverController.currentMode.value == 'bff'
-                            ? themeController.bffPrimaryColor.withValues(alpha: 0.3)
-                            : themeController.lightPinkColor.withValues(alpha: 0.3),
-                        width: 1.w,
+                        colors: selected
+                            ? (discoverController.currentMode.value == 'bff'
+                                ? [themeController.bffPrimaryColor, themeController.bffSecondaryColor]
+                                : [themeController.lightPinkColor, themeController.purpleColor])
+                            : [Colors.white.withOpacity(0.08), Colors.white.withOpacity(0.04)],
                       ),
                       borderRadius: BorderRadius.circular(20.r),
+                      border: Border.all(
+                        color: selected
+                            ? (discoverController.currentMode.value == 'bff'
+                                ? themeController.bffPrimaryColor
+                                : themeController.lightPinkColor)
+                            : Colors.white.withOpacity(0.2),
+                      ),
                     ),
                     child: TextConstant(
                       title: interest,
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
-                      color: themeController.whiteColor,
+                      color: Colors.white,
                     ),
-                  ))
-              .toList(),
-        ),
+                  ),
+                );
+              }).toList(),
+            );
+          }
+          // View mode: show selected interests only
+          return Wrap(
+            spacing: 8.w,
+            runSpacing: 8.h,
+            children: (controller.myInterestList.isNotEmpty
+                    ? controller.myInterestList
+                    : ['Sports', 'Travel', 'Food', 'Music', 'Movies'])
+                .map((interest) => Container(
+                      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: discoverController.currentMode.value == 'bff'
+                              ? [
+                                  themeController.bffPrimaryColor.withValues(alpha: 0.1),
+                                  themeController.bffSecondaryColor.withValues(alpha: 0.05),
+                                ]
+                              : [
+                                  themeController.lightPinkColor.withValues(alpha: 0.1),
+                                  themeController.purpleColor.withValues(alpha: 0.05),
+                                ],
+                        ),
+                        border: Border.all(
+                          color: discoverController.currentMode.value == 'bff'
+                              ? themeController.bffPrimaryColor.withValues(alpha: 0.3)
+                              : themeController.lightPinkColor.withValues(alpha: 0.3),
+                          width: 1.w,
+                        ),
+                        borderRadius: BorderRadius.circular(20.r),
+                      ),
+                      child: TextConstant(
+                        title: interest,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: themeController.whiteColor,
+                      ),
+                    ))
+                .toList(),
+          );
+        }),
       ],
     );
   }
+
 
   // Build Compact Verification Badge (for user info section)
   Widget _buildCompactVerificationBadge(ProfileController controller, ThemeController themeController) {

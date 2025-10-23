@@ -8,8 +8,8 @@ import 'package:lovebug/Common/widget_constant.dart';
 import 'package:lovebug/Common/text_constant.dart';
 import 'package:lovebug/ThemeController/theme_controller.dart';
 import 'package:lovebug/Screens/DiscoverPage/profile_detail_screen.dart';
-import 'package:lovebug/Screens/ChatPage/chat_integration_helper.dart';
 import 'controller_discover_screen.dart';
+import 'package:lovebug/Screens/ChatPage/chat_integration_helper.dart';
 
 class EnhancedDiscoverController extends GetxController {
   final ThemeController themeController = Get.find<ThemeController>();
@@ -455,35 +455,3 @@ class EnhancedDiscoverController extends GetxController {
   }
 }
 
-// Profile class extension to include gender
-class Profile {
-  final String id;
-  final String name;
-  final int age;
-  final String imageUrl;
-  final List<String> photos;
-  final String location;
-  final String distance;
-  final String description;
-  final List<String> hobbies;
-  final bool isVerified;
-  final bool isActiveNow;
-  final String? gender;
-  final bool isSuperLiked;
-
-  Profile({
-    required this.id,
-    required this.name,
-    required this.age,
-    required this.imageUrl,
-    required this.photos,
-    required this.location,
-    required this.distance,
-    required this.description,
-    required this.hobbies,
-    required this.isVerified,
-    required this.isActiveNow,
-    this.gender,
-    this.isSuperLiked = false,
-  });
-}

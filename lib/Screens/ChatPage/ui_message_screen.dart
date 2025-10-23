@@ -13,6 +13,9 @@ import 'package:lovebug/ThemeController/theme_controller.dart';
 import 'package:lovebug/Screens/ChatPage/enhanced_photo_upload_service.dart';
 import 'package:lovebug/Screens/ChatPage/ui_simple_camera_screen.dart';
 import 'package:lovebug/services/supabase_service.dart';
+import 'package:lovebug/controllers/call_controller.dart';
+import 'package:lovebug/models/call_models.dart';
+import 'package:lovebug/widgets/premium_indicator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/material.dart';
@@ -546,11 +549,22 @@ class _MessageScreenState extends State<MessageScreen> {
             title: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextConstant(
-                  title: widget.userName ?? '',
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                  color: themeController.whiteColor,
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextConstant(
+                      title: widget.userName ?? '',
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      color: themeController.whiteColor,
+                    ),
+                    SizedBox(width: 8.w),
+                    // Premium indicator for current user
+                    PremiumBadge(
+                      size: 10.sp,
+                      showText: false,
+                    ),
+                  ],
                 ),
                 TextConstant(
                   title: 'online'.tr,
@@ -945,6 +959,25 @@ class _MessageScreenState extends State<MessageScreen> {
                         onTap: () {
                           Get.back();
                           _viewProfile();
+                        },
+                      ),
+                      
+                      // Call Options
+                      _buildMenuOption(
+                        icon: Icons.videocam,
+                        title: 'Video Call',
+                        onTap: () {
+                          Get.back();
+                          _startVideoCall();
+                        },
+                      ),
+                      
+                      _buildMenuOption(
+                        icon: Icons.call,
+                        title: 'Audio Call',
+                        onTap: () {
+                          Get.back();
+                          _startAudioCall();
                         },
                       ),
                       
@@ -1615,6 +1648,82 @@ class _MessageScreenState extends State<MessageScreen> {
     } catch (e) {
       print('Error getting other user ID: $e');
       return null;
+    }
+  }
+
+  Future<void> _startVideoCall() async {
+    try {
+      final otherUserId = await _getOtherUserId();
+      if (otherUserId == null) {
+        Get.snackbar('Error', 'Could not find user to call');
+        return;
+      }
+
+      // Get other user's profile for call details
+      final otherUserProfile = await SupabaseService.getProfile(otherUserId);
+      if (otherUserProfile == null) {
+        Get.snackbar('Error', 'Could not load user profile');
+        return;
+      }
+
+      // Get other user's FCM token (you might need to store this in profiles)
+      final fcmToken = otherUserProfile['fcm_token'] ?? '';
+
+      // Initialize call controller
+      final callController = Get.put(CallController());
+
+      // Start video call
+      await callController.initiateCall(
+        matchId: widget.matchId,
+        receiverId: otherUserId,
+        receiverName: otherUserProfile['name'] ?? 'Unknown',
+        receiverImage: otherUserProfile['image_urls']?[0] ?? '',
+        receiverFcmToken: fcmToken,
+        callType: CallType.video,
+        isBffMatch: widget.isBffMatch,
+      );
+
+    } catch (e) {
+      print('Error starting video call: $e');
+      Get.snackbar('Error', 'Failed to start video call');
+    }
+  }
+
+  Future<void> _startAudioCall() async {
+    try {
+      final otherUserId = await _getOtherUserId();
+      if (otherUserId == null) {
+        Get.snackbar('Error', 'Could not find user to call');
+        return;
+      }
+
+      // Get other user's profile for call details
+      final otherUserProfile = await SupabaseService.getProfile(otherUserId);
+      if (otherUserProfile == null) {
+        Get.snackbar('Error', 'Could not load user profile');
+        return;
+      }
+
+      // Get other user's FCM token
+      final fcmToken = otherUserProfile['fcm_token'] ?? '';
+
+      // Initialize call controller
+      final callController = Get.put(CallController());
+
+      // Start audio call
+      await callController.initiateCall(
+        matchId: widget.matchId,
+        receiverId: otherUserId,
+        receiverName: otherUserProfile['name'] ?? 'Unknown',
+        receiverImage: otherUserProfile['image_urls']?[0] ?? '',
+        receiverFcmToken: fcmToken,
+        callType: CallType.audio,
+        isBffMatch: widget.isBffMatch,
+      );
+
+    } catch (e) {
+      print('Error starting audio call: $e');
+      Get.snackbar('Error', 'Failed to start audio call');
     }
   }
 

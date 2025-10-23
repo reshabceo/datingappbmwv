@@ -131,11 +131,7 @@ class GradientCommonAppBar extends StatelessWidget implements PreferredSizeWidge
               child: GestureDetector(
                 onTap: () {
                   print('Dating mode selected');
-                  // Update mode immediately for instant response
-                  controller.currentMode.value = 'dating';
-                  // Show loading indicator
-                  controller.isPreloading.value = true;
-                  // Trigger network call in background
+                  // Call setMode to properly refresh profiles
                   controller.setMode('dating');
                 },
                 behavior: HitTestBehavior.opaque,
@@ -176,11 +172,7 @@ class GradientCommonAppBar extends StatelessWidget implements PreferredSizeWidge
               child: GestureDetector(
                 onTap: () {
                   print('BFF mode selected');
-                  // Update mode immediately for instant response
-                  controller.currentMode.value = 'bff';
-                  // Show loading indicator
-                  controller.isPreloading.value = true;
-                  // Trigger network call in background
+                  // Call setMode to properly refresh profiles
                   controller.setMode('bff');
                 },
                 behavior: HitTestBehavior.opaque,

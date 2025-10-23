@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import '../../services/astro_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart' as image_cropper;
 import '../../services/supabase_service.dart';
@@ -383,6 +384,8 @@ class ProfileFormController extends GetxController {
         'hobbies': selectedInterests.toList(),
         'image_urls': uploadedImageUrls.toList(),
         'is_active': true,
+        'birth_date': birthDate.toIso8601String().split('T')[0],
+        'zodiac_sign': AstroService.calculateZodiacSign(birthDate),
       };
 
       await SupabaseService.createProfile(profileData);

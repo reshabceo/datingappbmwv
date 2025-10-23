@@ -81,6 +81,13 @@ class StoriesController extends GetxController {
       for (final row in rows) {
         final storyUserId = (row['user_id'] ?? '').toString();
 
+        // Check if story is expired (runtime check)
+        final expiresAt = DateTime.tryParse((row['expires_at'] ?? '').toString());
+        if (expiresAt != null && expiresAt.isBefore(DateTime.now())) {
+          print('⏭️ DEBUG: Skipping expired story: ${row['id']} (expired at: $expiresAt)');
+          continue;
+        }
+
         // Only include stories from matched users or current user
         if (!matchedUserIds.contains(storyUserId)) continue;
 
@@ -139,20 +146,7 @@ class StoriesController extends GetxController {
         );
       }).toList();
       
-      // Ensure SS always has a story group (even if no stories)
-      final hasSSGroup = groups.any((group) => group.userId == ssUserId);
-      if (!hasSSGroup) {
-        // Create a placeholder story group for SS
-        final ssGroup = StoryGroup(
-          userId: ssUserId,
-          userName: 'SS',
-          avatarUrl: '', // Will be handled by the UI
-          stories: [], // Empty stories list
-          hasUnviewed: false,
-        );
-        groups.add(ssGroup);
-        print('DEBUG: Added placeholder SS story group');
-      }
+      // Do NOT add SS placeholder group if there are no stories
       
       // Sort groups by most recent story, but prioritize current user's stories
       groups.sort((a, b) {

@@ -6,6 +6,8 @@ import 'package:lovebug/Screens/DiscoverPage/Widget/profile_card_widget.dart';
 import 'package:lovebug/Screens/DiscoverPage/controller_discover_screen.dart';
 import 'package:lovebug/Screens/DiscoverPage/profile_detail_screen.dart';
 import 'package:lovebug/ThemeController/theme_controller.dart';
+import 'package:lovebug/widgets/rewind_button.dart';
+import 'package:lovebug/Widgets/premium_message_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
@@ -13,6 +15,12 @@ import 'package:get/get.dart';
 import 'package:animations/animations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:math' as math;
+import 'package:lovebug/services/supabase_service.dart';
+import 'package:lovebug/services/rewind_service.dart';
+import 'package:lovebug/services/premium_message_service.dart';
+import 'package:lovebug/Widgets/upgrade_prompt_widget.dart';
+import 'package:lovebug/Screens/SubscriptionPage/ui_subscription_screen.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 class DiscoverScreen extends StatelessWidget {
   DiscoverScreen({super.key});
@@ -66,6 +74,14 @@ class DiscoverScreen extends StatelessWidget {
                       // Show empty state if no profiles
                       if (count == 0) {
                         print('🔍 DEBUG: UI - Showing empty state for mode: ${controller.currentMode.value}');
+                        return _buildEmptyState();
+                      }
+
+                      // Guard: if all profiles are not displayable, show empty state
+                      final allInvalid = controller.profiles.every((p) =>
+                        (p.name.toString().trim().isEmpty) && (p.photos.isEmpty && (p.imageUrl.isEmpty))
+                      );
+                      if (allInvalid) {
                         return _buildEmptyState();
                       }
 
@@ -253,10 +269,16 @@ class DiscoverScreen extends StatelessWidget {
           return const SizedBox.shrink();
         }
 
+        // Hide overlay if name is missing/empty to avoid displaying ", 18"
+        final String name = (currentProfile.name ?? '').toString().trim();
+        if (name.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
         return FittedBox(
           fit: BoxFit.scaleDown,
           child: Text(
-            '${currentProfile.name}, ${currentProfile.age}',
+            '${name}, ${currentProfile.age}',
             style: GoogleFonts.dancingScript(
               fontSize: 38.sp,
               fontWeight: FontWeight.w700,
@@ -300,6 +322,7 @@ class DiscoverScreen extends StatelessWidget {
 
   List<Widget> _buildDatingActionButtons() {
     return [
+      _buildRewindMiniButton(),
       GestureDetector(
         onTap: () => _swiperController.swipe(CardSwiperDirection.left),
         child: Container(
@@ -355,11 +378,13 @@ class DiscoverScreen extends StatelessWidget {
               Icon(Icons.favorite_outlined, color: Colors.white, size: 28.sp),
         ),
       ),
+      _buildMessageMiniButton(),
     ];
   }
 
   List<Widget> _buildBFFActionButtons() {
     return [
+      _buildRewindMiniButton(),
       GestureDetector(
         onTap: () => _swiperController.swipe(CardSwiperDirection.left),
         child: Container(
@@ -396,7 +421,87 @@ class DiscoverScreen extends StatelessWidget {
           child: Icon(Icons.people, color: Colors.white, size: 28.sp),
         ),
       ),
+      _buildMessageMiniButton(),
     ];
+  }
+
+  // Small rewind button to the left of Dislike
+  Widget _buildRewindMiniButton() {
+    return GestureDetector(
+      onTap: () async {
+        final isPremium = await SupabaseService.isPremiumUser();
+        if (!isPremium) {
+          RewindService.showRewindUpgradeDialog();
+          return;
+        }
+        RewindService.showRewindDialog(
+          onRewind: () async {
+            final result = await RewindService.performRewind();
+            if (result['success'] == true) {
+              controller.reloadWithFilters();
+            } else {
+              Get.snackbar('Rewind', result['error']?.toString() ?? 'Failed');
+            }
+          },
+          onUpgrade: () => Get.to(() => SubscriptionScreen()),
+        );
+      },
+      child: Container(
+        width: 44.w,
+        height: 44.w,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFFFFD700), Color(0xFFFFA500)], // Gold to Orange gradient
+          ),
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Color(0xFFFFD700).withValues(alpha: 0.4),
+              blurRadius: 8.r,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: Icon(Icons.undo, color: Colors.white, size: 20.sp),
+      ),
+    );
+  }
+
+  // Small message button to the right of Like
+  Widget _buildMessageMiniButton() {
+    return GestureDetector(
+      onTap: () async {
+        final p = controller.currentProfile;
+        if (p == null) {
+          Get.snackbar('Message', 'No profile selected');
+          return;
+        }
+        // Service handles premium check and shows appropriate dialog
+        PremiumMessageService.showPremiumMessageDialog(
+          recipientId: p.id,
+          recipientName: p.name,
+          recipientPhoto: p.photos.isNotEmpty ? p.photos.first : '',
+        );
+      },
+      child: Container(
+        width: 44.w,
+        height: 44.w,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF9C27B0), Color(0xFF673AB7)], // Purple to Deep Purple gradient
+          ),
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Color(0xFF9C27B0).withValues(alpha: 0.4),
+              blurRadius: 8.r,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: Icon(LucideIcons.send, color: Colors.white, size: 18.sp),
+      ),
+    );
   }
 
   void _openFilters() {
@@ -969,9 +1074,12 @@ class DiscoverScreen extends StatelessWidget {
       isDismissible: true,
       enableDrag: true,
       builder: (_) {
-        return Obx(() => ClipRRect(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(22.r)),
-          child: Container(
+        return Obx(() => Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(22.r)),
+              child: Container(
             constraints: BoxConstraints(
               maxHeight: Get.height * 0.85,
             ),
@@ -1172,7 +1280,28 @@ class DiscoverScreen extends StatelessWidget {
               ),
             ),
           ),
-        ));
+        ),
+        // Rewind button for premium users
+        DiscoverRewindButton(
+          onRewindSuccess: () {
+            // Reload profiles after successful rewind
+            controller.reloadWithFilters();
+          },
+        ),
+
+        // Global Premium Message button overlay (visible but blocked for free users)
+        Obx(() {
+          final p = controller.currentProfile;
+          if (p == null) return const SizedBox.shrink();
+          final photo = (p.photos.isNotEmpty) ? p.photos.first : '';
+          return PremiumMessageButton(
+            recipientId: p.id,
+            recipientName: p.name,
+            recipientPhoto: photo,
+          );
+        }),
+      ],
+    ));
       },
     );
   }

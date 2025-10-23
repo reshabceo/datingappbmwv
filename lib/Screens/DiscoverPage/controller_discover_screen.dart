@@ -3,6 +3,8 @@ import 'package:lovebug/services/supabase_service.dart';
 import 'package:lovebug/services/analytics_service.dart';
 import 'package:lovebug/Screens/ChatPage/chat_integration_helper.dart';
 import 'package:lovebug/ThemeController/theme_controller.dart';
+import 'package:lovebug/widgets/upgrade_prompt_widget.dart';
+import 'package:lovebug/Screens/SubscriptionPage/ui_subscription_screen.dart';
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'package:google_fonts/google_fonts.dart';
@@ -139,7 +141,8 @@ class DiscoverController extends GetxController {
     if (mode == 'dating' || mode == 'bff') {
       if (mode == currentMode.value) return;
       
-      print('DEBUG: Mode changed from ${currentMode.value} to $mode');
+      print('🔄🔄🔄 DEBUG: setMode() called - changing from ${currentMode.value} to $mode');
+      print('🔄 DEBUG: isPreloading BEFORE mode change: ${isPreloading.value}');
       
       // Update mode preferences in database
       await SupabaseService.updateModePreferences({
@@ -150,13 +153,17 @@ class DiscoverController extends GetxController {
       currentMode.value = mode;
       
       // Force refresh profiles for the new mode
+      print('🔄 DEBUG: About to call refreshProfilesForMode($mode)');
       await refreshProfilesForMode(mode);
+      print('🔄 DEBUG: refreshProfilesForMode($mode) completed');
+      print('🔄 DEBUG: isPreloading AFTER refreshProfilesForMode: ${isPreloading.value}');
+      
       await SharedPreferenceHelper.setString(_kModeKey, mode);
       
       // Notify other controllers about mode change
       _notifyModeChange(mode);
       
-      print('🔄 Mode changed to: $mode');
+      print('🔄 DEBUG: setMode() completed. Final isPreloading: ${isPreloading.value}, profiles.length: ${profiles.length}');
     }
   }
   
@@ -177,7 +184,8 @@ class DiscoverController extends GetxController {
 
   // Method to refresh profiles when switching modes
   Future<void> refreshProfilesForMode(String mode) async {
-    print('🔄 Refreshing profiles for mode: $mode');
+    print('🔄🔄 DEBUG: refreshProfilesForMode($mode) STARTED');
+    print('🔄 DEBUG: Setting isPreloading = true');
     isPreloading.value = true;
     
     // Show loading indicator immediately
@@ -190,22 +198,33 @@ class DiscoverController extends GetxController {
       // Load fresh profiles for the new mode with optimized loading
       List<Map<String, dynamic>> rows;
       if (mode == 'bff') {
-        print('🔍 DEBUG: Loading fresh BFF profiles for mode switch');
+        print('🔍 DEBUG: Calling SupabaseService.getBffProfiles()...');
         rows = await SupabaseService.getBffProfiles();
-        print('🔍 DEBUG: Fresh BFF profiles loaded: ${rows.length}');
+        print('🔍 DEBUG: getBffProfiles() returned ${rows.length} profiles');
       } else {
-        print('🔍 DEBUG: Loading fresh dating profiles for mode switch');
+        print('🔍 DEBUG: Calling SupabaseService.getProfilesWithSuperLikes()...');
         rows = await SupabaseService.getProfilesWithSuperLikes();
-        print('🔍 DEBUG: Fresh dating profiles loaded: ${rows.length}');
+        print('🔍 DEBUG: getProfilesWithSuperLikes() returned ${rows.length} profiles');
       }
       
       // If no profiles found, show "no more profiles" state
       if (rows.isEmpty) {
-        print('🔍 DEBUG: No profiles found for mode: $mode');
+        print('⚠️⚠️ DEBUG: NO PROFILES FOUND for $mode mode');
+        print('🔄 DEBUG: Clearing profiles list');
         profiles.clear();
+        // Also clear cached list for this mode so stale cards don't resurface
+        if (mode == 'bff') {
+          print('🔄 DEBUG: Clearing bffProfiles cache');
+          bffProfiles.clear();
+        } else {
+          print('🔄 DEBUG: Clearing datingProfiles cache');
+          datingProfiles.clear();
+        }
         currentIndex.value = 0;
+        print('🔄 DEBUG: Setting isPreloading = false (empty result)');
         isPreloading.value = false;
         update(); // Force UI update to show empty state
+        print('🔄🔄 DEBUG: refreshProfilesForMode($mode) ENDED (empty)');
         return;
       }
       
@@ -270,8 +289,15 @@ class DiscoverController extends GetxController {
           })
           .toList();
       
+      // Filter out non-displayable profiles (no name and no photos)
+      final List<Profile> displayable = loaded.where((p) {
+        final hasName = (p.name != null) && p.name.toString().trim().isNotEmpty;
+        final hasPhoto = (p.photos.isNotEmpty) || (p.imageUrl.isNotEmpty);
+        return hasName && hasPhoto;
+      }).toList();
+
       // Update profiles list with fresh data - optimized loading order
-      profiles.value = loaded;
+      profiles.value = displayable;
       currentIndex.value = 0;
       
       // Update cached profiles for the new mode
@@ -412,6 +438,8 @@ class DiscoverController extends GetxController {
 
   Future<void> _loadActiveProfiles() async {
     try {
+      print('📥📥 DEBUG: _loadActiveProfiles() CALLED for ${currentMode.value} mode');
+      print('📥 DEBUG: Setting isPreloading = true');
       isPreloading.value = true;
       final currentUserId = SupabaseService.currentUser?.id;
       final Set<String> excludedIds = await _loadExcludedUserIds();
@@ -419,22 +447,34 @@ class DiscoverController extends GetxController {
       // Load profiles based on current mode
       List<Map<String, dynamic>> rows;
       if (currentMode.value == 'bff') {
-        print('🔍 DEBUG: Loading BFF profiles');
+        print('🔍 DEBUG: _loadActiveProfiles calling getBffProfiles()...');
         rows = await SupabaseService.getBffProfiles();
-        print('🔍 DEBUG: getBffProfiles() returned ${rows.length} profiles');
-        if (rows.isEmpty) {
-          print('🔍 DEBUG: No BFF profiles available - will show empty state');
-          // Clear any existing profiles to trigger empty state
-          profiles.clear();
-          currentIndex.value = 0;
-          isPreloading.value = false;
-          update();
-          return;
-        }
+        print('🔍 DEBUG: _loadActiveProfiles getBffProfiles() returned ${rows.length} profiles');
       } else {
-        print('🔍 DEBUG: Loading dating profiles');
+        print('🔍 DEBUG: _loadActiveProfiles calling getProfilesWithSuperLikes()...');
         rows = await SupabaseService.getProfilesWithSuperLikes();
-        print('🔍 DEBUG: getProfilesWithSuperLikes() returned ${rows.length} profiles');
+        print('🔍 DEBUG: _loadActiveProfiles getProfilesWithSuperLikes() returned ${rows.length} profiles');
+      }
+      
+      // Handle empty results for BOTH modes
+      if (rows.isEmpty) {
+        print('⚠️⚠️ DEBUG: _loadActiveProfiles NO PROFILES for ${currentMode.value}');
+        print('📥 DEBUG: Clearing profiles list');
+        profiles.clear();
+        // Also clear cached list to prevent stale cards
+        if (currentMode.value == 'bff') {
+          print('📥 DEBUG: Clearing bffProfiles cache');
+          bffProfiles.clear();
+        } else {
+          print('📥 DEBUG: Clearing datingProfiles cache');
+          datingProfiles.clear();
+        }
+        currentIndex.value = 0;
+        print('📥 DEBUG: Setting isPreloading = false (empty result)');
+        isPreloading.value = false;
+        update();
+        print('📥📥 DEBUG: _loadActiveProfiles() ENDED (empty)');
+        return;
       }
 
       // Debug: Log all profiles being processed
@@ -738,6 +778,13 @@ class DiscoverController extends GetxController {
         action: action, 
         mode: currentMode.value
       );
+      
+      // Check for freemium limits
+      if (res.containsKey('limit_reached') && res['limit_reached'] == true) {
+        _showLimitReachedDialog(res['error'], res['action']);
+        return;
+      }
+      
       matched = (res['matched'] == true);
       matchId = (res['match_id'] ?? '').toString();
 
@@ -813,6 +860,15 @@ class DiscoverController extends GetxController {
     // Remove the profile immediately
     profiles.removeAt(prevIndex);
     
+    // If this was the last profile being swiped, clear everything to show empty state
+    if (profiles.length <= 1) {
+      print('🔍 DEBUG: Last profile swiped - clearing all to show empty state');
+      profiles.clear();
+      currentIndex.value = 0;
+      update();
+      return; // Don't continue with preloading
+    }
+    
     // Adjust current index
     if (profiles.isEmpty) {
       currentIndex.value = 0;
@@ -824,11 +880,6 @@ class DiscoverController extends GetxController {
       // Stay at the same position if possible, otherwise move to last available
       currentIndex.value = prevIndex.clamp(0, profiles.length - 1);
       print('🔍 DEBUG: Advanced to index ${currentIndex.value}, ${profiles.length} profiles remaining');
-    }
-    
-    // Check if we need to show "no more profiles" state
-    if (profiles.length <= 1) {
-      print('🔍 DEBUG: Only ${profiles.length} profile(s) remaining - will show empty state soon');
     }
     
     // Force UI update
@@ -1171,11 +1222,21 @@ class DiscoverController extends GetxController {
               );
             })
             .toList();
-        
-        // Add new profiles to existing list
-        profiles.addAll(loaded);
-        preloadedCount.value = profiles.length;
-        print('✅ Preloaded ${loaded.length} more profiles. Total: ${profiles.length}');
+
+        // Filter: only displayable profiles (non-empty name and at least one photo/image)
+        final displayable = loaded.where((p) {
+          final hasName = p.name.toString().trim().isNotEmpty;
+          final hasPhoto = p.imageUrl.isNotEmpty || p.photos.isNotEmpty;
+          return hasName && hasPhoto;
+        }).toList();
+
+        if (displayable.isNotEmpty) {
+          profiles.addAll(displayable);
+          preloadedCount.value = profiles.length;
+          print('✅ Preloaded ${displayable.length} more profiles. Total: ${profiles.length}');
+        } else {
+          print('🔍 DEBUG: No displayable profiles to preload');
+        }
       }
     } catch (e) {
       print('❌ Preloading failed: $e');
@@ -1192,6 +1253,63 @@ class DiscoverController extends GetxController {
       _preloadNextBatch();
     }
   }
+
+  // Show limit reached dialog
+  void _showLimitReachedDialog(String error, String action) {
+    Get.dialog(
+      Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.r),
+        ),
+        child: Container(
+          padding: EdgeInsets.all(20.w),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (action == 'swipe')
+                SwipeLimitWidget(
+                  onUpgrade: () {
+                    Get.back(); // Close dialog
+                    Get.to(() => SubscriptionScreen());
+                  },
+                  onDismiss: () => Get.back(),
+                )
+              else if (action == 'super_like')
+                SuperLikeLimitWidget(
+                  onUpgrade: () {
+                    Get.back(); // Close dialog
+                    Get.to(() => SubscriptionScreen());
+                  },
+                  onBuyMore: () {
+                    Get.back(); // Close dialog
+                    // TODO: Show super like purchase screen
+                    Get.snackbar(
+                      'Super Likes',
+                      'Super like purchase coming soon!',
+                      backgroundColor: Colors.amber,
+                      colorText: Colors.white,
+                    );
+                  },
+                  onDismiss: () => Get.back(),
+                )
+              else
+                UpgradePromptWidget(
+                  title: 'Limit Reached',
+                  message: error,
+                  action: 'Upgrade Now',
+                  onUpgrade: () {
+                    Get.back(); // Close dialog
+                    Get.to(() => SubscriptionScreen());
+                  },
+                  onDismiss: () => Get.back(),
+                ),
+            ],
+          ),
+        ),
+      ),
+      barrierDismissible: true,
+    );
+  }
 }
 
 class Profile {
@@ -1207,6 +1325,8 @@ class Profile {
   final bool isVerified;
   final bool isActiveNow;
   final bool isSuperLiked;
+  final bool isPremium;
+  final String? gender;
 
   Profile({
     required this.id,
@@ -1221,6 +1341,8 @@ class Profile {
     this.isVerified = false,
     this.isActiveNow = false,
     this.isSuperLiked = false,
+    this.isPremium = false,
+    this.gender,
   });
 }
 

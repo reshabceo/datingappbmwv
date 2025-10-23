@@ -16,6 +16,8 @@ import 'package:lovebug/Screens/ChatPage/controller_chat_screen.dart';
 import 'package:lovebug/services/disappearing_photo_service.dart';
 import 'package:lovebug/services/supabase_service.dart';
 import 'package:lovebug/services/astro_service.dart';
+import 'package:lovebug/controllers/call_controller.dart';
+import 'package:lovebug/models/call_models.dart';
 import 'package:lovebug/ThemeController/theme_controller.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -560,6 +562,25 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
                         },
                       ),
                       
+                      // Call Options
+                      _buildMenuOption(
+                        icon: Icons.videocam,
+                        title: 'Video Call',
+                        onTap: () {
+                          Get.back();
+                          _startVideoCall();
+                        },
+                      ),
+                      
+                      _buildMenuOption(
+                        icon: Icons.call,
+                        title: 'Audio Call',
+                        onTap: () {
+                          Get.back();
+                          _startAudioCall();
+                        },
+                      ),
+                      
                       _buildMenuOption(
                         icon: Icons.notifications_off,
                         title: 'Mute Notifications',
@@ -937,9 +958,8 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
               ],
             ),
             actions: [
-              // Astro Compatibility Button
-              if (!isLoadingZodiac && otherUserZodiac != null && otherUserZodiac != 'unknown')
-                _buildAstroActionButton(),
+              // Astro Compatibility Button - Always show
+              _buildAstroActionButton(),
               GestureDetector(
                 onTap: () => _showChatOptions(),
                 child: Container(
@@ -1287,7 +1307,15 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
           height: 35.h,
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [Colors.purple[800]!, Colors.pink[800]!],
+              colors: widget.isBffMatch
+                  ? [
+                      themeController.bffPrimaryColor,
+                      themeController.bffSecondaryColor,
+                    ]
+                  : [
+                      themeController.getAccentColor(),
+                      themeController.getSecondaryColor(),
+                    ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -1306,6 +1334,17 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
   // Toggle astro compatibility visibility
   Future<void> _toggleAstroVisibility() async {
     print('DEBUG: Astro button clicked, current state: $_astroButtonState');
+    
+    // Check if other user has zodiac set
+    if (otherUserZodiac == null || otherUserZodiac == 'unknown') {
+      Get.snackbar(
+        'Info',
+        'This user hasn\'t set their zodiac sign yet',
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+      );
+      return;
+    }
     
     if (_astroButtonState == AstroCompatibilityButtonState.generate) {
       // Generate new insights
@@ -1400,6 +1439,106 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
         _astroButtonState = AstroCompatibilityButtonState.generate;
         astroVisible = false;
       });
+    }
+  }
+
+  // Get the other user's ID from the match
+  Future<String?> _getOtherUserId() async {
+    try {
+      // Get the match details to find the other user's ID
+      final match = await SupabaseService.getMatchById(widget.matchId);
+      if (match != null) {
+        final currentUserId = SupabaseService.currentUser?.id;
+        final userId1 = match['user_id_1']?.toString();
+        final userId2 = match['user_id_2']?.toString();
+        
+        // Find the other user's ID (not the current user)
+        if (userId1 == currentUserId) {
+          return userId2;
+        } else if (userId2 == currentUserId) {
+          return userId1;
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Error getting other user ID: $e');
+      return null;
+    }
+  }
+
+  Future<void> _startVideoCall() async {
+    try {
+      final otherUserId = await _getOtherUserId();
+      if (otherUserId == null) {
+        Get.snackbar('Error', 'Could not find user to call');
+        return;
+      }
+
+      // Get other user's profile for call details
+      final otherUserProfile = await SupabaseService.getProfile(otherUserId);
+      if (otherUserProfile == null) {
+        Get.snackbar('Error', 'Could not load user profile');
+        return;
+      }
+
+      // Get other user's FCM token (you might need to store this in profiles)
+      final fcmToken = otherUserProfile['fcm_token'] ?? '';
+
+      // Initialize call controller
+      final callController = Get.put(CallController());
+
+      // Start video call
+      await callController.initiateCall(
+        matchId: widget.matchId,
+        receiverId: otherUserId,
+        receiverName: otherUserProfile['name'] ?? 'Unknown',
+        receiverImage: otherUserProfile['image_urls']?[0] ?? '',
+        receiverFcmToken: fcmToken,
+        callType: CallType.video,
+        isBffMatch: widget.isBffMatch,
+      );
+
+    } catch (e) {
+      print('Error starting video call: $e');
+      Get.snackbar('Error', 'Failed to start video call');
+    }
+  }
+
+  Future<void> _startAudioCall() async {
+    try {
+      final otherUserId = await _getOtherUserId();
+      if (otherUserId == null) {
+        Get.snackbar('Error', 'Could not find user to call');
+        return;
+      }
+
+      // Get other user's profile for call details
+      final otherUserProfile = await SupabaseService.getProfile(otherUserId);
+      if (otherUserProfile == null) {
+        Get.snackbar('Error', 'Could not load user profile');
+        return;
+      }
+
+      // Get other user's FCM token
+      final fcmToken = otherUserProfile['fcm_token'] ?? '';
+
+      // Initialize call controller
+      final callController = Get.put(CallController());
+
+      // Start audio call
+      await callController.initiateCall(
+        matchId: widget.matchId,
+        receiverId: otherUserId,
+        receiverName: otherUserProfile['name'] ?? 'Unknown',
+        receiverImage: otherUserProfile['image_urls']?[0] ?? '',
+        receiverFcmToken: fcmToken,
+        callType: CallType.audio,
+        isBffMatch: widget.isBffMatch,
+      );
+
+    } catch (e) {
+      print('Error starting audio call: $e');
+      Get.snackbar('Error', 'Failed to start audio call');
     }
   }
 }

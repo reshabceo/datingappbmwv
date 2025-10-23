@@ -37,6 +37,7 @@ class ProfileController extends GetxController {
     }
   });
     loadUserProfile();
+    _loadPremiumStatus();
     super.onInit();
   }
 
@@ -77,11 +78,14 @@ class ProfileController extends GetxController {
           // Remove duplicates and empty strings
           myPhotos.value = allPhotos.toSet().where((url) => url.isNotEmpty).toList();
           print('DEBUG: Loaded ${myPhotos.value.length} unique photos: ${myPhotos.value}');
-          // Support interests/hobbies
+          // Support interests/hobbies - handle both field names
           if (profile['interests'] != null) {
             myInterestList.value = List<String>.from(profile['interests']);
           } else if (profile['hobbies'] != null) {
             myInterestList.value = List<String>.from((profile['hobbies'] as List).map((e) => e.toString()));
+          } else {
+            // Initialize with default interests if none exist
+            myInterestList.value = ['Music', 'Travel', 'Sports'];
           }
           isVerified.value = (profile['is_verified'] ?? false) as bool;
           // Load verification status for the new verification system
@@ -163,6 +167,7 @@ class ProfileController extends GetxController {
           'location': locationController.text,
           'description': aboutController.text, // Use description instead of bio
           'hobbies': myInterestList.toList(), // Use hobbies instead of interests
+          'interests': myInterestList.toList(), // Also save as interests for compatibility
           'image_urls': myPhotos.toList(), // Use image_urls instead of photos
         };
 
@@ -238,6 +243,15 @@ class ProfileController extends GetxController {
     super.onReady();
   }
 
+  Future<void> _loadPremiumStatus() async {
+    try {
+      final status = await SupabaseService.isPremiumUser();
+      isPremium.value = status;
+    } catch (_) {
+      isPremium.value = false;
+    }
+  }
+
 
   final List<String> countries = [
     "🇮🇳  India",
@@ -266,6 +280,7 @@ class ProfileController extends GetxController {
   RxMap<String, dynamic> userProfile = <String, dynamic>{}.obs;
   RxBool isLoading = false.obs;
   RxBool isVerified = false.obs;
+  RxBool isPremium = false.obs;
 
   RxList<String> myInterestList = <String>[
     'Music Production',

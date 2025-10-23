@@ -13,12 +13,12 @@ class SupabaseService {
     );
   }
   
-  // OAuth provider sign-in
+  // OAuth provider sign-in - using same configuration as web module
   static Future<void> signInWithProvider(OAuthProvider provider) async {
     await client.auth.signInWithOAuth(
       provider,
-      // On mobile, use external browser to avoid in-app webview issues
-      authScreenLaunchMode: LaunchMode.externalApplication,
+      // Use same redirect URL as web module
+      redirectTo: 'https://dkcitxzvojvecuvacwsp.supabase.co/auth/v1/callback',
     );
   }
   
@@ -441,12 +441,153 @@ class SupabaseService {
     return (response as List).cast<Map<String, dynamic>>();
   }
   
+  // =============================================================================
+  // FREEMIUM SYSTEM METHODS
+  // =============================================================================
+  
+  // Check if user can perform action (swipe, super_like, message)
+  static Future<bool> canPerformAction(String action) async {
+    try {
+      final response = await client.rpc('can_perform_action', params: {
+        'p_user_id': currentUser?.id,
+        'p_action': action,
+      });
+      return response == true;
+    } catch (e) {
+      print('Error checking action permission: $e');
+      return false;
+    }
+  }
+  
+  // Get daily usage for current user
+  static Future<Map<String, int>> getDailyUsage() async {
+    try {
+      final response = await client.rpc('get_daily_usage', params: {
+        'p_user_id': currentUser?.id,
+        'p_date': DateTime.now().toIso8601String().split('T')[0], // Today's date
+      });
+      
+      if (response is List && response.isNotEmpty) {
+        final usage = response.first as Map<String, dynamic>;
+        return {
+          'swipes_used': usage['swipes_used'] ?? 0,
+          'super_likes_used': usage['super_likes_used'] ?? 0,
+          'messages_sent': usage['messages_sent'] ?? 0,
+        };
+      }
+      
+      return {'swipes_used': 0, 'super_likes_used': 0, 'messages_sent': 0};
+    } catch (e) {
+      print('Error getting daily usage: $e');
+      return {'swipes_used': 0, 'super_likes_used': 0, 'messages_sent': 0};
+    }
+  }
+  
+  // Increment daily usage after action
+  static Future<bool> incrementDailyUsage(String action) async {
+    try {
+      final response = await client.rpc('increment_daily_usage', params: {
+        'p_user_id': currentUser?.id,
+        'p_action': action,
+      });
+      return response == true;
+    } catch (e) {
+      print('Error incrementing daily usage: $e');
+      return false;
+    }
+  }
+  
+  // Send premium message before matching
+  static Future<Map<String, dynamic>> sendPremiumMessage({
+    required String recipientId,
+    required String message,
+  }) async {
+    try {
+      final response = await client.rpc('send_premium_message', params: {
+        'p_recipient_id': recipientId,
+        'p_message_content': message,
+      });
+      return response as Map<String, dynamic>;
+    } catch (e) {
+      print('Error sending premium message: $e');
+      return {'error': e.toString()};
+    }
+  }
+  
+  // Get premium messages for current user
+  static Future<List<Map<String, dynamic>>> getPremiumMessages() async {
+    try {
+      final response = await client
+          .from('premium_messages')
+          .select('id, sender_id, message_content, is_blurred, created_at')
+          .eq('recipient_id', currentUser?.id ?? '')
+          .order('created_at', ascending: false);
+      return (response as List).cast<Map<String, dynamic>>();
+    } catch (e) {
+      print('Error getting premium messages: $e');
+      return [];
+    }
+  }
+  
+  // Reveal premium message (when user gets premium)
+  static Future<bool> revealPremiumMessage(String messageId) async {
+    try {
+      final response = await client.rpc('reveal_premium_message', params: {
+        'p_message_id': messageId,
+      });
+      return response['success'] == true;
+    } catch (e) {
+      print('Error revealing premium message: $e');
+      return false;
+    }
+  }
+  
+  // Check if user is premium
+  static Future<bool> isPremiumUser() async {
+    try {
+      final response = await client
+          .from('profiles')
+          .select('is_premium')
+          .eq('id', currentUser?.id ?? '')
+          .single();
+      return response['is_premium'] == true;
+    } catch (e) {
+      print('Error checking premium status: $e');
+      return false;
+    }
+  }
+
+  // Mark swipe as rewindable for premium users
+  static Future<void> _markSwipeAsRewindable(String swipedId, String action) async {
+    try {
+      await client
+          .from('swipes')
+          .update({
+            'can_rewind': true,
+          })
+          .eq('swiper_id', currentUser?.id ?? '')
+          .eq('swiped_id', swipedId);
+    } catch (e) {
+      print('Error marking swipe as rewindable: $e');
+    }
+  }
+  
+  // =============================================================================
+  // EXISTING METHODS (UPDATED WITH FREEMIUM CHECKS)
+  // =============================================================================
+
   static Future<void> sendMessage({
     required String matchId,
     required String content,
     String? storyId,
     String? storyUserName,
   }) async {
+    // Check if user can send message (freemium check)
+    final canSend = await canPerformAction('message');
+    if (!canSend) {
+      throw Exception('Daily message limit reached. Upgrade for unlimited messaging.');
+    }
+    
     await client.from('messages').insert({
       'match_id': matchId,
       'sender_id': currentUser?.id,
@@ -474,6 +615,28 @@ class SupabaseService {
     required String action,
     String mode = 'dating', // 'dating' or 'bff'
   }) async {
+    // Check freemium limits before swiping
+    final canSwipe = await canPerformAction('swipe');
+    if (!canSwipe) {
+      return {
+        'error': 'Daily swipe limit reached. Upgrade for unlimited swipes.',
+        'limit_reached': true,
+        'action': 'swipe'
+      };
+    }
+    
+    // Check super like limit if action is super_like
+    if (action == 'super_like') {
+      final canSuperLike = await canPerformAction('super_like');
+      if (!canSuperLike) {
+        return {
+          'error': 'Daily super like limit reached. Buy more super likes or upgrade.',
+          'limit_reached': true,
+          'action': 'super_like'
+        };
+      }
+    }
+    
     // Use different RPC functions based on mode
     final String rpcFunction = mode == 'bff' ? 'handle_bff_swipe' : 'handle_swipe';
     
@@ -485,6 +648,20 @@ class SupabaseService {
     });
     
     print('DEBUG: Raw RPC result: $result (type: ${result.runtimeType})');
+    
+    // If swipe was successful, increment daily usage and mark as rewindable for premium users
+    if (result is Map<String, dynamic> && result['error'] == null) {
+      await incrementDailyUsage('swipe');
+      if (action == 'super_like') {
+        await incrementDailyUsage('super_like');
+      }
+      
+      // Mark swipe as rewindable for premium users
+      final isPremium = await isPremiumUser();
+      if (isPremium) {
+        await _markSwipeAsRewindable(swipedId, action);
+      }
+    }
     
     if (result is Map<String, dynamic>) {
       print('DEBUG: Returning Map result: $result');

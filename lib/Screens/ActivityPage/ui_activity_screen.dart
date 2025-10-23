@@ -2,6 +2,7 @@ import 'package:lovebug/Common/text_constant.dart';
 import 'package:lovebug/Common/widget_constant.dart';
 import 'package:lovebug/Screens/ActivityPage/controller_activity_screen.dart';
 import 'package:lovebug/ThemeController/theme_controller.dart';
+import 'package:lovebug/widgets/blurred_profile_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
@@ -143,7 +144,12 @@ class ActivityScreen extends StatelessWidget {
                                 ? themeController.lightPinkColor
                                 : themeController.purpleColor);
 
-                        return InkWell(
+                        // Check if activity should be blurred for free users
+                        final shouldBlur = !controller.isPremium.value && 
+                            (activity.type.toString().contains('like') || 
+                             activity.type.toString().contains('message'));
+                        
+                        Widget activityWidget = InkWell(
                           onTap: () => controller.onActivityTap(activity),
                           child: Container(
                                 width: Get.width,
@@ -261,6 +267,17 @@ class ActivityScreen extends StatelessWidget {
                                 ),
                               ),
                             );
+                        
+                        // Wrap with blurring for free users
+                        if (shouldBlur) {
+                          return BlurredActivityWidget(
+                            activityType: activity.type.toString(),
+                            child: activityWidget,
+                            onTap: () => controller.onActivityTap(activity),
+                          );
+                        }
+                        
+                        return activityWidget;
                       },
                     ),
                   );

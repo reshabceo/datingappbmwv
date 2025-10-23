@@ -3,6 +3,7 @@ PODS:
     - Flutter
   - camera_avfoundation (0.0.1):
     - Flutter
+  - CryptoSwift (1.8.4)
   - device_info_plus (0.0.1):
     - Flutter
   - DKImagePickerController/Core (4.3.9):
@@ -57,12 +58,19 @@ PODS:
     - FirebaseAnalytics (~> 11.15.0)
   - Firebase/CoreOnly (11.15.0):
     - FirebaseCore (~> 11.15.0)
+  - Firebase/Messaging (11.15.0):
+    - Firebase/CoreOnly
+    - FirebaseMessaging (~> 11.15.0)
   - firebase_analytics (11.6.0):
     - Firebase/Analytics (= 11.15.0)
     - firebase_core
     - Flutter
   - firebase_core (3.15.2):
     - Firebase/CoreOnly (= 11.15.0)
+    - Flutter
+  - firebase_messaging (15.2.10):
+    - Firebase/Messaging (= 11.15.0)
+    - firebase_core
     - Flutter
   - FirebaseAnalytics (11.15.0):
     - FirebaseAnalytics/Default (= 11.15.0)
@@ -93,7 +101,22 @@ PODS:
     - GoogleUtilities/Environment (~> 8.1)
     - GoogleUtilities/UserDefaults (~> 8.1)
     - PromisesObjC (~> 2.4)
+  - FirebaseMessaging (11.15.0):
+    - FirebaseCore (~> 11.15.0)
+    - FirebaseInstallations (~> 11.0)
+    - GoogleDataTransport (~> 10.0)
+    - GoogleUtilities/AppDelegateSwizzler (~> 8.1)
+    - GoogleUtilities/Environment (~> 8.1)
+    - GoogleUtilities/Reachability (~> 8.1)
+    - GoogleUtilities/UserDefaults (~> 8.1)
+    - nanopb (~> 3.30910.0)
   - Flutter (1.0.0)
+  - flutter_callkit_incoming (0.0.1):
+    - CryptoSwift
+    - Flutter
+  - flutter_webrtc (0.12.6):
+    - Flutter
+    - WebRTC-SDK (= 125.6422.06)
   - geolocator_apple (1.2.0):
     - Flutter
     - FlutterMacOS
@@ -129,6 +152,9 @@ PODS:
     - GoogleUtilities/Network (~> 8.1)
     - "GoogleUtilities/NSData+zlib (~> 8.1)"
     - nanopb (~> 3.30910.0)
+  - GoogleDataTransport (10.1.0):
+    - nanopb (~> 3.30910.0)
+    - PromisesObjC (~> 2.4)
   - GoogleUserMessagingPlatform (3.0.0)
   - GoogleUtilities/AppDelegateSwizzler (8.1.0):
     - GoogleUtilities/Environment
@@ -162,6 +188,9 @@ PODS:
     - TOCropViewController (~> 2.7.4)
   - image_picker_ios (0.0.1):
     - Flutter
+  - in_app_purchase_storekit (0.0.1):
+    - Flutter
+    - FlutterMacOS
   - nanopb (3.30910.0):
     - nanopb/decode (= 3.30910.0)
     - nanopb/encode (= 3.30910.0)
@@ -178,9 +207,9 @@ PODS:
     - Flutter
     - FlutterMacOS
   - PromisesObjC (2.4.0)
-  - SDWebImage (5.21.2):
-    - SDWebImage/Core (= 5.21.2)
-  - SDWebImage/Core (5.21.2)
+  - SDWebImage (5.21.3):
+    - SDWebImage/Core (= 5.21.3)
+  - SDWebImage/Core (5.21.3)
   - shared_preferences_foundation (0.0.1):
     - Flutter
     - FlutterMacOS
@@ -188,6 +217,7 @@ PODS:
   - TOCropViewController (2.7.4)
   - url_launcher_ios (0.0.1):
     - Flutter
+  - WebRTC-SDK (125.6422.06)
   - webview_flutter_wkwebview (0.0.1):
     - Flutter
     - FlutterMacOS
@@ -201,11 +231,15 @@ DEPENDENCIES:
   - file_picker (from `.symlinks/plugins/file_picker/ios`)
   - firebase_analytics (from `.symlinks/plugins/firebase_analytics/ios`)
   - firebase_core (from `.symlinks/plugins/firebase_core/ios`)
+  - firebase_messaging (from `.symlinks/plugins/firebase_messaging/ios`)
   - Flutter (from `Flutter`)
+  - flutter_callkit_incoming (from `.symlinks/plugins/flutter_callkit_incoming/ios`)
+  - flutter_webrtc (from `.symlinks/plugins/flutter_webrtc/ios`)
   - geolocator_apple (from `.symlinks/plugins/geolocator_apple/darwin`)
   - google_mobile_ads (from `.symlinks/plugins/google_mobile_ads/ios`)
   - image_cropper (from `.symlinks/plugins/image_cropper/ios`)
   - image_picker_ios (from `.symlinks/plugins/image_picker_ios/ios`)
+  - in_app_purchase_storekit (from `.symlinks/plugins/in_app_purchase_storekit/darwin`)
   - package_info_plus (from `.symlinks/plugins/package_info_plus/ios`)
   - path_provider_foundation (from `.symlinks/plugins/path_provider_foundation/darwin`)
   - permission_handler_apple (from `.symlinks/plugins/permission_handler_apple/ios`)
@@ -216,6 +250,7 @@ DEPENDENCIES:
 
 SPEC REPOS:
   trunk:
+    - CryptoSwift
     - DKImagePickerController
     - DKPhotoGallery
     - FBAEMKit
@@ -226,9 +261,11 @@ SPEC REPOS:
     - FirebaseCore
     - FirebaseCoreInternal
     - FirebaseInstallations
+    - FirebaseMessaging
     - Google-Mobile-Ads-SDK
     - GoogleAdsOnDeviceConversion
     - GoogleAppMeasurement
+    - GoogleDataTransport
     - GoogleUserMessagingPlatform
     - GoogleUtilities
     - nanopb
@@ -236,6 +273,7 @@ SPEC REPOS:
     - SDWebImage
     - SwiftyGif
     - TOCropViewController
+    - WebRTC-SDK
 
 EXTERNAL SOURCES:
   app_links:
@@ -254,8 +292,14 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/firebase_analytics/ios"
   firebase_core:
     :path: ".symlinks/plugins/firebase_core/ios"
+  firebase_messaging:
+    :path: ".symlinks/plugins/firebase_messaging/ios"
   Flutter:
     :path: Flutter
+  flutter_callkit_incoming:
+    :path: ".symlinks/plugins/flutter_callkit_incoming/ios"
+  flutter_webrtc:
+    :path: ".symlinks/plugins/flutter_webrtc/ios"
   geolocator_apple:
     :path: ".symlinks/plugins/geolocator_apple/darwin"
   google_mobile_ads:
@@ -264,6 +308,8 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/image_cropper/ios"
   image_picker_ios:
     :path: ".symlinks/plugins/image_picker_ios/ios"
+  in_app_purchase_storekit:
+    :path: ".symlinks/plugins/in_app_purchase_storekit/darwin"
   package_info_plus:
     :path: ".symlinks/plugins/package_info_plus/ios"
   path_provider_foundation:
@@ -282,6 +328,7 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   app_links: 3dbc685f76b1693c66a6d9dd1e9ab6f73d97dc0a
   camera_avfoundation: be3be85408cd4126f250386828e9b1dfa40ab436
+  CryptoSwift: e64e11850ede528a02a0f3e768cec8e9d92ecb90
   device_info_plus: 71ffc6ab7634ade6267c7a93088ed7e4f74e5896
   DKImagePickerController: 946cec48c7873164274ecc4624d19e3da4c1ef3c
   DKPhotoGallery: b3834fecb755ee09a593d7c9e389d8b5d6deed60
@@ -294,33 +341,40 @@ SPEC CHECKSUMS:
   Firebase: d99ac19b909cd2c548339c2241ecd0d1599ab02e
   firebase_analytics: 0e25ca1d4001ccedd40b4e5b74c0ec34e18f6425
   firebase_core: 995454a784ff288be5689b796deb9e9fa3601818
+  firebase_messaging: f4a41dd102ac18b840eba3f39d67e77922d3f707
   FirebaseAnalytics: 6433dfd311ba78084fc93bdfc145e8cb75740eae
   FirebaseCore: efb3893e5b94f32b86e331e3bd6dadf18b66568e
   FirebaseCoreInternal: 9afa45b1159304c963da48addb78275ef701c6b4
   FirebaseInstallations: 317270fec08a5d418fdbc8429282238cab3ac843
+  FirebaseMessaging: 3b26e2cee503815e01c3701236b020aa9b576f09
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
+  flutter_callkit_incoming: cb8138af67cda6dd981f7101a5d709003af21502
+  flutter_webrtc: 57f32415b8744e806f9c2a96ccdb60c6a627ba33
   geolocator_apple: ab36aa0e8b7d7a2d7639b3b4e48308394e8cef5e
   Google-Mobile-Ads-SDK: 14f57f2dc33532a24db288897e26494640810407
   google_mobile_ads: 16ad301354fa6a7ea55770c6254bd4339bf8558b
   GoogleAdsOnDeviceConversion: 2be6297a4f048459e0ae17fad9bfd2844e10cf64
   GoogleAppMeasurement: 700dce7541804bec33db590a5c496b663fbe2539
+  GoogleDataTransport: aae35b7ea0c09004c3797d53c8c41f66f219d6a7
   GoogleUserMessagingPlatform: f8d0cdad3ca835406755d0a69aa634f00e76d576
   GoogleUtilities: 00c88b9a86066ef77f0da2fab05f65d7768ed8e1
   image_cropper: 5f162dcf988100dc1513f9c6b7eb42cd6fbf9156
   image_picker_ios: 7fe1ff8e34c1790d6fff70a32484959f563a928a
+  in_app_purchase_storekit: 22cca7d08eebca9babdf4d07d0baccb73325d3c8
   nanopb: fad817b59e0457d11a5dfbde799381cd727c1275
   package_info_plus: af8e2ca6888548050f16fa2f1938db7b5a5df499
   path_provider_foundation: 080d55be775b7414fd5a5ef3ac137b97b097e564
   permission_handler_apple: 4ed2196e43d0651e8ff7ca3483a069d469701f2d
   photo_manager: 1d80ae07a89a67dfbcae95953a1e5a24af7c3e62
   PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
-  SDWebImage: 9f177d83116802728e122410fb25ad88f5c7608a
+  SDWebImage: 16309af6d214ba3f77a7c6f6fdda888cb313a50a
   shared_preferences_foundation: 9e1978ff2562383bd5676f64ec4e9aa8fa06a6f7
   SwiftyGif: 706c60cf65fa2bc5ee0313beece843c8eb8194d4
   TOCropViewController: 80b8985ad794298fb69d3341de183f33d1853654
   url_launcher_ios: 694010445543906933d732453a59da0a173ae33d
+  WebRTC-SDK: 79942c006ea64f6fb48d7da8a4786dfc820bc1db
   webview_flutter_wkwebview: 8ebf4fded22593026f7dbff1fbff31ea98573c8d
 
-PODFILE CHECKSUM: 251cb053df7158f337c0712f2ab29f4e0fa474ce
+PODFILE CHECKSUM: 9418a8567bfc45369b74ea838063054ff461a725
 
 COCOAPODS: 1.16.2

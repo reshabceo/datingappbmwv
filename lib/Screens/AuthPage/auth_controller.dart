@@ -249,10 +249,15 @@ class AuthController extends GetxController {
       return;
     }
     try {
-      await SupabaseService.client.auth.signInWithOtp(email: email, shouldCreateUser: false);
-      Get.snackbar('Check your email', 'We sent you a sign-in link');
-    } catch (_) {
-      Get.snackbar('Error', 'Could not send link');
+      await SupabaseService.client.auth.signInWithOtp(
+        email: email, 
+        shouldCreateUser: false,
+        emailRedirectTo: 'https://dkcitxzvojvecuvacwsp.supabase.co/auth/v1/callback',
+      );
+      Get.snackbar('Check your email', 'We sent you a sign-in link. Click it to continue in the app.');
+    } catch (e) {
+      print('Magic link error: $e');
+      Get.snackbar('Error', 'Could not send link: $e');
     }
   }
 

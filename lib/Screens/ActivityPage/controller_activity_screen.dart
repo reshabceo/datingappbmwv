@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../services/supabase_service.dart';
+import '../../widgets/blurred_profile_widget.dart';
 import '../ChatPage/chat_integration_helper.dart';
 import './models/activity_model.dart';
 
@@ -8,11 +9,23 @@ class ActivityController extends GetxController {
   final RxList<Activity> activities = <Activity>[].obs;
   final RxBool isLoading = false.obs;
   final RxBool hasError = false.obs;
+  final RxBool isPremium = false.obs;
 
   @override
   void onInit() {
     super.onInit();
+    _checkPremiumStatus();
     loadActivities();
+  }
+
+  Future<void> _checkPremiumStatus() async {
+    try {
+      final premium = await SupabaseService.isPremiumUser();
+      isPremium.value = premium;
+    } catch (e) {
+      print('Error checking premium status: $e');
+      isPremium.value = false;
+    }
   }
 
   Future<void> loadActivities() async {

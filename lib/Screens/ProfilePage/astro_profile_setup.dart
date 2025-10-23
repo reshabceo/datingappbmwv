@@ -459,17 +459,19 @@ class _AstroProfileSetupState extends State<AstroProfileSetup> {
         throw Exception('User not logged in');
       }
 
-      // Update profile with birth date and gender
-      final { error } = await SupabaseService.client
+      // Compute zodiac and update profile with birth date, gender and zodiac
+      final zodiac = AstroService.calculateZodiacSign(selectedBirthDate!);
+      final response = await SupabaseService.client
           .from('profiles')
           .update({
             'birth_date': selectedBirthDate!.toIso8601String().split('T')[0],
             'gender': selectedGender,
+            'zodiac_sign': zodiac,
           })
           .eq('id', currentUser.id);
 
-      if (error != null) {
-        throw error;
+      if (response.error != null) {
+        throw response.error!;
       }
 
       Get.snackbar('Success', 'Profile updated successfully!');

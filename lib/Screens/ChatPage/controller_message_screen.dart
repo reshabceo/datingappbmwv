@@ -2,9 +2,12 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../services/supabase_service.dart';
 import '../../services/analytics_service.dart';
 import '../../shared_prefrence_helper.dart';
+import '../../widgets/upgrade_prompt_widget.dart';
+import '../../Screens/SubscriptionPage/ui_subscription_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class MessageController extends GetxController {
@@ -66,10 +69,20 @@ class MessageController extends GetxController {
       
       print('DEBUG: Message sent to server: ${text.trim()}');
     } on PostgrestException catch (e) {
-      Get.snackbar('Send failed', e.message);
+      // Check if it's a freemium limit error
+      if (e.message.contains('Daily message limit reached')) {
+        _showMessageLimitDialog();
+      } else {
+        Get.snackbar('Send failed', e.message);
+      }
       print('DEBUG: Send failed with Postgres error: ${e.message}');
     } catch (e) {
-      Get.snackbar('Send failed', 'Please try again');
+      // Check if it's a freemium limit error
+      if (e.toString().contains('Daily message limit reached')) {
+        _showMessageLimitDialog();
+      } else {
+        Get.snackbar('Send failed', 'Please try again');
+      }
       print('DEBUG: Send failed with error: $e');
     }
   }
@@ -352,4 +365,28 @@ class Message {
     this.photoBytes,
     this.photoUrl,
   });
+}
+
+// Add message limit dialog method to MessageController
+extension MessageControllerExtensions on MessageController {
+  void _showMessageLimitDialog() {
+    Get.dialog(
+      Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.r),
+        ),
+        child: Container(
+          padding: EdgeInsets.all(20.w),
+          child: MessageLimitWidget(
+            onUpgrade: () {
+              Get.back(); // Close dialog
+              Get.to(() => SubscriptionScreen());
+            },
+            onDismiss: () => Get.back(),
+          ),
+        ),
+      ),
+      barrierDismissible: true,
+    );
+  }
 }
