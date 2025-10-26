@@ -161,15 +161,29 @@ class ProfileController extends GetxController {
       isLoading.value = true;
       final user = SupabaseService.currentUser;
       if (user != null) {
-        final profileData = {
-          'name': nameController.text,
-          'age': int.tryParse(ageController.text) ?? 0,
-          'location': locationController.text,
-          'description': aboutController.text, // Use description instead of bio
-          'hobbies': myInterestList.toList(), // Use hobbies instead of interests
-          'interests': myInterestList.toList(), // Also save as interests for compatibility
-          'image_urls': myPhotos.toList(), // Use image_urls instead of photos
-        };
+        // Only send fields that have meaningful values to avoid constraint errors
+        final Map<String, dynamic> profileData = {};
+        if (nameController.text.trim().isNotEmpty) {
+          profileData['name'] = nameController.text.trim();
+        }
+        // Age: include only if a valid integer is present (avoid sending 0)
+        final parsedAge = int.tryParse(ageController.text.trim());
+        if (parsedAge != null) {
+          profileData['age'] = parsedAge;
+        }
+        if (locationController.text.trim().isNotEmpty) {
+          profileData['location'] = locationController.text.trim();
+        }
+        // Always allow updating description/About Me
+        profileData['description'] = aboutController.text;
+        // Interests/Photos: include current selections if available
+        if (myInterestList.isNotEmpty) {
+          profileData['hobbies'] = myInterestList.toList();
+          profileData['interests'] = myInterestList.toList();
+        }
+        if (myPhotos.isNotEmpty) {
+          profileData['image_urls'] = myPhotos.toList();
+        }
 
         print('DEBUG: Updating profile with data: $profileData');
         await SupabaseService.updateProfile(

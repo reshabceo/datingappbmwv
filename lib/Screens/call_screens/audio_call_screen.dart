@@ -9,6 +9,8 @@ import 'package:lovebug/Common/widget_constant.dart';
 import 'package:lovebug/ThemeController/theme_controller.dart';
 import 'package:lovebug/models/call_models.dart';
 import 'package:lovebug/services/webrtc_service.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
+// Removed web detection since calls are app-only
 
 class AudioCallScreen extends StatefulWidget {
   final CallPayload payload;
@@ -25,33 +27,69 @@ class AudioCallScreen extends StatefulWidget {
 class _AudioCallScreenState extends State<AudioCallScreen> {
   final ThemeController themeController = Get.find<ThemeController>();
   late WebRTCService webrtcService;
+  final RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
 
   @override
   void initState() {
     super.initState();
     webrtcService = Get.put(WebRTCService());
+    _initRenderer();
     _initializeCall();
   }
 
   @override
   void dispose() {
+    try { _remoteRenderer.srcObject = null; } catch (_) {}
+    try { _remoteRenderer.dispose(); } catch (_) {}
     webrtcService.endCall();
     super.dispose();
   }
 
   Future<void> _initializeCall() async {
+    print('📞 AudioCallScreen: _initializeCall() called');
+    print('📞 AudioCallScreen: payload.callAction = ${widget.payload.callAction}');
+    print('📞 AudioCallScreen: payload.webrtcRoomId = ${widget.payload.webrtcRoomId}');
+    print('📞 AudioCallScreen: payload.notificationId = ${widget.payload.notificationId}');
+    
     // Set up callbacks
     webrtcService.onCallEnded = () {
       Get.back();
     };
+    webrtcService.onRemoteStream = (MediaStream stream) async {
+      try {
+        _remoteRenderer.srcObject = stream;
+        // ensure element exists and can play on web
+        // initialize is safe to call multiple times
+        await _remoteRenderer.initialize();
+        _remoteRenderer.muted = false;
+        // Removed web-specific handling since calls are app-only
+        setState(() {});
+      } catch (_) {}
+    };
 
     // Initialize the call
+    final fallbackRoomId = (widget.payload.webrtcRoomId != null && widget.payload.webrtcRoomId!.isNotEmpty)
+        ? widget.payload.webrtcRoomId!
+        : (widget.payload.notificationId ?? '');
+    
+    print('📞 AudioCallScreen: Using roomId = $fallbackRoomId');
+    
+    // Determine if this user is the call initiator (caller)
+    // If callAction is 'create', we are the initiator
+    final isInitiator = widget.payload.callAction == CallAction.create;
+
+    print('📞 AudioCallScreen: Initializing as ${isInitiator ? "CALLER" : "RECEIVER"}');
+    print('📞 AudioCallScreen: About to call webrtcService.initializeCall()');
+
     await webrtcService.initializeCall(
-      roomId: widget.payload.webrtcRoomId ?? '',
+      roomId: fallbackRoomId,
       callType: CallType.audio,
       matchId: widget.payload.matchId ?? '',
       isBffMatch: widget.payload.isBffMatch ?? false,
+      isInitiator: isInitiator, // Pass initiator flag
     );
+    
+    print('📞 AudioCallScreen: webrtcService.initializeCall() completed');
   }
 
   @override
@@ -183,6 +221,12 @@ class _AudioCallScreenState extends State<AudioCallScreen> {
                   ),
                 ),
               )
+              ,
+              // Hidden renderer to ensure remote audio plays on web
+              Offstage(
+                offstage: true,
+                child: RTCVideoView(_remoteRenderer),
+              )
             ],
           ),
         ),
@@ -216,6 +260,10 @@ class _AudioCallScreenState extends State<AudioCallScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _initRenderer() async {
+    try { await _remoteRenderer.initialize(); } catch (_) {}
   }
 }
 

@@ -9,16 +9,20 @@ class SupabaseService {
     await Supabase.initialize(
       url: SupabaseConfig.supabaseUrl,
       anonKey: SupabaseConfig.supabaseAnonKey,
-      authOptions: const FlutterAuthClientOptions(autoRefreshToken: true),
+      authOptions: const FlutterAuthClientOptions(
+        autoRefreshToken: true,
+        authFlowType: AuthFlowType.pkce,
+      ),
     );
   }
   
-  // OAuth provider sign-in - using same configuration as web module
+  // OAuth provider sign-in - using app-specific redirect
   static Future<void> signInWithProvider(OAuthProvider provider) async {
     await client.auth.signInWithOAuth(
       provider,
-      // Use same redirect URL as web module
-      redirectTo: 'https://dkcitxzvojvecuvacwsp.supabase.co/auth/v1/callback',
+      // Use app-specific redirect URL for mobile
+      redirectTo: 'com.lovebug.app://login-callback',
+      authScreenLaunchMode: LaunchMode.externalApplication,
     );
   }
   
@@ -72,6 +76,29 @@ class SupabaseService {
       rethrow;
     }
   }
+
+  // Check if user exists and get their authentication providers
+  static Future<Map<String, dynamic>?> checkUserAuthProviders(String email) async {
+    try {
+      // Try to get user info by email (this will work if user exists)
+      final response = await client.auth.admin.listUsers();
+      
+      // Find user by email
+      for (var user in response) {
+        if (user.email == email) {
+          return {
+            'exists': true,
+            'providers': user.appMetadata?['providers'] ?? [],
+            'identities': user.identities?.map((i) => i.provider).toList() ?? [],
+          };
+        }
+      }
+      return {'exists': false};
+    } catch (e) {
+      print('Error checking user providers: $e');
+      return null;
+    }
+  }
   
   static User? get currentUser => client.auth.currentUser;
   
@@ -119,10 +146,35 @@ class SupabaseService {
           .eq('id', userId)
           .maybeSingle();
       print('🔄 DEBUG: SupabaseService.getProfile response: $response');
+      
+      // 🔍 DEBUG: Log specific fields we care about
+      if (response != null) {
+        print('🔍 DEBUG: Profile is_active: ${response['is_active']}');
+        print('🔍 DEBUG: Profile email: ${response['email']}');
+        print('🔍 DEBUG: Profile created_at: ${response['created_at']}');
+      } else {
+        print('🔍 DEBUG: No profile found for user: $userId');
+      }
+      
       return response;
     } catch (e) {
       print('❌ DEBUG: SupabaseService.getProfile error: $e');
       return null;
+    }
+  }
+
+  /// Store/update the device FCM token for the current user
+  static Future<void> updateFCMToken(String token) async {
+    try {
+      final userId = currentUser?.id;
+      if (userId == null || token.isEmpty) return;
+      await client
+          .from('profiles')
+          .update({'fcm_token': token})
+          .eq('id', userId);
+      print('✅ FCM token updated for user: $userId');
+    } catch (e) {
+      print('❌ Failed to update FCM token: $e');
     }
   }
   
@@ -140,6 +192,19 @@ class SupabaseService {
     await client
         .from('profiles')
         .insert(profileData);
+  }
+
+  static Future<void> upsertProfile(Map<String, dynamic> profileData) async {
+    try {
+      print('🔄 DEBUG: Upserting profile for user: ${profileData['id']}');
+      await client
+          .from('profiles')
+          .upsert(profileData);
+      print('✅ DEBUG: Profile upserted successfully');
+    } catch (e) {
+      print('❌ DEBUG: Profile upsert failed: $e');
+      rethrow;
+    }
   }
 
   // Auth helpers for OTP/password flows
@@ -277,6 +342,7 @@ class SupabaseService {
       final response = await client.rpc('get_profiles_with_super_likes', params: {
         'p_user_id': uid,
         'p_limit': 20,
+        'p_exclude_hours': 24,
       });
       print('🔍 DEBUG: RPC response: $response');
       final result = (response as List).cast<Map<String, dynamic>>();

@@ -14,12 +14,54 @@ class LocationService {
     return status.isGranted;
   }
   
-  /// Request location permission
+  /// Get detailed permission status
+  static Future<String> getPermissionStatus() async {
+    final status = await Permission.locationWhenInUse.status;
+    return status.toString();
+  }
+  
+  /// Request location permission with proper error handling
   static Future<bool> requestLocationPermission() async {
     print('🔍 LocationService: Requesting location permission...');
-    final status = await Permission.locationWhenInUse.request();
-    print('🔍 LocationService: Permission result: $status');
-    return status.isGranted;
+    
+    // Check current status first
+    var status = await Permission.locationWhenInUse.status;
+    print('🔍 LocationService: Current status: $status');
+    
+    // If already granted, return true
+    if (status.isGranted) {
+      print('✅ LocationService: Permission already granted');
+      return true;
+    }
+    
+    // If permanently denied, return false immediately
+    // The caller should handle showing a dialog to open settings
+    if (status.isPermanentlyDenied) {
+      print('⚠️ LocationService: Permission permanently denied - caller should show settings dialog');
+      return false;
+    }
+    
+    // If denied but not permanently, request permission
+    // This will show the native iOS permission dialog
+    status = await Permission.locationWhenInUse.request();
+    print('🔍 LocationService: Permission request result: $status');
+    
+    if (status.isGranted) {
+      print('✅ LocationService: Permission granted');
+      return true;
+    } else if (status.isPermanentlyDenied) {
+      print('⚠️ LocationService: Permission permanently denied after request');
+      return false;
+    }
+    
+    print('❌ LocationService: Permission denied');
+    return false;
+  }
+  
+  /// Open app settings for user to manually enable location
+  static Future<void> openAppLocationSettings() async {
+    print('🔍 LocationService: Opening app settings...');
+    await openAppSettings();
   }
   
   /// Check if location services are enabled

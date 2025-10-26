@@ -1,6 +1,7 @@
 import 'package:lovebug/Common/text_constant.dart';
 import 'package:lovebug/Common/widget_constant.dart';
 import 'package:lovebug/Screens/ActivityPage/controller_activity_screen.dart';
+import 'package:lovebug/Screens/ActivityPage/models/activity_model.dart';
 import 'package:lovebug/ThemeController/theme_controller.dart';
 import 'package:lovebug/widgets/blurred_profile_widget.dart';
 import 'package:flutter/material.dart';
@@ -145,9 +146,8 @@ class ActivityScreen extends StatelessWidget {
                                 : themeController.purpleColor);
 
                         // Check if activity should be blurred for free users
-                        final shouldBlur = !controller.isPremium.value && 
-                            (activity.type.toString().contains('like') || 
-                             activity.type.toString().contains('message'));
+                        final shouldBlur = !controller.isPremium.value &&
+                            (activity.type == ActivityType.premiumMessage);
                         
                         Widget activityWidget = InkWell(
                           onTap: () => controller.onActivityTap(activity),

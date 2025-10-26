@@ -34,7 +34,8 @@ serve(async (req) => {
   }
 
   try {
-    const { matchId } = await req.json();
+    const body = await req.json();
+    const matchId = body.matchId || body.match_id;
     
     if (!matchId) {
       throw new Error('Match ID is required');
@@ -90,10 +91,12 @@ Person 2: ${user2.name}, ${user2.zodiac_sign} ${ZODIAC_EMOJIS[user2.zodiac_sign]
 Hobbies: ${user2.hobbies?.join(', ') || 'Not specified'}
 Location: ${user2.location || 'Not specified'}
 
+IMPORTANT: In your summary, explicitly mention both zodiac signs by name (e.g., "Your Cancer and Aries signs complement each other beautifully").
+
 Provide a JSON response with:
 {
   "compatibility_score": number (0-100),
-  "summary": "Brief, romantic compatibility summary (2-3 sentences)",
+  "summary": "Brief, romantic compatibility summary (2-3 sentences) that explicitly mentions both zodiac signs by name",
   "strengths": ["strength1", "strength2", "strength3"],
   "challenges": ["challenge1", "challenge2"],
   "romantic_outlook": "Romantic compatibility description (2-3 sentences)",
@@ -108,29 +111,29 @@ Keep it positive, engaging, and romantic. Make it feel personal and meaningful. 
     const iceBreakerPrompt = `
 Generate 3 personalized ice breaker questions for two people who just matched on a dating app:
 
-Person 1: ${user1.name}, ${user1.zodiac_sign} ${ZODIAC_EMOJIS[user1.zodiac_sign] || '⭐'}, Age: ${user1.age}, Gender: ${user1.gender}
+Person 1: ${user1.name}, Age: ${user1.age}, Gender: ${user1.gender}
 Hobbies: ${user1.hobbies?.join(', ') || 'Not specified'}
 Location: ${user1.location || 'Not specified'}
 
-Person 2: ${user2.name}, ${user2.zodiac_sign} ${ZODIAC_EMOJIS[user2.zodiac_sign] || '⭐'}, Age: ${user2.age}, Gender: ${user2.gender}
+Person 2: ${user2.name}, Age: ${user2.age}, Gender: ${user2.gender}
 Hobbies: ${user2.hobbies?.join(', ') || 'Not specified'}
 Location: ${user2.location || 'Not specified'}
 
-Generate questions based on:
+IMPORTANT: Do NOT include any astrology-themed questions. Focus on:
 1. Their mutual interests/hobbies
-2. Their astrological signs compatibility
-3. Their locations or general lifestyle
+2. Their locations or general lifestyle
+3. General conversation starters
 
 Provide a JSON array of exactly 3 questions:
 [
   {
     "question": "Engaging, flirty question text",
-    "category": "hobbies|astrology|lifestyle|general",
+    "category": "hobbies|lifestyle|general",
     "reasoning": "Why this question works for them"
   }
 ]
 
-Make questions fun, flirty, and conversation-starting. Avoid generic questions. Make them specific to their profiles.
+Make questions fun, flirty, and conversation-starting. Avoid generic questions and astrology references. Make them specific to their profiles and interests.
     `;
 
     // Call OpenAI for compatibility
@@ -184,7 +187,7 @@ Make questions fun, flirty, and conversation-starting. Avoid generic questions. 
       console.error('Error parsing compatibility response:', e);
       astroCompatibility = {
         compatibility_score: 75,
-        summary: "You two have great potential together! Your astrological signs complement each other beautifully.",
+        summary: `You two have great potential together! Your ${user1.zodiac_sign} and ${user2.zodiac_sign} signs complement each other beautifully.`,
         strengths: ["Good communication", "Shared values", "Complementary personalities"],
         challenges: ["Different approaches to life"],
         romantic_outlook: "Strong romantic potential with great chemistry",
@@ -209,9 +212,9 @@ Make questions fun, flirty, and conversation-starting. Avoid generic questions. 
           reasoning: "Focuses on shared interests"
         },
         {
-          question: `As a fellow ${user1.zodiac_sign}, what's your take on our astrological compatibility?`,
-          category: "astrology",
-          reasoning: "Playful reference to astrology"
+          question: "What's your favorite way to spend a weekend?",
+          category: "lifestyle",
+          reasoning: "General lifestyle question to get to know each other"
         }
       ];
     }

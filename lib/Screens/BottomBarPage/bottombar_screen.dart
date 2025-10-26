@@ -19,6 +19,7 @@ class BottombarScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    print('🔍 DEBUG: BottombarScreen build() called');
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
@@ -81,8 +82,7 @@ class BottombarScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              // Floating banner overlay on Discover only
-              Obx(() => controller.currentIndex.value == 0 ? _buildProfileCompletionBanner() : SizedBox.shrink()),
+              // Profile completion banner removed
             ],
           ),
         ),

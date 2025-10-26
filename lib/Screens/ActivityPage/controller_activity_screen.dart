@@ -35,12 +35,48 @@ class ActivityController extends GetxController {
       
       print('📊 Loading activities...');
       final response = await SupabaseService.getUserActivities();
-      
-      activities.value = response
-          .map((data) => Activity.fromMap(data))
-          .toList();
-      
-      print('✅ Loaded ${activities.length} activities');
+
+      // Parse activities from RPC
+      final parsed = response.map((data) => Activity.fromMap(data)).toList();
+      // Filter OUT regular chat messages; Activity screen should not show them
+      final filtered = parsed.where((a) => a.type != ActivityType.message && a.type != ActivityType.bffMessage).toList();
+
+      // Append premium messages (paper-plane from Discover)
+      final pmRows = await SupabaseService.getPremiumMessages();
+      for (final row in pmRows) {
+        final senderId = (row['sender_id'] ?? '').toString();
+        final createdAt = DateTime.parse((row['created_at'] ?? DateTime.now().toIso8601String()).toString());
+        String otherName = 'Someone';
+        String? otherPhoto;
+        if (isPremium.value) {
+          // Fetch sender profile only for premium receivers
+          try {
+            final p = await SupabaseService.getProfileById(senderId);
+            otherName = (p?['name'] ?? otherName).toString();
+            // Try first image_urls entry if available
+            final imgs = p?['image_urls'];
+            if (imgs is List && imgs.isNotEmpty) {
+              otherPhoto = imgs.first?.toString();
+            }
+          } catch (_) {}
+        }
+        filtered.add(Activity(
+          id: (row['id'] ?? '').toString(),
+          type: ActivityType.premiumMessage,
+          otherUserId: senderId,
+          otherUserName: otherName,
+          otherUserPhoto: isPremium.value ? otherPhoto : null,
+          messagePreview: isPremium.value ? (row['message_content']?.toString()) : null,
+          createdAt: createdAt,
+          isUnread: true,
+        ));
+      }
+
+      // Sort newest first
+      filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      activities.value = filtered;
+
+      print('✅ Loaded ${activities.length} activities (after filtering & premium messages)');
     } catch (e) {
       print('❌ Error loading activities: $e');
       hasError.value = true;
@@ -56,8 +92,8 @@ class ActivityController extends GetxController {
   void onActivityTap(Activity activity) {
     print('🔔 Activity tapped: ${activity.type} - ${activity.otherUserName}');
     
-    // Mark message as read if it's a message
-    if (activity.type == ActivityType.message && activity.isUnread) {
+    // Mark message as read if it's a regular message (not used now) or premium message viewed later
+    if ((activity.type == ActivityType.message || activity.type == ActivityType.premiumMessage) && activity.isUnread) {
       SupabaseService.markMessageAsRead(activity.id);
       // Reload activities to update read status
       loadActivities();
@@ -83,6 +119,7 @@ class ActivityController extends GetxController {
       case ActivityType.message:
       case ActivityType.bffMessage:
       case ActivityType.storyReply:
+      case ActivityType.premiumMessage:
         // Navigate to chat - need to find the match ID first
         _navigateToChat(activity);
         break;

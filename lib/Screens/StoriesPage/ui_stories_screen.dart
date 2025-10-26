@@ -123,33 +123,87 @@ class StoriesScreen extends StatelessWidget {
                       }
                       
                       if (controller.storyGroups.isEmpty) {
-                        return SizedBox(
+                        return Stack(
+                          children: [
+                            SizedBox(
                               height: Get.height * 0.5,
                               child: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.photo_camera_outlined,
-                                  size: 64,
-                                  color: themeController.lightPinkColor.withValues(alpha: 0.6),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.photo_camera_outlined,
+                                      size: 64,
+                                      color: themeController.lightPinkColor.withValues(alpha: 0.6),
+                                    ),
+                                    SizedBox(height: 16),
+                                    TextConstant(
+                                      title: 'No stories yet',
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                      color: themeController.whiteColor,
+                                    ),
+                                    SizedBox(height: 8),
+                                    TextConstant(
+                                      title: 'Get matches to see their stories!',
+                                      fontSize: 14,
+                                      color: themeController.whiteColor.withValues(alpha: 0.7),
+                                    ),
+                                  ],
                                 ),
-                                SizedBox(height: 16),
-                                TextConstant(
-                                  title: 'No stories yet',
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
-                                  color: themeController.whiteColor,
-                                ),
-                                SizedBox(height: 8),
-                                TextConstant(
-                                  title: 'Get matches to see their stories!',
-                                  fontSize: 14,
-                                  color: themeController.whiteColor.withValues(alpha: 0.7),
-                                ),
-                              ],
+                              ),
                             ),
-                          ),
+                            
+                            // FIXED: Always show add story button, even when no stories exist
+                            Positioned(
+                              bottom: 20.h,
+                              left: 0,
+                              right: 0,
+                              child: Center(
+                                child: GestureDetector(
+                                  onTap: _addStory,
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        width: 64.w,
+                                        height: 64.w,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          gradient: LinearGradient(
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                            colors: [
+                                              themeController.lightPinkColor,
+                                              themeController.lightPinkColor.withValues(alpha: 0.9),
+                                              Colors.purple.withValues(alpha: 0.9),
+                                            ],
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: themeController.lightPinkColor.withValues(alpha: 0.4),
+                                              blurRadius: 20,
+                                              offset: Offset(0, 8),
+                                            ),
+                                            BoxShadow(
+                                              color: Colors.black.withValues(alpha: 0.2),
+                                              blurRadius: 10,
+                                              offset: Offset(0, 4),
+                                            ),
+                                          ],
+                                        ),
+                                        child: Icon(
+                                          Icons.add,
+                                          color: Colors.white,
+                                          size: 28,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         );
                       }
                       

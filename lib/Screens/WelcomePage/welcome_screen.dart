@@ -6,12 +6,38 @@ import '../../Common/widget_constant.dart';
 import '../../ThemeController/theme_controller.dart';
 import '../AuthPage/auth_ui_screen.dart';
 import '../AuthPage/get_started_auth_screen.dart';
+import 'package:lovebug/services/supabase_service.dart';
+import 'package:lovebug/Screens/BottomBarPage/bottombar_screen.dart';
 
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    print('🔍 DEBUG: WelcomeScreen build() called');
+    // Failsafe: if a session exists, force navigation to main app
+    final session = SupabaseService.client.auth.currentSession;
+    if (session != null) {
+      print('🔍 DEBUG: WelcomeScreen detected active session; forcing immediate navigation to main app');
+      // Use immediate navigation and return loading screen
+      Future.microtask(() {
+        // Primary: GetX
+        try { Get.offAll(() => BottombarScreen()); } catch (_) {}
+        // Fallback: root Navigator
+        try {
+          Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => BottombarScreen()),
+            (route) => false,
+          );
+        } catch (_) {}
+      });
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: CircularProgressIndicator(color: Colors.white),
+        ),
+      );
+    }
     final ThemeController themeController = Get.find<ThemeController>();
 
     return AnnotatedRegion<SystemUiOverlayStyle>(

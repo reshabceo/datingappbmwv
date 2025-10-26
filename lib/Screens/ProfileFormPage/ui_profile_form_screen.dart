@@ -47,7 +47,12 @@ class ProfileFormScreen extends StatelessWidget {
           ),
         ),
       ),
-      body: Container(
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: Container(
         width: Get.width,
         height: Get.height,
         decoration: BoxDecoration(
@@ -100,12 +105,27 @@ class ProfileFormScreen extends StatelessWidget {
                   hintFontSize: 14,
                   hintText: 'your_age'.tr,
                   hintFontWeight: FontWeight.bold,
-                  keyboardType: TextInputType.number,
-                  controller: controller.ageController,
-                  inputFormatters: [
-                    LengthLimitingTextInputFormatter(3),
-                    FilteringTextInputFormatter.digitsOnly,
-                  ],
+                  controller: controller.dateOfBirthController,
+                  isReadOnly: true,
+                  onTap: () {
+                    print('🗓️ DEBUG: DOB field tapped');
+                    controller.showBirthDatePicker(context);
+                  },
+                  suffixIcon: Icons.calendar_today,
+                  suffixIconColor: Colors.grey[600],
+                  suffixOnTap: () {
+                    print('🗓️ DEBUG: Calendar icon tapped');
+                    controller.showBirthDatePicker(context);
+                  },
+                ),
+                heightBox(8),
+                // Temporary debug button to isolate issues with onTap
+                ElevatedButton(
+                  onPressed: () {
+                    print('🗓️ DEBUG: Debug button pressed');
+                    controller.showBirthDatePicker(context);
+                  },
+                  child: const Text('Pick DOB (debug)'),
                 ),
                 heightBox(30),
                 TextConstant(
@@ -387,6 +407,8 @@ class ProfileFormScreen extends StatelessWidget {
                 heightBox(30),
               ],
             ),
+          ),
+        ),
           ),
         ),
       ),

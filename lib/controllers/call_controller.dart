@@ -57,10 +57,23 @@ class CallController extends GetxController {
       final currentUserId = SupabaseService.currentUser?.id;
       if (currentUserId == null) return;
 
-      // Generate unique IDs
+      // CRITICAL DEBUG: Log call initiation details
+      print('🎯 ===========================================');
+      print('🎯 CALL INITIATION DEBUG');
+      print('🎯 ===========================================');
+      print('🎯 User Role: CALLER (Initiator)');
+      print('🎯 Caller ID: $currentUserId');
+      print('🎯 Receiver ID: $receiverId');
+      print('🎯 Receiver Name: $receiverName');
+      print('🎯 Call Type: ${callType == CallType.video ? "VIDEO" : "AUDIO"}');
+      print('🎯 Match ID: $matchId');
+      print('🎯 BFF Match: $isBffMatch');
+      print('🎯 ===========================================');
+
+      // Generate unique IDs - use the SAME id for call, room and notification
       final callId = const Uuid().v4();
-      final roomId = const Uuid().v4();
-      final notificationId = const Uuid().v4();
+      final roomId = callId;
+      final notificationId = callId;
 
       // Create call session
       final callSession = CallSession(
@@ -77,7 +90,7 @@ class CallController extends GetxController {
       // Store call session in database
       await SupabaseService.client.from('call_sessions').insert(callSession.toJson());
 
-      // Create call payload
+      // Create call payload (roomId == callId, notificationId == callId)
       final payload = CallPayload(
         userId: currentUserId,
         name: SupabaseService.currentUser?.userMetadata?['name'] ?? 'Unknown',
@@ -92,11 +105,13 @@ class CallController extends GetxController {
         isBffMatch: isBffMatch,
       );
 
-      // Send notification to receiver
-      await _sendCallNotification(payload);
+      // Start local call FIRST (don't wait for push notification)
+      _startLocalCall(payload, receiverId);
 
-      // Start local call
-      _startLocalCall(payload);
+      // Send notification to receiver (non-blocking, fire and forget)
+      _sendCallNotification(payload).catchError((e) {
+        print('⚠️ Push notification failed (continuing with call anyway): $e');
+      });
 
     } catch (e) {
       print('Error initiating call: $e');
@@ -106,6 +121,11 @@ class CallController extends GetxController {
 
   Future<void> _sendCallNotification(CallPayload payload) async {
     try {
+      // Skip push if token is missing; rely on realtime if app is foreground
+      if ((payload.fcmToken ?? '').isEmpty) {
+        print('⚠️ Skipping push: receiver has no FCM token');
+        return;
+      }
       // Send push notification via Supabase Edge Function
       await SupabaseService.client.functions.invoke(
         'send-call-notification',
@@ -116,13 +136,25 @@ class CallController extends GetxController {
     }
   }
 
-  void _startLocalCall(CallPayload payload) {
+  void _startLocalCall(CallPayload payload, String receiverId) {
+    // CRITICAL DEBUG: Log local call start
+    print('🎯 ===========================================');
+    print('🎯 LOCAL CALL START DEBUG');
+    print('🎯 ===========================================');
+    print('🎯 User Role: CALLER (Initiator)');
+    print('🎯 Call Action: ${payload.callAction}');
+    print('🎯 Call Type: ${payload.callType}');
+    print('🎯 Room ID: ${payload.webrtcRoomId}');
+    print('🎯 Match ID: ${payload.matchId}');
+    print('🎯 Receiver ID: $receiverId');
+    print('🎯 ===========================================');
+    
     _isInCall.value = true;
     _currentCall.value = CallSession.fromJson({
       'id': payload.notificationId,
       'match_id': payload.matchId,
       'caller_id': payload.userId,
-      'receiver_id': payload.userId, // This will be updated when receiver joins
+      'receiver_id': receiverId, // FIXED: Use the actual receiver ID passed to initiateCall
       'type': payload.callType?.name,
       'state': CallState.initial.name,
       'created_at': DateTime.now().toIso8601String(),
@@ -131,8 +163,10 @@ class CallController extends GetxController {
 
     // Navigate to appropriate call screen
     if (payload.callType == CallType.video) {
+      print('🎯 Navigating to VideoCallScreen for CALLER');
       Get.to(() => VideoCallScreen(payload: payload));
     } else {
+      print('🎯 Navigating to AudioCallScreen for CALLER');
       Get.to(() => AudioCallScreen(payload: payload));
     }
   }

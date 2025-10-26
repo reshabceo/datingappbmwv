@@ -59,7 +59,9 @@ class _MultiStepProfileFormState extends State<MultiStepProfileForm> {
     controller = Get.put(ProfileFormController());
     // Add listener to date controller to trigger rebuilds
     controller.dateOfBirthController.addListener(() {
-      setState(() {});
+      if (mounted) {
+        setState(() {});
+      }
     });
   }
   
@@ -116,7 +118,7 @@ class _MultiStepProfileFormState extends State<MultiStepProfileForm> {
         child: Column(
           children: [
             // Status Bar Spacing
-            SizedBox(height: MediaQuery.of(context).padding.top + 60.h),
+            SizedBox(height: MediaQuery.of(context).padding.top + 80.h),
             // Progress Indicator
             Container(
               padding: EdgeInsets.all(20.w),
@@ -156,41 +158,59 @@ class _MultiStepProfileFormState extends State<MultiStepProfileForm> {
             
             // Step Content
             Expanded(
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 24.w),
+              child: SingleChildScrollView(
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: EdgeInsets.only(
+                  left: 24.w,
+                  right: 24.w,
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 20.h,
+                ),
                 child: _buildStepContent(),
               ),
             ),
             
             // Navigation Buttons
             Container(
-              padding: EdgeInsets.all(24.w),
+              padding: EdgeInsets.fromLTRB(
+                24.w,
+                24.h,
+                24.w,
+                16.h + MediaQuery.of(context).padding.bottom,
+              ),
               child: Row(
                 children: [
                   if (currentStep > 0)
                     Expanded(
-                      child: OutlinedButton(
-                        onPressed: () {
-                          setState(() {
-                            currentStep--;
-                          });
-                        },
-                        style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: themeController.whiteColor),
-                          padding: EdgeInsets.symmetric(vertical: 16.h),
-                        ),
-                        child: Text(
-                          'Back',
-                          style: TextStyle(
-                            color: themeController.whiteColor,
-                            fontSize: 16.sp,
+                      child: SizedBox(
+                        height: 56.h,
+                        child: OutlinedButton(
+                          onPressed: () {
+                            setState(() {
+                              currentStep--;
+                            });
+                          },
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: themeController.whiteColor, width: 1.5),
+                            shape: const StadiumBorder(),
+                            foregroundColor: themeController.whiteColor,
+                            padding: EdgeInsets.symmetric(horizontal: 16.w),
+                          ),
+                          child: Text(
+                            'Back',
+                            style: TextStyle(
+                              color: themeController.whiteColor,
+                              fontSize: 16.sp,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ),
                     ),
                   if (currentStep > 0) SizedBox(width: 16.w),
                   Expanded(
-                    child: elevatedButton(
+                    child: SizedBox(
+                      height: 56.h,
+                      child: elevatedButton(
                       title: currentStep == totalSteps - 1 ? 'Complete' : 'Next',
                       textColor: themeController.whiteColor,
                       onPressed: () async {
@@ -208,6 +228,8 @@ class _MultiStepProfileFormState extends State<MultiStepProfileForm> {
                         themeController.lightPinkColor,
                         themeController.purpleColor,
                       ],
+                      borderRadius: 100,
+                      ),
                     ),
                   ),
                 ],
@@ -241,6 +263,7 @@ class _MultiStepProfileFormState extends State<MultiStepProfileForm> {
   Widget _buildGenderStep() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           'I am a',
@@ -258,7 +281,7 @@ class _MultiStepProfileFormState extends State<MultiStepProfileForm> {
             fontSize: 16.sp,
           ),
         ),
-        SizedBox(height: 40.h),
+        SizedBox(height: 12.h),
         
         // Gender selection buttons
         Obx(() => Column(
@@ -412,6 +435,7 @@ class _MultiStepProfileFormState extends State<MultiStepProfileForm> {
   Widget _buildBasicInfoStep() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           'Tell us about yourself',
@@ -446,11 +470,19 @@ class _MultiStepProfileFormState extends State<MultiStepProfileForm> {
           hintText: 'Date of Birth (DD/MM/YYYY)',
           hintFontWeight: FontWeight.w500,
           controller: controller.dateOfBirthController,
-          keyboardType: TextInputType.datetime,
-          inputFormatters: [
-            DateInputFormatter(),
-          ],
+          isReadOnly: true,
+          onTap: () {
+            print('🗓️ DEBUG: MultiStep DOB field tapped');
+            controller.showBirthDatePicker(context);
+          },
+          suffixIcon: Icons.calendar_today,
+          suffixIconColor: Colors.grey[400],
+          suffixOnTap: () {
+            print('🗓️ DEBUG: MultiStep calendar icon tapped');
+            controller.showBirthDatePicker(context);
+          },
         ),
+        SizedBox(height: 12.h),
         SizedBox(height: 12.h),
         // Age display - removed Obx as it's not needed for text controller changes
         if (controller.dateOfBirthController.text.isNotEmpty)
@@ -509,6 +541,7 @@ class _MultiStepProfileFormState extends State<MultiStepProfileForm> {
   Widget _buildPhotosStep() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           'Add your photos',
@@ -528,16 +561,18 @@ class _MultiStepProfileFormState extends State<MultiStepProfileForm> {
         ),
         SizedBox(height: 40.h),
         
-        Expanded(
-          child: GetBuilder<ProfileFormController>(
-            builder: (controller) => GridView.builder(
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 16.w,
-                mainAxisSpacing: 16.h,
-                childAspectRatio: 1,
-              ),
-              itemCount: 6,
+        GetBuilder<ProfileFormController>(
+          builder: (controller) => GridView.builder(
+            shrinkWrap: true,
+            physics: NeverScrollableScrollPhysics(),
+            padding: EdgeInsets.zero,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 16.w,
+              mainAxisSpacing: 16.h,
+              childAspectRatio: 1,
+            ),
+            itemCount: 6,
             itemBuilder: (context, index) {
               // Add bounds checking to prevent RangeError
               if (index < controller.selectedImages.length && 
@@ -547,7 +582,6 @@ class _MultiStepProfileFormState extends State<MultiStepProfileForm> {
                 return _buildAddPhotoItem();
               }
             },
-            ),
           ),
         ),
         SizedBox(height: 16.h),
@@ -590,22 +624,10 @@ class _MultiStepProfileFormState extends State<MultiStepProfileForm> {
   }
 
   Widget _buildPhotoItem(int index) {
-    // Add bounds checking to prevent RangeError
-    if (index >= controller.selectedImages.length || 
-        index >= controller.uploadedImageUrls.length) {
-      return Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12.r),
-          border: Border.all(
-            color: Colors.grey,
-            width: 2,
-          ),
-        ),
-        child: Center(
-          child: Icon(Icons.error, color: Colors.grey),
-        ),
-      );
-    }
+    // Show uploaded URL if available, otherwise show local file
+    final hasUploadedUrl = index < controller.uploadedImageUrls.length && 
+                          controller.uploadedImageUrls[index].isNotEmpty;
+    final hasLocalFile = index < controller.selectedImages.length;
 
     return Stack(
       children: [
@@ -619,25 +641,53 @@ class _MultiStepProfileFormState extends State<MultiStepProfileForm> {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(10.r),
-            child: kIsWeb 
+            child: hasUploadedUrl
               ? Image.network(
                   controller.uploadedImageUrls[index],
                   width: double.infinity,
                   height: double.infinity,
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) {
+                    print('❌ Error loading uploaded image: $error');
+                    // Fallback to local file if network fails
+                    if (hasLocalFile) {
+                      return Image.file(
+                        File(controller.selectedImages[index].path),
+                        width: double.infinity,
+                        height: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, err, stack) {
+                          return Container(
+                            color: Colors.grey[300],
+                            child: Icon(Icons.error, color: Colors.white),
+                          );
+                        },
+                      );
+                    }
                     return Container(
                       color: Colors.grey[300],
-                      child: Icon(Icons.error),
+                      child: Icon(Icons.error, color: Colors.white),
                     );
                   },
                 )
-              : Image.file(
-                  File(controller.selectedImages[index].path),
-                  width: double.infinity,
-                  height: double.infinity,
-                  fit: BoxFit.cover,
-                ),
+              : (hasLocalFile
+                  ? Image.file(
+                      File(controller.selectedImages[index].path),
+                      width: double.infinity,
+                      height: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        print('❌ Error loading local image: $error');
+                        return Container(
+                          color: Colors.grey[300],
+                          child: Icon(Icons.error, color: Colors.white),
+                        );
+                      },
+                    )
+                  : Container(
+                      color: Colors.grey[300],
+                      child: Icon(Icons.error, color: Colors.white),
+                    )),
           ),
         ),
         Positioned(
@@ -701,6 +751,7 @@ class _MultiStepProfileFormState extends State<MultiStepProfileForm> {
   Widget _buildBioStep() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           'Tell us about yourself',
@@ -759,6 +810,7 @@ class _MultiStepProfileFormState extends State<MultiStepProfileForm> {
   Widget _buildInterestsStep() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           'Your interests',
@@ -778,7 +830,8 @@ class _MultiStepProfileFormState extends State<MultiStepProfileForm> {
         ),
         SizedBox(height: 40.h),
         
-        Expanded(
+        SizedBox(
+          height: 500.h,
           child: GetBuilder<ProfileFormController>(
             builder: (controller) => GridView.builder(
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -907,13 +960,8 @@ class _MultiStepProfileFormState extends State<MultiStepProfileForm> {
         }
         return true;
       case 5: // Location
-        // Check if location permission is granted
-        final hasPermission = await LocationService.hasLocationPermission();
-        if (!hasPermission) {
-          Get.snackbar('Permission Required', 'Please enable location access to continue', 
-            backgroundColor: Colors.orange, colorText: Colors.white);
-          return false;
-        }
+        // Location is optional for profile completion
+        // Don't block user from completing profile if they don't grant permission
         return true;
       default:
         return true;
@@ -923,6 +971,7 @@ class _MultiStepProfileFormState extends State<MultiStepProfileForm> {
   Widget _buildLocationStep() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           'Your location',

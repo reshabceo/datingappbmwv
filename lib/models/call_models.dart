@@ -61,6 +61,7 @@ class CallPayload {
     'webrtcRoomId': webrtcRoomId,
     'matchId': matchId,
     'isBffMatch': isBffMatch,
+    'callId': notificationId, // Add callId for CallKit extra data
   };
 }
 

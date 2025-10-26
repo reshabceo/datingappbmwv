@@ -7,11 +7,13 @@ import 'package:lovebug/ThemeController/theme_controller.dart';
 class IceBreakerWidget extends StatefulWidget {
   final String matchId;
   final String otherUserName;
+  final String? currentUserZodiac;
 
   const IceBreakerWidget({
     Key? key,
     required this.matchId,
     required this.otherUserName,
+    this.currentUserZodiac,
   }) : super(key: key);
 
   @override
@@ -99,7 +101,7 @@ class _IceBreakerWidgetState extends State<IceBreakerWidget> {
     try {
       final resp = await SupabaseService.client.functions.invoke(
         'generate-match-insights',
-        body: {'matchId': widget.matchId},
+        body: {'match_id': widget.matchId},
       );
 
       if (resp.data != null && resp.data['success'] == true) {
@@ -250,8 +252,18 @@ class _IceBreakerWidgetState extends State<IceBreakerWidget> {
   }
 
   Widget _buildIceBreakerBubble(Map<String, dynamic> iceBreaker) {
-    final question = iceBreaker['question'] ?? '';
+    String question = (iceBreaker['question'] ?? '').toString();
     final category = iceBreaker['category'] ?? 'general';
+
+    if (category.toString().toLowerCase() == 'astrology' && (widget.currentUserZodiac ?? '').isNotEmpty) {
+      const signs = [
+        'aries','taurus','gemini','cancer','leo','virgo','libra','scorpio','sagittarius','capricorn','aquarius','pisces'
+      ];
+      for (final s in signs) {
+        question = question.replaceAll(RegExp('fellow\\s+$s', caseSensitive: false), 'fellow ${widget.currentUserZodiac}');
+        question = question.replaceAll(RegExp('as a $s', caseSensitive: false), 'as a ${widget.currentUserZodiac}');
+      }
+    }
     
     return Container(
       margin: EdgeInsets.symmetric(horizontal: 20.w, vertical: 2.h),

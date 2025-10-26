@@ -22,9 +22,21 @@ class DiscoverController extends GetxController {
 
   final profiles = <Profile>[].obs;
   final currentIndex = 0.obs;
+  // Index used by neon name overlay to avoid desync with CardSwiper animations
+  final overlayIndex = 0.obs;
+  // Local session guards to avoid resurfacing within session
+  final RxSet<String> seenIds = <String>{}.obs;
+  final RxSet<String> passedIds = <String>{}.obs;
+  final RxSet<String> likedIds = <String>{}.obs;
   final RxBool isPreloading = false.obs;
+  final RxBool isInitialLoading = true.obs;
   final RxInt preloadedCount = 0.obs;
   
+  // Deck version – bump to force CardSwiper to rebuild when order/size changes
+  final RxInt deckVersion = 0.obs;
+  // Minimum number of cards before first render to avoid instant-jump glitches
+  static const int _minInitialDeckCount = 10;
+
   // Mode toggle (Dating/BFF)
   final RxString currentMode = 'dating'.obs; // 'dating' or 'bff'
   
@@ -299,18 +311,34 @@ class DiscoverController extends GetxController {
       // Update profiles list with fresh data - optimized loading order
       profiles.value = displayable;
       currentIndex.value = 0;
+      overlayIndex.value = 0; // keep neon overlay in sync on initial load
+      deckVersion.value++; // force deck rebuild with fresh data
       
-      // Update cached profiles for the new mode
+      // Update cached profiles for the new mode (FIXED: Use displayable instead of loaded)
       if (mode == 'bff') {
         bffProfiles.clear();
-        bffProfiles.addAll(loaded);
+        bffProfiles.addAll(displayable);
+        print('🔄 DEBUG: Cached ${bffProfiles.length} bff profiles');
       } else {
         datingProfiles.clear();
-        datingProfiles.addAll(loaded);
+        datingProfiles.addAll(displayable);
+        print('🔄 DEBUG: Cached ${datingProfiles.length} dating profiles');
+      }
+      
+      // Debug: Log the first 3 profiles
+      for (int i = 0; i < (displayable.length > 3 ? 3 : displayable.length); i++) {
+        final p = displayable[i];
+        print('🔍 DEBUG: Profile $i: ID=${p.id}, Name="${p.name}", Photos=${p.photos.length}');
+        if (p.photos.isNotEmpty) {
+          print('🔍 DEBUG:   First photo: "${p.photos.first}"');
+        }
       }
       
       // Force immediate UI update for first card
       update();
+      
+      // Small delay to prevent race conditions with card rendering
+      await Future.delayed(Duration(milliseconds: 50));
       
       // Preload remaining cards in background (optimized loading order)
       if (loaded.length > 1) {
@@ -318,6 +346,11 @@ class DiscoverController extends GetxController {
       }
       
       print('✅ Profiles refreshed for mode: $mode, count: ${profiles.length}');
+      
+      // 🔧 CRITICAL FIX: Set initial loading to false after profiles are loaded
+      isInitialLoading.value = false;
+      print('🔄 DEBUG: Set isInitialLoading = false, profiles loaded: ${displayable.length}');
+      
     } catch (e) {
       print('❌ Error refreshing profiles for mode $mode: $e');
     } finally {
@@ -472,6 +505,11 @@ class DiscoverController extends GetxController {
         currentIndex.value = 0;
         print('📥 DEBUG: Setting isPreloading = false (empty result)');
         isPreloading.value = false;
+        // CRITICAL: End initial loading so UI can show empty state instead of spinner
+        if (isInitialLoading.value) {
+          isInitialLoading.value = false;
+          print('🔄 DEBUG: Set isInitialLoading = false (empty result)');
+        }
         update();
         print('📥📥 DEBUG: _loadActiveProfiles() ENDED (empty)');
         return;
@@ -552,11 +590,13 @@ class DiscoverController extends GetxController {
           })
           .toList();
       
-      // Validate and filter profiles before assigning
+      // Validate and filter profiles before assigning (also exclude self)
+      final uid = SupabaseService.currentUser?.id;
       final validProfiles = loaded.where((profile) => 
         profile.name.isNotEmpty && 
         profile.id.isNotEmpty && 
-        profile.imageUrl.isNotEmpty
+        profile.imageUrl.isNotEmpty &&
+        (uid == null || profile.id != uid)
       ).toList();
       
       // DEBUG: Log all loaded profiles
@@ -572,16 +612,47 @@ class DiscoverController extends GetxController {
         print('  Valid Profile $i: ID=${profile.id}, Name="${profile.name}", Age=${profile.age}');
       }
       
+      // Session de-dupe: filter out anything we've already seen/swiped this session
+      final filteredBySession = validProfiles
+          .where((p) => !seenIds.contains(p.id) && !passedIds.contains(p.id) && !likedIds.contains(p.id))
+          .toList();
+
+      // Strong de-dupe within this batch AND against existing deck
+      final Set<String> idsSeenThisBatch = <String>{};
+      final Set<String> existingIdsInDeck = profiles.map((p) => p.id).toSet();
+      final List<Profile> uniqueFiltered = [];
+      for (final p in filteredBySession) {
+        if (idsSeenThisBatch.contains(p.id)) continue; // intra-batch duplicate
+        if (existingIdsInDeck.contains(p.id)) continue; // already in current deck
+        idsSeenThisBatch.add(p.id);
+        uniqueFiltered.add(p);
+      }
+
       // Preload profiles and trigger background loading
-      profiles.assignAll(validProfiles);
-      preloadedCount.value = validProfiles.length;
+      profiles.assignAll(uniqueFiltered);
+      preloadedCount.value = uniqueFiltered.length;
       isPreloading.value = false;
+
+      // Try to reach a stable initial deck size before first render
+      if (isInitialLoading.value && currentMode.value == 'dating' && profiles.length < _minInitialDeckCount) {
+        try {
+          await _preloadNextBatch();
+        } catch (_) {}
+      }
+
+      deckVersion.value++; // deck content changed – trigger CardSwiper rebuild
+
+      // CRITICAL: Mark initial loading complete once we have a result
+      if (isInitialLoading.value) {
+        isInitialLoading.value = false;
+        print('🔄 DEBUG: Set isInitialLoading = false; profiles loaded: ${profiles.length}');
+      }
       
       // Cache profiles by mode
       if (currentMode.value == 'bff') {
-        bffProfiles.value = List.from(validProfiles);
+        bffProfiles.value = List.from(uniqueFiltered);
       } else {
-        datingProfiles.value = List.from(validProfiles);
+        datingProfiles.value = List.from(uniqueFiltered);
       }
       
       print('✅ Loaded ${validProfiles.length} valid profiles for ${currentMode.value} mode');
@@ -613,11 +684,13 @@ class DiscoverController extends GetxController {
           }
         }
       } else {
-        // For dating mode, check regular swipes table
+        // For dating mode, check regular swipes table (recent window only)
+        final since = DateTime.now().subtract(const Duration(hours: 24)).toIso8601String();
         final sw = await SupabaseService.client
             .from('swipes')
-            .select('swiped_id')
-            .eq('swiper_id', uid);
+            .select('swiped_id,created_at')
+            .eq('swiper_id', uid)
+            .gte('created_at', since);
         if (sw is List) {
           for (final r in sw) {
             final other = (r['swiped_id'] ?? '').toString();
@@ -654,7 +727,7 @@ class DiscoverController extends GetxController {
       try {
         final u = Uri.parse(raw);
         final host = u.host.toLowerCase();
-        if (host.contains('pixabay.com')) {
+        if (host.contains('pixabay.com') || host.contains('picsum.photos')) {
           final encoded = Uri.encodeComponent(raw);
           return 'https://images.weserv.nl/?url=$encoded&h=1200&w=900&fit=cover';
         }
@@ -691,23 +764,32 @@ class DiscoverController extends GetxController {
 
   // Match functionality
   Future<void> onSwipeLeft(Profile profile) async {
+    print('🚫 SWIPE LEFT: ${profile.name} (ID: ${profile.id})');
     // Track swipe action
     await AnalyticsService.trackSwipe('pass', profile.id);
-    // Record a pass so the same card will not reappear later
-    await _handleSwipe(profile, action: 'pass');
+    // Record pass (deck removal deferred to UI)
+    await _handleSwipe(profile, action: 'pass', deferRemoval: true);
+    passedIds.add(profile.id);
+    seenIds.add(profile.id);
   }
 
   Future<void> onSwipeRight(Profile profile) async {
+    print('❤️ SWIPE RIGHT: ${profile.name} (ID: ${profile.id})');
     // Track swipe action
     await AnalyticsService.trackSwipe('like', profile.id);
-    // Like via server-side RPC to guarantee atomic swipe+match
-    await _handleSwipe(profile, action: 'like');
+    // Like via server-side RPC (deck removal deferred to UI)
+    await _handleSwipe(profile, action: 'like', deferRemoval: true);
+    likedIds.add(profile.id);
+    seenIds.add(profile.id);
   }
 
   Future<void> onSuperLike(Profile profile) async {
+    print('⭐ SUPER LIKE: ${profile.name} (ID: ${profile.id})');
     // Track swipe action
     await AnalyticsService.trackSwipe('super_like', profile.id);
-    await _handleSwipe(profile, action: 'super_like');
+    await _handleSwipe(profile, action: 'super_like', deferRemoval: true);
+    likedIds.add(profile.id);
+    seenIds.add(profile.id);
   }
 
   void _moveToNextCard() {
@@ -745,7 +827,7 @@ class DiscoverController extends GetxController {
     }
   }
 
-  Future<void> _handleSwipe(Profile profile, {required String action, int? previousIndex}) async {
+  Future<void> _handleSwipe(Profile profile, {required String action, int? previousIndex, bool deferRemoval = true}) async {
     final currentUserId = SupabaseService.currentUser?.id;
     final otherId = profile.id;
 
@@ -754,14 +836,12 @@ class DiscoverController extends GetxController {
     if (currentUserId == null || otherId.isEmpty) {
       print('DEBUG: Invalid user IDs, skipping swipe');
       _moveToNextCard();
-      _removeProfileSafely(profile);
       return;
     }
 
     if (otherId == currentUserId) {
       print('DEBUG: Cannot swipe on yourself, skipping');
       _moveToNextCard();
-      _removeProfileSafely(profile);
       return;
     }
   
@@ -791,8 +871,10 @@ class DiscoverController extends GetxController {
       print('DEBUG: RPC ${currentMode.value == 'bff' ? 'handle_bff_swipe' : 'handle_swipe'} result matched=$matched matchId=$matchId');
       print('DEBUG: Full RPC response: $res');
 
-      // Remove profile and advance deck immediately
-      _removeProfileAndAdvance(profile);
+      // Deck removal is handled by UI after animation to avoid desync
+      if (!deferRemoval) {
+        _removeProfileAndAdvance(profile);
+      }
 
       if (matched && matchId.isNotEmpty) {
         // Track match creation
@@ -806,8 +888,7 @@ class DiscoverController extends GetxController {
       }
     } catch (e) {
       print('DEBUG: RPC swipe failed, removing card anyway. Error: $e');
-      // Remove profile even if swipe failed to prevent UI stuck
-      _removeProfileAndAdvance(profile);
+      // Keep deck changes deferred to UI to maintain consistency
     }
   }
 
@@ -821,7 +902,7 @@ class DiscoverController extends GetxController {
       // Call the edge function to generate ice breakers
       final resp = await SupabaseService.client.functions.invoke(
         'generate-match-insights',
-        body: {'matchId': matchId},
+        body: {'match_id': matchId},
       );
       
       if (resp.data != null && resp.data['success'] == true) {
@@ -843,6 +924,7 @@ class DiscoverController extends GetxController {
         print('DEBUG: Profile removed safely');
         // Force UI update when profiles are removed
         update();
+        deckVersion.value++;
       }
     });
   }
@@ -884,6 +966,7 @@ class DiscoverController extends GetxController {
     
     // Force UI update
     update();
+    deckVersion.value++;
     
     // Preload more profiles if needed
     _checkAndPreload();
@@ -950,7 +1033,14 @@ class DiscoverController extends GetxController {
     }
     print('🔍 DEBUG: After remove(byIndex) - new length=${profiles.length}, new currentIndex=${currentIndex.value}');
     update();
+    deckVersion.value++;
     _checkAndPreload();
+  }
+
+  // Public: finalize a swipe by removing the swiped card after animation completes
+  void finalizeSwipeAtIndex(int? prevIndex) {
+    if (prevIndex == null) return;
+    _advanceDeckAfterSwipeByIndex(prevIndex);
   }
 
   Future<void> _showMatchDialog(Profile profile, String matchId, String mode) async {
@@ -1231,9 +1321,21 @@ class DiscoverController extends GetxController {
         }).toList();
 
         if (displayable.isNotEmpty) {
-          profiles.addAll(displayable);
+          // Strong de-dupe against existing deck and within this preload batch
+          final Set<String> existing = profiles.map((p) => p.id).toSet();
+          final Set<String> seenBatch = <String>{};
+          final List<Profile> uniques = [];
+          for (final p in displayable) {
+            if (existing.contains(p.id)) continue;
+            if (seenBatch.contains(p.id)) continue;
+            seenBatch.add(p.id);
+            uniques.add(p);
+          }
+          if (uniques.isNotEmpty) {
+            profiles.addAll(uniques);
+          }
           preloadedCount.value = profiles.length;
-          print('✅ Preloaded ${displayable.length} more profiles. Total: ${profiles.length}');
+          print('✅ Preloaded ${uniques.length} more profiles. Total: ${profiles.length}');
         } else {
           print('🔍 DEBUG: No displayable profiles to preload');
         }

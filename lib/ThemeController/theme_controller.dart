@@ -5,6 +5,12 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:lovebug/Screens/DiscoverPage/controller_discover_screen.dart';
 
+// Backward-compat helper: some screens use Color.withValues(alpha: x).
+// Flutter stable exposes withOpacity(); provide a shim so older calls compile.
+extension ColorCompatWithValues on Color {
+  Color withValues({double? alpha}) => withOpacity(alpha ?? 1.0);
+}
+
 class ThemeController extends GetxController {
   final RxBool isDarkMode = false.obs;
 

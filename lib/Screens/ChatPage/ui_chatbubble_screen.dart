@@ -512,23 +512,25 @@ class EnhancedChatBubble extends StatelessWidget {
   }
 
   String _formatTimestamp(DateTime timestamp) {
+    // Always display in the user's local timezone
+    final ts = timestamp.toLocal();
     // Format as absolute time with AM/PM: HH:MM AM/PM or DD/MM HH:MM AM/PM
     final now = DateTime.now();
-    final isToday = timestamp.year == now.year && 
-                    timestamp.month == now.month && 
-                    timestamp.day == now.day;
+    final isToday = ts.year == now.year && 
+                   ts.month == now.month && 
+                   ts.day == now.day;
     
     // Convert to 12-hour format with AM/PM
-    final hour12 = timestamp.hour == 0 ? 12 : (timestamp.hour > 12 ? timestamp.hour - 12 : timestamp.hour);
-    final amPm = timestamp.hour < 12 ? 'AM' : 'PM';
-    final timeString = '${hour12.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')} $amPm';
+    final hour12 = ts.hour == 0 ? 12 : (ts.hour > 12 ? ts.hour - 12 : ts.hour);
+    final amPm = ts.hour < 12 ? 'AM' : 'PM';
+    final timeString = '${hour12.toString().padLeft(2, '0')}:${ts.minute.toString().padLeft(2, '0')} $amPm';
     
     if (isToday) {
       // Show time only for today: 2:30 PM
       return timeString;
     } else {
       // Show date and time for other days: 19/10 2:30 PM
-      return '${timestamp.day.toString().padLeft(2, '0')}/${timestamp.month.toString().padLeft(2, '0')} $timeString';
+      return '${ts.day.toString().padLeft(2, '0')}/${ts.month.toString().padLeft(2, '0')} $timeString';
     }
   }
 

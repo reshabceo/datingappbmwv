@@ -40,9 +40,9 @@ class _ImageGalleryWidgetState extends State<ImageGalleryWidget> {
 
   @override
   Widget build(BuildContext context) {
-    print('🖼️ ImageGalleryWidget: images.length = ${widget.images.length}');
-    for (int i = 0; i < widget.images.length; i++) {
-      print('🖼️ Image $i: "${widget.images[i]}"');
+    // Only log when images change to reduce noise
+    if (widget.images.isNotEmpty) {
+      print('🖼️ ImageGalleryWidget: images.length = ${widget.images.length}');
     }
     
     if (widget.images.isEmpty) {
@@ -104,6 +104,42 @@ class _ImageGalleryWidgetState extends State<ImageGalleryWidget> {
                 widget.images[index],
                 key: ValueKey('img_${widget.images[index]}_${index}'),
                 fit: BoxFit.cover,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  
+                  return Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.grey.shade800,
+                          Colors.grey.shade900,
+                        ],
+                      ),
+                    ),
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircularProgressIndicator(
+                            color: widget.themeController.lightPinkColor,
+                            strokeWidth: 2.0,
+                          ),
+                          SizedBox(height: 16.h),
+                          Text(
+                            'Loading photo...',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.8),
+                              fontSize: 14.sp,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
                 errorBuilder: (context, error, stack) {
                   print('🖼️ Image load error: $error');
                   return Container(

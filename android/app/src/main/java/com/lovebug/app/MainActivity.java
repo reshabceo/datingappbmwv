@@ -1,4 +1,4 @@
-package com.example.boliler_plate;
+package com.lovebug.app;
 
 import io.flutter.embedding.android.FlutterActivity;
 

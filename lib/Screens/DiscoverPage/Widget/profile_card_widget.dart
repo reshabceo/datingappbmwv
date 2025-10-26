@@ -76,10 +76,10 @@ class _ProfileCardState extends State<ProfileCard>
 
   @override
   Widget build(BuildContext context) {
-    print('🎴 ProfileCard building for: ${widget.profile.name} (ID: ${widget.profile.id})');
-    print('🎴 Photos count: ${widget.profile.photos.length}');
-    for (int i = 0; i < widget.profile.photos.length; i++) {
-      print('🎴 Photo $i: "${widget.profile.photos[i]}"');
+    // Only log once per profile to reduce noise
+    if (widget.profile.photos.isNotEmpty) {
+      print('🎴 ProfileCard building for: ${widget.profile.name} (ID: ${widget.profile.id})');
+      print('🎴 Photos count: ${widget.profile.photos.length}');
     }
     
     return GestureDetector(
@@ -120,14 +120,62 @@ class _ProfileCardState extends State<ProfileCard>
              ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(20.r),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  ImageGalleryWidget(
-                    key: ValueKey('gallery_${widget.profile.id}'),
-                    images: widget.profile.photos,
-                    themeController: widget.themeController,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.grey.shade800,
+                      Colors.grey.shade900,
+                    ],
                   ),
+                ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // 🔧 FIX: Ensure ImageGalleryWidget always has valid images
+                    if (widget.profile.photos.isNotEmpty)
+                      ImageGalleryWidget(
+                        key: ValueKey('gallery_${widget.profile.id}'),
+                        images: widget.profile.photos,
+                        themeController: widget.themeController,
+                      )
+                    else
+                      // 🔧 FIX: Show proper placeholder when no photos
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Colors.grey.shade800,
+                              Colors.grey.shade900,
+                            ],
+                          ),
+                        ),
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.person,
+                                color: Colors.white.withValues(alpha: 0.8),
+                                size: 80.sp,
+                              ),
+                              SizedBox(height: 16.h),
+                              Text(
+                                'No Photos Available',
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.8),
+                                  fontSize: 16.sp,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -199,6 +247,7 @@ class _ProfileCardState extends State<ProfileCard>
                 ],
               ),
             ),
+          ),
           );
         },
       ),

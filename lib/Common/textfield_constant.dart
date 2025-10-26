@@ -89,7 +89,7 @@ class TextFieldConstant extends StatelessWidget {
       cursorColor: theme.textSelectionTheme.cursorColor,
       cursorOpacityAnimates: true,
       focusNode: focusNode,
-      style: textStyle(fontSize: hintFontSize ?? 14, fontWeight: hintFontWeight, fontStyle: fontStyle ?? FontStyle.normal, color: textColor),
+      style: textStyle(fontSize: hintFontSize ?? 14, fontWeight: hintFontWeight, fontStyle: fontStyle ?? FontStyle.normal, color: textColor ?? Colors.white),
       decoration: InputDecoration(
         filled: false,
         hintText: hintText,
@@ -97,7 +97,7 @@ class TextFieldConstant extends StatelessWidget {
           fontWeight: hintFontWeight,
           fontSize: hintFontSize ?? 14,
           fontStyle: fontStyle ?? FontStyle.normal,
-          color: themeController.greyColor,
+          color: Colors.grey[400],
         ),
         disabledBorder: OutlineInputBorder(
           borderSide: BorderSide(color: borderColor ?? theme.colorScheme.outline),

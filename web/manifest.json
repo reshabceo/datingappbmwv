@@ -1,40 +1,13 @@
 {
-    "name": "Love Bug - Find Your Perfect Match",
-    "short_name": "Love Bug",
-    "start_url": ".",
-    "display": "standalone",
-    "background_color": "#1a1a2e",
-    "theme_color": "#e91e63",
-    "description": "Find your perfect match with Love Bug - the dating app that connects you with like-minded people on your journey to meaningful relationships.",
-    "orientation": "portrait-primary",
-    "prefer_related_applications": false,
-    "icons": [
-        {
-            "src": "favicon.png",
-            "sizes": "any",
-            "type": "image/png"
-        },
-        {
-            "src": "icons/Icon-192.png",
-            "sizes": "192x192",
-            "type": "image/png"
-        },
-        {
-            "src": "icons/Icon-512.png",
-            "sizes": "512x512",
-            "type": "image/png"
-        },
-        {
-            "src": "icons/Icon-maskable-192.png",
-            "sizes": "192x192",
-            "type": "image/png",
-            "purpose": "maskable"
-        },
-        {
-            "src": "icons/Icon-maskable-512.png",
-            "sizes": "512x512",
-            "type": "image/png",
-            "purpose": "maskable"
-        }
-    ]
+  "name": "Love Bug",
+  "short_name": "LoveBug",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "description": "Love Bug - Find Your Perfect Match",
+  "icons": []
 }
+
+
+

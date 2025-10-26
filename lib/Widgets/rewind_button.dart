@@ -108,7 +108,7 @@ class _RewindButtonState extends State<RewindButton> {
 
     // ALWAYS show button, but indicate premium status
     return Positioned(
-      bottom: 20.h,
+      bottom: 180.h, // clearly above action buttons and bottom bar
       left: 20.w,
       child: GestureDetector(
         onTap: _handleRewind,

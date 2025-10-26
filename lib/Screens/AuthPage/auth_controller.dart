@@ -157,22 +157,54 @@ class AuthController extends GetxController {
         email: email,
         shouldCreateUser: false,
       );
-      // If OTP send succeeds, the email exists → go to sign in
-      isExistingEmail.value = true;
-      isSignupMode.value = false;
-      didProbeEmail.value = true;
-      Get.to(() => AuthScreen(prefillEmail: email, isPasswordMode: true));
+      // If OTP send succeeds, the email exists → check auth providers
+      print('Email exists, checking authentication providers...');
+      
+      // Check what authentication methods the user has
+      final userInfo = await SupabaseService.checkUserAuthProviders(email);
+      if (userInfo != null && userInfo['exists'] == true) {
+        final providers = userInfo['identities'] as List<String>? ?? [];
+        print('User providers: $providers');
+        
+        if (providers.contains('google') || providers.contains('apple')) {
+          // User signed up with OAuth - show OAuth option
+          final provider = providers.contains('google') ? 'google' : 'apple';
+          print('User signed up with OAuth ($provider), showing OAuth option');
+          isExistingEmail.value = true;
+          isSignupMode.value = false;
+          didProbeEmail.value = true;
+          Get.to(() => AuthScreen(prefillEmail: email, isOAuthMode: true, oauthProvider: provider));
+        } else {
+          // User has password auth - show password option
+          print('User has password auth, showing password option');
+          isExistingEmail.value = true;
+          isSignupMode.value = false;
+          didProbeEmail.value = true;
+          Get.to(() => AuthScreen(prefillEmail: email, isPasswordMode: true));
+        }
+      } else {
+        // Fallback to password mode
+        print('Could not determine auth providers, defaulting to password mode');
+        isExistingEmail.value = true;
+        isSignupMode.value = false;
+        didProbeEmail.value = true;
+        Get.to(() => AuthScreen(prefillEmail: email, isPasswordMode: true));
+      }
     } on AuthApiException catch (e) {
       final code = (e.code ?? '').toLowerCase();
       final msg = (e.message).toLowerCase();
+      print('AuthApiException caught - Code: $code, Message: $msg');
+      
       // Supabase returns user-not-found variants for non-existing users
       if (code.contains('user_not_found') || msg.contains('user not found') || msg.contains('no user') || code.contains('invalid_user')) {
+        print('User not found, navigating to signup');
         isExistingEmail.value = false;
         isSignupMode.value = true;
         didProbeEmail.value = true;
         Get.to(() => AuthScreen(prefillEmail: email, isSignupMode: true));
       } else if (code.contains('over_email_send_rate_limit') || msg.contains('rate limit')) {
         // Rate limited while sending OTP → email exists. Route to sign in and show message.
+        print('Rate limited, treating as existing user');
         isExistingEmail.value = true;
         isSignupMode.value = false;
         didProbeEmail.value = true;
@@ -180,6 +212,7 @@ class AuthController extends GetxController {
         Get.snackbar('Please wait', 'Too many attempts. Try again shortly.');
       } else {
         // Any other error: conservatively treat as non-existing
+        print('Other error, defaulting to signup - Code: $code, Message: $msg');
         isExistingEmail.value = false;
         isSignupMode.value = true;
         didProbeEmail.value = true;
@@ -187,6 +220,7 @@ class AuthController extends GetxController {
       }
     } catch (e) {
       // Network/unknown → default to signup to avoid blocking
+      print('General exception caught, defaulting to signup: $e');
       isExistingEmail.value = false;
       isSignupMode.value = true;
       didProbeEmail.value = true;
@@ -220,6 +254,28 @@ class AuthController extends GetxController {
       await _checkUserProfileAndNavigate();
     } on AuthApiException catch (e) {
       Get.snackbar('Sign in failed', e.message);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  Future<void> signInWithGoogle() async {
+    try {
+      isLoading.value = true;
+      print('🔄 DEBUG: Starting Google Sign-In...');
+      await SupabaseService.signInWithProvider(OAuthProvider.google);
+      print('✅ DEBUG: Google Sign-In initiated, waiting for redirect...');
+      
+      // Track login for UAC
+      await AnalyticsService.trackLoginEnhanced('google');
+      
+      // 🔧 CRITICAL FIX: Check profile and navigate after Google Sign-In
+      // This ensures existing users with completed profiles go directly to the app
+      await _checkUserProfileAndNavigate();
+      
+    } catch (e) {
+      print('❌ DEBUG: Google Sign-In failed: $e');
+      Get.snackbar('Google sign in failed', e.toString());
     } finally {
       isLoading.value = false;
     }
@@ -393,71 +449,8 @@ class AuthController extends GetxController {
   }
 
   Future<void> _checkUserProfileAndNavigate() async {
-    try {
-      // Wait a moment for the session to be established
-      await Future.delayed(Duration(milliseconds: 500));
-      
-      final user = SupabaseService.currentUser;
-      print('Current user in _checkUserProfileAndNavigate: ${user?.id}');
-      print('User email: ${user?.email}');
-      
-      if (user != null) {
-        // Check if user has a profile
-        try {
-          print('🔄 DEBUG: Fetching profile for user: ${user.id}');
-          final profile = await SupabaseService.getProfile(user.id);
-          print('🔄 DEBUG: Profile result: $profile');
-          print('🔄 DEBUG: Profile found: ${profile != null}');
-          print('🔄 DEBUG: Profile is empty: ${profile?.isEmpty}');
-          
-          if (profile == null || profile.isEmpty) {
-            // New user - go to profile creation
-            print('❌ DEBUG: No profile found - navigating to profile creation for new user');
-            Get.offAll(() => MultiStepProfileForm());
-          } else {
-            // Check if user account is deactivated
-            if (profile['is_active'] == false) {
-              print('🚫 DEBUG: User account is deactivated in auth controller');
-              // Store user ID before signing out
-              final userId = user.id;
-              // Sign out the user and show deactivation message
-              await SupabaseService.signOut();
-              _showAccountDeactivatedDialog(userId);
-              return;
-            }
-            
-            // Returning user - go to main app
-            print('Navigating to main app for returning user');
-            Get.offAll(() => BottombarScreen());
-          }
-        } catch (profileError) {
-          print('Error checking profile: $profileError');
-          // If profile check fails, assume new user
-          Get.offAll(() => MultiStepProfileForm());
-        }
-      } else {
-        print('No current user found, staying on auth screen');
-        // No user - stay on auth screen, don't navigate to profile creation
-        // This prevents the "complete your profile" issue when auth was cancelled
-        Get.snackbar(
-          'Sign-in Required',
-          'Please complete sign-in to continue',
-          backgroundColor: Colors.orange,
-          colorText: Colors.white,
-          duration: Duration(seconds: 3),
-        );
-        return;
-      }
-    } catch (e) {
-      print('Error in _checkUserProfileAndNavigate: $e');
-      // On error, stay on auth screen instead of going to profile creation
-      Get.snackbar(
-        'Authentication Error',
-        'Please try signing in again',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-        duration: Duration(seconds: 3),
-      );
-    }
+    // Defer navigation decisions to _AuthGate to avoid route conflicts.
+    print('🔍 DEBUG: _checkUserProfileAndNavigate bypassed (delegating to _AuthGate)');
+    return;
   }
 }

@@ -34,15 +34,24 @@ class UpgradePromptWidget extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Colors.pink.withOpacity(0.1),
-            Colors.purple.withOpacity(0.1),
+            Colors.pink.withValues(alpha: 0.15),
+            Colors.purple.withValues(alpha: 0.2),
+            Colors.black.withValues(alpha: 0.85),
           ],
+          stops: const [0.0, 0.3, 1.0],
         ),
-        borderRadius: BorderRadius.circular(16.r),
+        borderRadius: BorderRadius.circular(22.r),
         border: Border.all(
-          color: Colors.pink.withOpacity(0.3),
-          width: 1,
+          color: Colors.pink.withValues(alpha: 0.35),
+          width: 1.5,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.pink.withValues(alpha: 0.15),
+            blurRadius: 20,
+            spreadRadius: 2,
+          ),
+        ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -67,21 +76,21 @@ class UpgradePromptWidget extends StatelessWidget {
           Text(
             title,
             style: TextStyle(
-              fontSize: 18.sp,
+              fontSize: 22.sp,
               fontWeight: FontWeight.bold,
-              color: Colors.black87,
+              color: Colors.white,
             ),
             textAlign: TextAlign.center,
           ),
           
-          SizedBox(height: 8.h),
+          SizedBox(height: 16.h),
           
           // Message
           Text(
             message,
             style: TextStyle(
-              fontSize: 14.sp,
-              color: Colors.black54,
+              fontSize: 15.sp,
+              color: Colors.white.withValues(alpha: 0.8),
               height: 1.4,
             ),
             textAlign: TextAlign.center,
@@ -95,20 +104,26 @@ class UpgradePromptWidget extends StatelessWidget {
               // Dismiss button
               if (onDismiss != null)
                 Expanded(
-                  child: OutlinedButton(
-                    onPressed: onDismiss,
-                    style: OutlinedButton.styleFrom(
+                  child: GestureDetector(
+                    onTap: onDismiss,
+                    child: Container(
                       padding: EdgeInsets.symmetric(vertical: 12.h),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8.r),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(20.r),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.3),
+                          width: 1.5,
+                        ),
                       ),
-                      side: BorderSide(color: Colors.grey.shade300),
-                    ),
-                    child: Text(
-                      'Maybe Later',
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        color: Colors.grey.shade600,
+                      child: Text(
+                        'Maybe Later',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15.sp,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
@@ -119,28 +134,34 @@ class UpgradePromptWidget extends StatelessWidget {
               // Upgrade button
               Expanded(
                 flex: onDismiss != null ? 2 : 1,
-                child: ElevatedButton(
-                  onPressed: () {
+                child: GestureDetector(
+                  onTap: () {
                     if (onUpgrade != null) {
                       onUpgrade!();
                     } else {
                       Get.to(() => SubscriptionScreen());
                     }
                   },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.pink,
-                    foregroundColor: Colors.white,
+                  child: Container(
                     padding: EdgeInsets.symmetric(vertical: 12.h),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8.r),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.pink, Colors.purple],
+                      ),
+                      borderRadius: BorderRadius.circular(20.r),
+                      border: Border.all(
+                        color: Colors.pink.withValues(alpha: 0.5),
+                        width: 1.5,
+                      ),
                     ),
-                    elevation: 2,
-                  ),
-                  child: Text(
-                    action,
-                    style: TextStyle(
-                      fontSize: 14.sp,
-                      fontWeight: FontWeight.bold,
+                    child: Text(
+                      action,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15.sp,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),

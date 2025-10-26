@@ -109,9 +109,10 @@ class EnhancedDiscoverController extends GetxController {
       }
 
       if (response.data != null) {
+        final uid = SupabaseService.currentUser?.id;
         final newProfiles = (response.data as List<dynamic>)
             .map((data) => _mapToProfile(data))
-            .where((profile) => profile.id.isNotEmpty)
+            .where((profile) => profile.id.isNotEmpty && (uid == null || profile.id != uid))
             .toList();
 
         profiles.value = newProfiles;
@@ -149,9 +150,10 @@ class EnhancedDiscoverController extends GetxController {
       }
 
       if (response.data != null) {
+        final uid = SupabaseService.currentUser?.id;
         final newProfiles = (response.data as List<dynamic>)
             .map((data) => _mapToProfile(data))
-            .where((profile) => profile.id.isNotEmpty)
+            .where((profile) => profile.id.isNotEmpty && (uid == null || profile.id != uid))
             .toList();
 
         profiles.addAll(newProfiles);
@@ -293,7 +295,7 @@ class EnhancedDiscoverController extends GetxController {
       // Call the edge function to generate ice breakers
       final resp = await SupabaseService.client.functions.invoke(
         'generate-match-insights',
-        body: {'matchId': matchId},
+        body: {'match_id': matchId},
       );
       
       if (resp.data != null && resp.data['success'] == true) {

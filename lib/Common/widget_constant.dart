@@ -9,6 +9,11 @@ import 'package:get/get.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:omni_datetime_picker/omni_datetime_picker.dart';
 
+// Backward-compat: provide Color.withValues(alpha: x) shim across widgets
+extension ColorCompatWithValues on Color {
+  Color withValues({double? alpha}) => withOpacity(alpha ?? 1.0);
+}
+
 enum Processing { done, waiting, error }
 
 Widget screenPadding({EdgeInsets? customPadding, required Widget child}) {

@@ -8,18 +8,46 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:lovebug/Common/textfield_constant.dart';
 import 'package:lovebug/Screens/AuthPage/auth_controller.dart';
 import 'package:lovebug/ThemeController/theme_controller.dart';
+import 'package:lovebug/services/supabase_service.dart';
+import 'package:lovebug/Screens/BottomBarPage/bottombar_screen.dart';
 
 class AuthScreen extends StatelessWidget {
   final String? prefillEmail;
   final bool isPasswordMode; // Show password field for existing users
   final bool isSignupMode; // Show signup fields for new users
-  AuthScreen({super.key, this.prefillEmail, this.isPasswordMode = false, this.isSignupMode = false});
+  final bool isOAuthMode; // Show OAuth options for users who signed up with OAuth
+  final String? oauthProvider; // Which OAuth provider (google, apple)
+  AuthScreen({super.key, this.prefillEmail, this.isPasswordMode = false, this.isSignupMode = false, this.isOAuthMode = false, this.oauthProvider});
 
   final AuthController controller = Get.put(AuthController());
   final ThemeController themeController = Get.find<ThemeController>();
 
   @override
   Widget build(BuildContext context) {
+    // Failsafe: if a session already exists, don't show this screen
+    final session = SupabaseService.client.auth.currentSession;
+    if (session != null) {
+      print('🔍 DEBUG: AuthScreen detected active session; forcing immediate navigation to main app');
+      // Use immediate navigation and return loading screen
+      Future.microtask(() {
+        // Primary: GetX
+        try { Get.offAll(() => BottombarScreen()); } catch (_) {}
+        // Fallback: root Navigator
+        try {
+          Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => BottombarScreen()),
+            (route) => false,
+          );
+        } catch (_) {}
+      });
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: CircularProgressIndicator(color: Colors.white),
+        ),
+      );
+    }
+    
     // Initialize email mode and prefill when arriving from GetStarted
     controller.authMode.value = 'email';
     if ((prefillEmail ?? '').isNotEmpty) {
@@ -34,6 +62,10 @@ class AuthScreen extends StatelessWidget {
     } else if (isSignupMode) {
       controller.isExistingEmail.value = false;
       controller.isSignupMode.value = true;
+      controller.didProbeEmail.value = true;
+    } else if (isOAuthMode) {
+      controller.isExistingEmail.value = true;
+      controller.isSignupMode.value = false;
       controller.didProbeEmail.value = true;
     }
     final bool hideProviders = false; // Always show OAuth providers
@@ -245,7 +277,7 @@ class AuthScreen extends StatelessWidget {
                           title: controller.isSignupMode.value
                               ? 'Sign up'
                               : controller.isExistingEmail.value
-                                  ? 'Sign in'
+                                  ? (isOAuthMode ? 'Continue with ${oauthProvider?.toUpperCase() ?? 'OAuth'}' : 'Sign in')
                                   : 'Continue',
                           textColor: themeController.whiteColor,
                           onPressed: controller.isLoading.value
@@ -254,7 +286,15 @@ class AuthScreen extends StatelessWidget {
                                   if (controller.isSignupMode.value) {
                                     controller.signUpWithEmail();
                                   } else if (controller.isExistingEmail.value) {
-                                    controller.signInWithPassword();
+                                    if (isOAuthMode) {
+                                      if (oauthProvider == 'google') {
+                                        controller.signInWithGoogle();
+                                      } else if (oauthProvider == 'apple') {
+                                        controller.continueWithApple();
+                                      }
+                                    } else {
+                                      controller.signInWithPassword();
+                                    }
                                   } else {
                                     controller.continueWithEmail();
                                   }

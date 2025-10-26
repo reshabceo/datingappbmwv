@@ -110,7 +110,7 @@ class _AstroCompatibilityWidgetState extends State<AstroCompatibilityWidget> {
     try {
       final response = await SupabaseService.client.functions.invoke(
         'generate-match-insights',
-        body: {'matchId': widget.matchId},
+        body: {'match_id': widget.matchId},
       );
       
       final data = response.data;
@@ -247,12 +247,9 @@ class _AstroCompatibilityWidgetState extends State<AstroCompatibilityWidget> {
       margin: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
       child: Column(
         children: [
-          // Astrological Compatibility Card
+          // Astrological Compatibility Card ONLY
           if (astroData != null) _buildCompatibilityCard(astroData),
-          SizedBox(height: 12.h),
-          // Ice Breakers Card (first-use only, hide if already used by either user)
-          if (!iceBreakersUsed && iceBreakers != null && iceBreakers.isNotEmpty)
-            _buildIceBreakersCard(iceBreakers),
+          // REMOVED: Ice Breakers Card - conversation starters should not appear in astro panel
         ],
       ),
     );

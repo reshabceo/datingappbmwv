@@ -6,6 +6,8 @@ import 'package:lovebug/Common/widget_constant.dart';
 import 'package:lovebug/Common/text_constant.dart';
 import 'package:lovebug/Common/textfield_constant.dart';
 import 'auth_controller.dart';
+import 'package:lovebug/services/supabase_service.dart';
+import 'package:lovebug/Screens/BottomBarPage/bottombar_screen.dart';
 
 class GetStartedAuthScreen extends StatelessWidget {
   GetStartedAuthScreen({super.key});
@@ -16,6 +18,30 @@ class GetStartedAuthScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Failsafe: if a session already exists, don't show this screen
+    final session = SupabaseService.client.auth.currentSession;
+    if (session != null) {
+      print('🔍 DEBUG: Auth screen detected active session; forcing navigation to main app');
+      // Use immediate navigation instead of post-frame callback
+      Future.microtask(() {
+        // Primary: GetX
+        try { Get.offAll(() => BottombarScreen()); } catch (_) {}
+        // Fallback: root Navigator
+        try {
+          Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => BottombarScreen()),
+            (route) => false,
+          );
+        } catch (_) {}
+      });
+      // Return a loading screen while navigating
+      return Scaffold(
+        backgroundColor: Color(theme.blackColor.value),
+        body: Center(
+          child: CircularProgressIndicator(color: theme.primaryColor.value),
+        ),
+      );
+    }
     return Scaffold(
       backgroundColor: theme.blackColor,
       body: Container(

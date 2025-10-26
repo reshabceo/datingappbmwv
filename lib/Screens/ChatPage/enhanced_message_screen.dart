@@ -10,9 +10,14 @@ import 'package:lovebug/Screens/DiscoverPage/controller_discover_screen.dart';
 import 'package:lovebug/Screens/ChatPage/disappearing_photo_screen.dart';
 import 'package:lovebug/Screens/ChatPage/astro_compatibility_widget.dart';
 import 'package:lovebug/Screens/ChatPage/ice_breaker_widget.dart';
+import 'package:lovebug/Screens/ChatPage/improved_ice_breaker_widget.dart';
 import 'package:lovebug/Screens/ChatPage/enhanced_photo_upload_service.dart';
 import 'package:lovebug/Screens/ChatPage/ui_simple_camera_screen.dart';
 import 'package:lovebug/Screens/ChatPage/controller_chat_screen.dart';
+import 'package:lovebug/Screens/ChatPage/audio_recording_widget.dart';
+import 'package:lovebug/Screens/ChatPage/audio_message_bubble.dart';
+import 'package:lovebug/services/audio_recording_service.dart';
+import 'package:lovebug/models/audio_message.dart';
 import 'package:lovebug/services/disappearing_photo_service.dart';
 import 'package:lovebug/services/supabase_service.dart';
 import 'package:lovebug/services/astro_service.dart';
@@ -55,9 +60,17 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
   bool isLoadingZodiac = true;
   bool astroVisible = false;
   String? currentUserImage;
+  String? currentUserZodiac;
   
   // Astro compatibility button state
   AstroCompatibilityButtonState _astroButtonState = AstroCompatibilityButtonState.generate;
+  
+  // Audio recording state (press-and-hold UX)
+  bool _isRecordingAudio = false; // kept for backward-compat, not used for UI now
+  DateTime? _recordStartAt;
+  String? _pendingAudioPath;
+  int _pendingAudioDurationSec = 0;
+  int _pendingAudioFileSize = 0;
 
   @override
   void initState() {
@@ -103,6 +116,7 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
             currentUserImage = photos.isNotEmpty ? photos.first : null;
             print('🔄 DEBUG: Set currentUserImage to: $currentUserImage');
             print('🔄 DEBUG: currentUserImage length: ${currentUserImage?.length ?? 0}');
+            currentUserZodiac = (profile['zodiac_sign'] ?? '').toString();
           });
         }
       }
@@ -1005,31 +1019,29 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
         ),
         child: Column(
           children: [
-            
-            // Astrological Compatibility Widget
-            if (!isLoadingZodiac && otherUserZodiac != null && otherUserZodiac != 'unknown')
-              AnimatedSwitcher(
-                duration: Duration(milliseconds: 300),
-                child: astroVisible
-                    ? AstroCompatibilityWidget(
-                        key: ValueKey('astro_visible'),
-                        matchId: widget.matchId,
-                        otherUserName: widget.userName ?? '',
-                        otherUserZodiac: otherUserZodiac!,
-                        visible: true,
-                        autoGenerateIfMissing: false,
-                      )
-                    : SizedBox.shrink(key: ValueKey('astro_hidden')),
-              ),
-            
-            // Messages area
+            // Messages area - Show EITHER astro OR normal chat content
             Expanded(
               child: Obx(() {
+                // If astro is visible, show ONLY astro widget (no conversation starters)
+                if (astroVisible && !isLoadingZodiac && otherUserZodiac != null && otherUserZodiac != 'unknown') {
+                  return SingleChildScrollView(
+                    padding: EdgeInsets.zero,
+                    child: AstroCompatibilityWidget(
+                      matchId: widget.matchId,
+                      otherUserName: widget.userName ?? '',
+                      otherUserZodiac: otherUserZodiac!,
+                      visible: true,
+                      autoGenerateIfMissing: false,
+                    ),
+                  );
+                }
+                
+                // Otherwise, show normal chat content
                 if (controller.messages.isEmpty) {
-                  return Column(
+                  return ListView(
+                    padding: EdgeInsets.zero,
                     children: [
-                      Expanded(
-                        child: Center(
+                      Center(
                           child: Container(
                             margin: EdgeInsets.symmetric(horizontal: 20.w),
                             padding: EdgeInsets.all(20.w),
@@ -1071,44 +1083,74 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
                             ),
                           ),
                         ),
-                      ),
-                      // Ice Breaker Widget (below the Hey box)
-                      IceBreakerWidget(
+                      // Conversation starters (always show when astro is NOT visible)
+                      ImprovedIceBreakerWidget(
                         matchId: widget.matchId,
                         otherUserName: widget.userName ?? '',
+                        currentUserZodiac: currentUserZodiac,
                       ),
                     ],
                   );
             } else {
+              // When there are messages, show starters above the messages
               return Column(
                 children: [
-                  // Ice Breaker Widget (below the Hey box)
-                  IceBreakerWidget(
+                  // Conversation starters (always show when astro is NOT visible)
+                  ImprovedIceBreakerWidget(
                     matchId: widget.matchId,
                     otherUserName: widget.userName ?? '',
+                    currentUserZodiac: currentUserZodiac,
                   ),
                   // Messages list
                   Expanded(
-                    child: ListView.builder(
-                      controller: controller.scrollController,
-                      itemCount: controller.messages.length,
-                      itemBuilder: (context, index) {
-                        final message = controller.messages[index];
-                            return EnhancedChatBubble(
-                          message: message,
-                          userName: widget.userName ?? '',
-                          isBffMatch: widget.isBffMatch,
-                          userImage: currentUserImage,
-                          otherUserImage: widget.userImage,
+                    child: Obx(() {
+                      // Combine text and audio messages
+                      final allMessages = <Widget>[];
+                      
+                      // Add text messages
+                      for (int i = 0; i < controller.messages.length; i++) {
+                        final message = controller.messages[i];
+                        allMessages.add(
+                          EnhancedChatBubble(
+                            message: message,
+                            userName: widget.userName ?? '',
+                            isBffMatch: widget.isBffMatch,
+                            userImage: currentUserImage,
+                            otherUserImage: widget.userImage,
+                          ),
                         );
-                      },
-                    ),
+                      }
+                      
+                      // Add audio messages
+                      for (int i = 0; i < controller.audioMessages.length; i++) {
+                        final audioMessage = controller.audioMessages[i];
+                        allMessages.add(
+                          AudioMessageBubble(
+                            audioMessage: audioMessage,
+                            isMe: audioMessage.senderId == (SupabaseService.currentUser?.id ?? ''),
+                            userImage: currentUserImage,
+                            otherUserImage: widget.userImage,
+                            isBffMatch: widget.isBffMatch,
+                          ),
+                        );
+                      }
+                      
+                      return ListView.builder(
+                        controller: controller.scrollController,
+                        itemCount: allMessages.length,
+                        itemBuilder: (context, index) => allMessages[index],
+                      );
+                    }),
                   ),
                 ],
               );
             }
               }),
             ),
+            
+            // Pending audio bar (shown after release, before send)
+            if (_pendingAudioPath != null)
+              _buildPendingAudioBar(),
             
             // Input field
             _buildChatInputField(controller),
@@ -1165,6 +1207,7 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
               ),
             ),
             widthBox(6),
+            
             Expanded(
               child: ConstrainedBox(
                 constraints: BoxConstraints(
@@ -1235,6 +1278,37 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
                       controller.sendMessage(widget.matchId, text.trim());
                     }
                   },
+                ),
+              ),
+            ),
+            widthBox(6),
+            
+            // Mic button - placed immediately to the left of Send
+            GestureDetector(
+              onTap: () async {
+                if (_isRecordingAudio) {
+                  await _stopAudioRecordingAndPreparePending();
+                } else {
+                  await _startAudioRecording();
+                }
+              },
+              child: Container(
+                width: 35.h,
+                height: 35.h,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: widget.isBffMatch 
+                        ? [themeController.bffPrimaryColor, themeController.bffSecondaryColor]
+                        : [themeController.getAccentColor(), themeController.getSecondaryColor()],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  _isRecordingAudio ? Icons.stop : Icons.mic,
+                  color: Colors.white,
+                  size: 16.sp,
                 ),
               ),
             ),
@@ -1414,9 +1488,9 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
         final expiresAt = DateTime.parse(existing['expires_at']);
         
         if (now.isBefore(expiresAt)) {
-          // Valid insights exist
+          // Valid insights exist - start hidden, first click will show
           setState(() {
-            _astroButtonState = AstroCompatibilityButtonState.show;
+            _astroButtonState = AstroCompatibilityButtonState.hide;
             astroVisible = false; // Start hidden
           });
         } else {
@@ -1539,6 +1613,224 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
     } catch (e) {
       print('Error starting audio call: $e');
       Get.snackbar('Error', 'Failed to start audio call');
+    }
+  }
+
+  // Audio recording methods
+  Future<void> _startAudioRecording() async {
+    try {
+      _recordStartAt = DateTime.now();
+      final ok = await AudioRecordingService.startRecording();
+      if (!ok) {
+        Get.snackbar('Microphone', 'Microphone permission required');
+        return;
+      }
+      setState(() {
+        _isRecordingAudio = true;
+      });
+    } catch (e) {
+      print('❌ Error starting audio recording: $e');
+      Get.snackbar('Error', 'Failed to start audio recording');
+    }
+  }
+
+  // New: press-and-hold handlers
+  void _handleMicLongPressStart(LongPressStartDetails details) async {
+    try {
+      _recordStartAt = DateTime.now();
+      await AudioRecordingService.startRecording();
+    } catch (e) {
+      print('❌ Error starting long-press recording: $e');
+    }
+  }
+
+  void _handleMicLongPressEnd(LongPressEndDetails details) async {
+    await _stopAudioRecordingAndPreparePending();
+  }
+
+  Future<void> _stopAudioRecordingAndPreparePending() async {
+    try {
+      final path = await AudioRecordingService.stopRecording();
+      if (path == null) return;
+      final started = _recordStartAt ?? DateTime.now();
+      final durationSec = DateTime.now().difference(started).inSeconds.clamp(0, 24 * 60 * 60);
+      final fileSize = await AudioRecordingService.getAudioFileSize(path);
+      setState(() {
+        _pendingAudioPath = path;
+        _pendingAudioDurationSec = durationSec;
+        _pendingAudioFileSize = fileSize;
+        _recordStartAt = null;
+        _isRecordingAudio = false;
+      });
+    } catch (e) {
+      print('❌ Error finishing recording: $e');
+      setState(() {
+        _isRecordingAudio = false;
+        _recordStartAt = null;
+      });
+    }
+  }
+
+  // Pending audio confirmation bar
+  Widget _buildPendingAudioBar() {
+    final durationLabel = AudioRecordingService.formatDuration(Duration(seconds: _pendingAudioDurationSec));
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+      decoration: BoxDecoration(
+        color: themeController.whiteColor.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(14.r),
+        border: Border.all(color: themeController.whiteColor.withOpacity(0.12), width: 1),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.mic, color: themeController.getAccentColor(), size: 18.sp),
+          SizedBox(width: 8.w),
+          Expanded(
+            child: TextConstant(
+              title: 'Voice message • $durationLabel',
+              color: themeController.whiteColor,
+              fontSize: 14,
+            ),
+          ),
+          // Cancel (X)
+          GestureDetector(
+            onTap: _clearPendingAudio,
+            child: Container(
+              width: 34.w,
+              height: 34.w,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.red.withOpacity(0.1),
+                border: Border.all(color: Colors.red.withOpacity(0.3), width: 1),
+              ),
+              child: Icon(Icons.close, color: Colors.red, size: 18.sp),
+            ),
+          ),
+          SizedBox(width: 8.w),
+          // Send
+          GestureDetector(
+            onTap: _confirmSendPendingAudio,
+            child: Container(
+              width: 34.w,
+              height: 34.w,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: widget.isBffMatch
+                      ? [themeController.bffPrimaryColor, themeController.bffSecondaryColor]
+                      : [themeController.getAccentColor(), themeController.getSecondaryColor()],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: Icon(LucideIcons.send, color: Colors.white, size: 18.sp),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _clearPendingAudio() {
+    setState(() {
+      _pendingAudioPath = null;
+      _pendingAudioDurationSec = 0;
+      _pendingAudioFileSize = 0;
+      _recordStartAt = null;
+    });
+  }
+
+  void _confirmSendPendingAudio() {
+    final path = _pendingAudioPath;
+    if (path == null) return;
+    final duration = _pendingAudioDurationSec;
+    final size = _pendingAudioFileSize;
+    _sendAudioMessage(path, duration, size);
+    _clearPendingAudio();
+  }
+
+  Future<void> _sendAudioMessage(String audioPath, int duration, int fileSize) async {
+    try {
+      // Upload audio file to Supabase Storage
+      final audioUrl = await _uploadAudioFile(audioPath);
+      if (audioUrl == null) {
+        Get.snackbar('Error', 'Failed to upload audio message');
+        return;
+      }
+
+      // Create audio message
+      final audioMessage = AudioMessage(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        matchId: widget.matchId,
+        senderId: SupabaseService.currentUser?.id ?? '',
+        audioUrl: audioUrl,
+        duration: duration,
+        fileSize: fileSize,
+        createdAt: DateTime.now(),
+      );
+
+      // Save to database
+      await _saveAudioMessage(audioMessage);
+
+      // Add to message list
+      final controller = Get.find<MessageController>(tag: 'msg_${widget.matchId}');
+      controller.addAudioMessage(audioMessage);
+
+      setState(() {
+        _isRecordingAudio = false;
+      });
+
+      Get.snackbar('Success', 'Audio message sent!');
+    } catch (e) {
+      print('❌ Error sending audio message: $e');
+      Get.snackbar('Error', 'Failed to send audio message');
+      setState(() {
+        _isRecordingAudio = false;
+      });
+    }
+  }
+
+  Future<void> _cancelAudioRecording() async {
+    setState(() {
+      _isRecordingAudio = false;
+    });
+  }
+
+  Future<String?> _uploadAudioFile(String filePath) async {
+    try {
+      final file = File(filePath);
+      final fileName = 'audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      final userId = SupabaseService.currentUser?.id ?? '';
+      
+      // Upload to Supabase Storage
+      final response = await SupabaseService.client.storage
+          .from('audio-messages')
+          .upload('$userId/$fileName', file);
+      
+      if (response.isNotEmpty) {
+        // Get public URL
+        final publicUrl = SupabaseService.client.storage
+            .from('audio-messages')
+            .getPublicUrl('$userId/$fileName');
+        
+        return publicUrl;
+      }
+      return null;
+    } catch (e) {
+      print('❌ Error uploading audio file: $e');
+      return null;
+    }
+  }
+
+  Future<void> _saveAudioMessage(AudioMessage audioMessage) async {
+    try {
+      await SupabaseService.client
+          .from('audio_messages')
+          .insert(audioMessage.toMap());
+    } catch (e) {
+      print('❌ Error saving audio message: $e');
+      throw e;
     }
   }
 }

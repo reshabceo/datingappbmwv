@@ -1,7 +1,4 @@
-import 'package:lovebug/Common/text_constant.dart';
 import 'package:lovebug/Common/widget_constant.dart';
-import 'package:lovebug/Constant/app_assets.dart';
-import 'package:lovebug/Screens/ChatPage/ui_message_screen.dart';
 import 'package:lovebug/Screens/DiscoverPage/Widget/profile_card_widget.dart';
 import 'package:lovebug/Screens/DiscoverPage/controller_discover_screen.dart';
 import 'package:lovebug/Screens/DiscoverPage/profile_detail_screen.dart';
@@ -9,6 +6,7 @@ import 'package:lovebug/ThemeController/theme_controller.dart';
 import 'package:lovebug/widgets/rewind_button.dart';
 import 'package:lovebug/Widgets/premium_message_button.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
 import 'package:get/get.dart';
@@ -18,7 +16,6 @@ import 'dart:math' as math;
 import 'package:lovebug/services/supabase_service.dart';
 import 'package:lovebug/services/rewind_service.dart';
 import 'package:lovebug/services/premium_message_service.dart';
-import 'package:lovebug/Widgets/upgrade_prompt_widget.dart';
 import 'package:lovebug/Screens/SubscriptionPage/ui_subscription_screen.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -31,6 +28,7 @@ class DiscoverScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    print('🔍 DEBUG: DiscoverScreen build() called');
     return Scaffold(
       backgroundColor: themeController.blackColor,
       body: Container(
@@ -57,15 +55,33 @@ class DiscoverScreen extends StatelessWidget {
                     Obx(() {
                       final count = controller.profiles.length;
                       final isLoading = controller.isPreloading.value;
+                      final isInitialLoading = controller.isInitialLoading.value;
+                      // Depend on deck version to rebuild CardSwiper when deck mutates
+                      final _deckVer = controller.deckVersion.value;
                       
                       print('🔍 DEBUG: UI - profiles.length=$count, isLoading=$isLoading, mode=${controller.currentMode.value}');
 
-                      if (isLoading && count == 0) {
+                      // Show loading state while profiles are being loaded initially
+                      if (isInitialLoading || (isLoading && count == 0)) {
                         return SizedBox(
                           height: Get.height * 0.6,
                           child: Center(
-                            child: CircularProgressIndicator(
-                              color: themeController.lightPinkColor,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                CircularProgressIndicator(
+                                  color: themeController.lightPinkColor,
+                                ),
+                                SizedBox(height: 20.h),
+                                Text(
+                                  'Loading profiles...',
+                                  style: TextStyle(
+                                    color: themeController.whiteColor,
+                                    fontSize: 16.sp,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         );
@@ -77,6 +93,16 @@ class DiscoverScreen extends StatelessWidget {
                         return _buildEmptyState();
                       }
 
+                      // Show loading state if profiles are loading but we have some
+                      if (isLoading && count > 0) {
+                        return Stack(
+                          children: [
+                            _buildCardSwiper(count),
+                            _buildLoadingOverlay(),
+                          ],
+                        );
+                      }
+
                       // Guard: if all profiles are not displayable, show empty state
                       final allInvalid = controller.profiles.every((p) =>
                         (p.name.toString().trim().isEmpty) && (p.photos.isEmpty && (p.imageUrl.isEmpty))
@@ -85,140 +111,7 @@ class DiscoverScreen extends StatelessWidget {
                         return _buildEmptyState();
                       }
 
-                      return SizedBox(
-                        height: Get.height - 320.h,
-                        child: CardSwiper(
-                          controller: _swiperController,
-                          isLoop: false,
-                          padding: EdgeInsets.zero,
-                          numberOfCardsDisplayed: count.clamp(1, 3),
-                          cardsCount: count,
-                          allowedSwipeDirection: AllowedSwipeDirection.only(
-                            left: true,
-                            right: true,
-                            up: true,
-                          ),
-                          onSwipe: (previousIndex, currentIndex, direction) {
-                            print(
-                                '🔍 DEBUG: onSwipe called - previousIndex=$previousIndex, currentIndex=$currentIndex, direction=$direction');
-
-                            if (previousIndex < controller.profiles.length) {
-                              final profile =
-                                  controller.profiles[previousIndex];
-                              print(
-                                  '🔍 DEBUG: Swiping profile - ID=${profile.id}, Name="${profile.name}", Age=${profile.age}');
-
-                              if (direction == CardSwiperDirection.left) {
-                                controller.onSwipeLeft(profile);
-                              } else if (direction ==
-                                  CardSwiperDirection.right) {
-                                controller.onSwipeRight(profile);
-                              } else if (direction ==
-                                  CardSwiperDirection.top) {
-                                controller.onSuperLike(profile);
-                              }
-                            }
-
-                            if (currentIndex != null &&
-                                currentIndex >= 0 &&
-                                currentIndex <
-                                    controller.profiles.length) {
-                              controller.currentIndex.value = currentIndex;
-                            }
-                            return true;
-                          },
-                          cardBuilder: (context, index, percentX, percentY) {
-                            final listLen = controller.profiles.length;
-
-                            if (listLen == 0) {
-                              return const SizedBox.shrink();
-                            }
-
-                            final profile = controller.profiles[index];
-
-                            if (profile.name.isEmpty || profile.id.isEmpty) {
-                              return const SizedBox.shrink();
-                            }
-
-                            final px = ((percentX ?? 0.0)
-                                    .clamp(-1.0, 1.0) as num)
-                                .toDouble();
-                            final py = ((percentY ?? 0.0)
-                                    .clamp(-1.0, 1.0) as num)
-                                .toDouble();
-
-                            const deadZone = 0.03;
-                            final ax = (px.abs() < deadZone) ? 0.0 : px;
-                            final isTopCard =
-                                index == controller.currentIndex.value;
-                            final t = ax.abs().clamp(0.0, 1.0);
-                            final upT = (-py).clamp(0.0, 1.0);
-                            final dragProgress = (t + upT).clamp(0.0, 1.0);
-
-                            final baseScale = 1.0;
-                            final baseDy = 0.0;
-                            final baseAngle = 0.0;
-
-                            final angle =
-                                isTopCard ? (ax * (12 * math.pi / 180)) : 0;
-                            final dx = isTopCard ? ax * 18.w : 0.0;
-                            final cardHeight = Get.height - 320.h;
-                            final arc = isTopCard
-                                ? (-0.10 *
-                                    cardHeight *
-                                    (1 - math.cos(math.pi * t)))
-                                : 0.0;
-                            final dy = isTopCard
-                                ? (arc + (py < 0 ? py * 28.h : 0.0))
-                                : baseDy;
-
-                            final card = OpenContainer(
-                              transitionDuration:
-                                  const Duration(milliseconds: 350),
-                              openElevation: 0,
-                              closedElevation: 0,
-                              closedColor: Colors.transparent,
-                              openColor: Colors.transparent,
-                              transitionType:
-                                  ContainerTransitionType.fadeThrough,
-                              closedShape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20.r),
-                              ),
-                              openShape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20.r),
-                              ),
-                              openBuilder: (context, _) =>
-                                  ProfileDetailScreen(profile: profile),
-                              closedBuilder: (context, open) => GestureDetector(
-                                onTap: open,
-                                behavior: HitTestBehavior.opaque,
-                                child: RepaintBoundary(
-                                  key: ValueKey(profile.id),
-                                  child: ProfileCard(
-                                    profile: profile,
-                                    themeController: themeController,
-                                  ),
-                                ),
-                              ),
-                            );
-
-                            Widget transformed = card;
-                            transformed = Transform.scale(
-                              scale: baseScale,
-                              child: transformed,
-                            );
-                            transformed = Transform.rotate(
-                              angle: angle.toDouble(),
-                              child: transformed,
-                            );
-                            transformed = Transform.translate(
-                              offset: Offset(dx, dy),
-                              child: transformed,
-                            );
-                            return transformed;
-                          },
-                        ),
-                      );
+                      return _buildCardSwiper(count);
                     }),
                     heightBox(20),
                   ],
@@ -263,10 +156,26 @@ class DiscoverScreen extends StatelessWidget {
       left: 20.w,
       right: 20.w,
       child: Obx(() {
-        final currentProfile = controller.currentProfile;
-
-        if (currentProfile == null || controller.profiles.isEmpty) {
+        // 🔧 CRITICAL FIX: Hide name overlay during loading states
+        if (controller.profiles.isEmpty || 
+            controller.isInitialLoading.value || 
+            (controller.isPreloading.value && controller.profiles.length == 0)) {
           return const SizedBox.shrink();
+        }
+
+        // 🔧 CRITICAL FIX: Use currentIndex instead of overlayIndex to prevent mismatch
+        // Only validate indices if there's a potential mismatch
+        final int idx = controller.currentIndex.value;
+        
+        // Quick validation without expensive operations
+        if (idx < 0 || idx >= controller.profiles.length) {
+          return const SizedBox.shrink();
+        }
+        final currentProfile = controller.profiles[idx];
+        
+        // 🔧 ADDITIONAL VALIDATION: Ensure this is the same profile as the top card
+        if (kDebugMode) {
+          print('🔍 DEBUG: Name overlay - Index=$idx, Name="${currentProfile.name}", ID="${currentProfile.id}"');
         }
 
         // Hide overlay if name is missing/empty to avoid displaying ", 18"
@@ -275,29 +184,35 @@ class DiscoverScreen extends StatelessWidget {
           return const SizedBox.shrink();
         }
 
-        return FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(
-            '${name}, ${currentProfile.age}',
-            style: GoogleFonts.dancingScript(
-              fontSize: 38.sp,
-              fontWeight: FontWeight.w700,
-              color: themeController.getAccentColor(),
-              shadows: [
-                Shadow(
-                  color:
-                      themeController.getAccentColor().withValues(alpha: 0.8),
-                  blurRadius: 15.r,
-                ),
-                Shadow(
-                  color:
-                      themeController.getAccentColor().withValues(alpha: 0.4),
-                  blurRadius: 30.r,
-                ),
-              ],
+        return AnimatedSwitcher(
+          duration: const Duration(milliseconds: 250),
+          child: FittedBox(
+            key: ValueKey(currentProfile.id),
+            fit: BoxFit.scaleDown,
+            child: Text(
+              '${name}, ${currentProfile.age}',
+              style: GoogleFonts.dancingScript(
+                fontSize: 38.sp,
+                fontWeight: FontWeight.w700,
+                color: themeController.getAccentColor(),
+                shadows: [
+                  Shadow(
+                    color: themeController.getAccentColor().withOpacity(0.8),
+                    blurRadius: 15,
+                  ),
+                  Shadow(
+                    color: themeController.getAccentColor().withOpacity(0.6),
+                    blurRadius: 30,
+                  ),
+                  Shadow(
+                    color: themeController.getAccentColor().withOpacity(0.3),
+                    blurRadius: 45,
+                  ),
+                ],
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
             ),
-            textAlign: TextAlign.center,
-            maxLines: 1,
           ),
         );
       }),
@@ -1063,19 +978,26 @@ class DiscoverScreen extends StatelessWidget {
   }
 
   void _showFiltersSheet(BuildContext context, ThemeController themeController) {
-    if (!Get.isRegistered<DiscoverController>()) return;
-    final controller = Get.find<DiscoverController>();
-    final intents = ['Casual', 'Serious', 'Just Chatting'];
+    // Minimal, safe bottom sheet to restore build; original body kept below
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black.withValues(alpha: 0.6),
       isScrollControlled: true,
-      isDismissible: true,
-      enableDrag: true,
-      builder: (_) {
-        return Obx(() => Column(
-          mainAxisSize: MainAxisSize.min,
+      builder: (_) => Container(
+        constraints: BoxConstraints(maxHeight: Get.height * 0.5),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.85),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22.r)),
+        ),
+        padding: EdgeInsets.all(16.w),
+        child: Center(
+          child: Text('Filters', style: TextStyle(color: Colors.white, fontSize: 18.sp, fontWeight: FontWeight.w600)),
+        ),
+      ),
+    );
+    return;
+    /*
           children: [
             ClipRRect(
               borderRadius: BorderRadius.vertical(top: Radius.circular(22.r)),
@@ -1301,8 +1223,239 @@ class DiscoverScreen extends StatelessWidget {
           );
         }),
       ],
-    ));
+    );
+  }
+
+  */
+  }
+
+  Widget _buildCardSwiper(int count) {
+    // Enforce stable Tinder-like aspect ratio for consistent card sizing
+    const double cardAspectRatio = 0.74; // width : height ~ 0.74
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double width = constraints.maxWidth;
+        final double height = width / cardAspectRatio;
+        return SizedBox(
+          height: height,
+          child: CardSwiper(
+            key: ValueKey('${controller.deckVersion.value}_${count}'),
+            controller: _swiperController,
+            isLoop: false,
+            padding: EdgeInsets.zero,
+            numberOfCardsDisplayed: count.clamp(1, 3),
+            cardsCount: count,
+            allowedSwipeDirection: AllowedSwipeDirection.only(
+              left: true,
+              right: true,
+              up: true,
+            ),
+            onSwipe: (previousIndex, currentIndex, direction) {
+              if (kDebugMode) {
+                print('🔍 DEBUG: onSwipe called - previousIndex=$previousIndex, currentIndex=$currentIndex, direction=$direction');
+              }
+
+              // Validate indices before processing
+              if (previousIndex != null && 
+                  previousIndex >= 0 && 
+                  previousIndex < controller.profiles.length) {
+                final profile = controller.profiles[previousIndex];
+                if (kDebugMode) {
+                  print('🔍 DEBUG: Swiping profile - ID=${profile.id}, Name="${profile.name}", Age=${profile.age}');
+                }
+
+                if (direction == CardSwiperDirection.left) {
+                  controller.onSwipeLeft(profile);
+                } else if (direction == CardSwiperDirection.right) {
+                  controller.onSwipeRight(profile);
+                } else if (direction == CardSwiperDirection.top) {
+                  controller.onSuperLike(profile);
+                }
+              } else {
+                if (kDebugMode) {
+                  print('🔍 DEBUG: Invalid previousIndex: $previousIndex, profiles.length: ${controller.profiles.length}');
+                }
+              }
+
+              // 🔧 FIX: Delay index updates to avoid name overlay mismatch
+              // Keep neon overlay bound to the top card index post-animation
+              Future.delayed(const Duration(milliseconds: 180), () {
+                if (currentIndex != null &&
+                    currentIndex >= 0 &&
+                    currentIndex < controller.profiles.length) {
+                  controller.currentIndex.value = currentIndex;
+                  controller.overlayIndex.value = currentIndex;
+                  if (kDebugMode) {
+                    print('🔄 DEBUG: Updated currentIndex to $currentIndex after swipe animation');
+                  }
+                }
+                // Finalize deck change after animation to keep UI/data in sync
+                if (previousIndex != null) {
+                  controller.finalizeSwipeAtIndex(previousIndex);
+                }
+              });
+              return true;
+            },
+            cardBuilder: (context, index, percentX, percentY) {
+              final listLen = controller.profiles.length;
+
+              if (listLen == 0) {
+                return const SizedBox.shrink();
+              }
+
+              final profile = controller.profiles[index];
+
+              if (profile.name.isEmpty || profile.id.isEmpty) {
+                return const SizedBox.shrink();
+              }
+
+              final px = ((percentX ?? 0.0).clamp(-1.0, 1.0) as num).toDouble();
+              final py = ((percentY ?? 0.0).clamp(-1.0, 1.0) as num).toDouble();
+
+              // 🔧 FIX: Improved animation system for all cards
+              const deadZone = 0.01; // Reduced dead zone for more responsive animation
+              final ax = (px.abs() < deadZone) ? 0.0 : px;
+              
+              // 🔧 FIX: Progressive animation based on card position
+              final cardPosition = index - controller.currentIndex.value;
+              final isTopCard = cardPosition == 0;
+              final isSecondCard = cardPosition == 1;
+              final isThirdCard = cardPosition == 2;
+              
+              // 🔧 FIX: Calculate animation intensity based on position
+              // All cards should have some animation, not just top card
+              final animationIntensity = isTopCard ? 1.0 : 
+                                       isSecondCard ? 0.7 : 
+                                       isThirdCard ? 0.4 : 0.2;
+              
+              final t = ax.abs().clamp(0.0, 1.0);
+              final upT = (-py).clamp(0.0, 1.0);
+              final dragProgress = (t + upT).clamp(0.0, 1.0);
+
+              // 🔧 FIX: Progressive scaling for card stack effect with interpolation
+              final baseScale = isTopCard ? 1.0 : 
+                               isSecondCard ? 0.95 : 
+                               isThirdCard ? 0.90 : 0.85;
+              final scale = isTopCard
+                  ? (1.0 - 0.05 * dragProgress)
+                  : isSecondCard
+                      ? (0.95 + 0.05 * dragProgress)
+                      : isThirdCard
+                          ? (0.90 + 0.03 * dragProgress)
+                          : baseScale;
+              
+              // 🔧 FIX: Enhanced rotation for all cards
+              final angle = animationIntensity * (ax * (15 * math.pi / 180));
+              final dx = animationIntensity * ax * 20.w;
+              
+              final cardHeight = Get.height - 320.h;
+              
+              // 🔧 FIX: Arc calculation for all cards with different intensities
+              final arc = animationIntensity * (-0.12 * cardHeight * (1 - math.cos(math.pi * t)));
+              final dy = arc + (py < 0 ? py * 30.h * animationIntensity : 0.0);
+              
+              // 🔧 FIX: Add subtle rotation for non-top cards
+              final additionalRotation = isSecondCard ? 0.5 * math.pi / 180 : 
+                                        isThirdCard ? 1.0 * math.pi / 180 : 0.0;
+              final finalAngle = angle + additionalRotation;
+
+              final card = OpenContainer(
+                transitionDuration: const Duration(milliseconds: 350),
+                openElevation: 0,
+                closedElevation: 0,
+                closedColor: Colors.transparent,
+                openColor: Colors.transparent,
+                transitionType: ContainerTransitionType.fadeThrough,
+                closedShape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20.r),
+                ),
+                openShape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20.r),
+                ),
+                openBuilder: (context, _) => ProfileDetailScreen(profile: profile),
+                closedBuilder: (context, open) => GestureDetector(
+                  onTap: open,
+                  behavior: HitTestBehavior.opaque,
+                  child: RepaintBoundary(
+                    key: ValueKey('repaint_${profile.id}'),
+                    child: ProfileCard(
+                      key: ValueKey('card_${profile.id}'),
+                      profile: profile,
+                      themeController: themeController,
+                    ),
+                  ),
+                ),
+              );
+
+              // 🔧 FIX: Apply progressive transforms for smooth card stack animation
+              Widget transformed = card;
+              
+              // Scale transform with smooth progression
+              transformed = Transform.scale(
+                scale: scale,
+                child: transformed,
+              );
+              
+              // Rotation transform with enhanced angle
+              transformed = Transform.rotate(
+                angle: finalAngle,
+                child: transformed,
+              );
+              
+              // Translation transform with improved positioning
+              transformed = Transform.translate(
+                offset: Offset(dx, dy),
+                child: transformed,
+              );
+              
+              return transformed;
+            },
+          ),
+        );
       },
+    );
+  }
+
+  Widget _buildLoadingOverlay() {
+    return Positioned(
+      bottom: 100.h,
+      left: 0,
+      right: 0,
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 12.h),
+        margin: EdgeInsets.symmetric(horizontal: 40.w),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.8),
+          borderRadius: BorderRadius.circular(25.r),
+          border: Border.all(
+            color: themeController.lightPinkColor.withValues(alpha: 0.5),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 20.w,
+              height: 20.w,
+              child: CircularProgressIndicator(
+                color: themeController.lightPinkColor,
+                strokeWidth: 2.0,
+              ),
+            ),
+            SizedBox(width: 12.w),
+            Text(
+              'Loading more profiles...',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 14.sp,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -8,10 +8,12 @@ import '../../services/analytics_service.dart';
 import '../../shared_prefrence_helper.dart';
 import '../../widgets/upgrade_prompt_widget.dart';
 import '../../Screens/SubscriptionPage/ui_subscription_screen.dart';
+import '../../models/audio_message.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class MessageController extends GetxController {
   final RxList<Message> messages = <Message>[].obs;
+  final RxList<AudioMessage> audioMessages = <AudioMessage>[].obs;
   final TextEditingController textController = TextEditingController();
   final ScrollController scrollController = ScrollController();
   RealtimeChannel? _channel;
@@ -128,6 +130,9 @@ class MessageController extends GetxController {
     try { _channel?.unsubscribe(); } catch (_) {}
     _channel = null;
     try { _msgStreamSub?.cancel(); } catch (_) {}
+
+    // Load audio messages
+    await loadAudioMessages(matchId);
 
     // Load initial messages
     try {
@@ -314,6 +319,27 @@ class MessageController extends GetxController {
         );
       }
     });
+  }
+
+  // Audio message methods
+  void addAudioMessage(AudioMessage audioMessage) {
+    audioMessages.add(audioMessage);
+    scrollToBottom();
+  }
+
+  Future<void> loadAudioMessages(String matchId) async {
+    try {
+      final response = await SupabaseService.client
+          .from('audio_messages')
+          .select('*')
+          .eq('match_id', matchId)
+          .order('created_at', ascending: true);
+
+      final loaded = response.map((data) => AudioMessage.fromMap(data)).toList();
+      audioMessages.assignAll(loaded);
+    } catch (e) {
+      print('❌ Error loading audio messages: $e');
+    }
   }
 
   @override

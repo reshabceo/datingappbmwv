@@ -149,7 +149,7 @@ class AstroService {
     try {
       final response = await SupabaseService.client.functions.invoke(
         'generate-match-insights',
-        body: {'matchId': matchId},
+        body: {'match_id': matchId},
       );
       return response.data;
     } catch (e) {

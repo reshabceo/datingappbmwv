@@ -5,6 +5,7 @@ enum ActivityType {
   superLike,
   match,
   bffMatch,
+  premiumMessage,
   message,
   bffMessage,
   storyReply,
@@ -45,6 +46,9 @@ class Activity {
         break;
       case 'bff_match':
         type = ActivityType.bffMatch;
+        break;
+      case 'premium_message':
+        type = ActivityType.premiumMessage;
         break;
       case 'message':
         type = ActivityType.message;
@@ -90,6 +94,8 @@ class Activity {
         return Icons.local_fire_department_rounded;
       case ActivityType.bffMatch:
         return Icons.people_rounded;
+      case ActivityType.premiumMessage:
+        return Icons.send_rounded;
       case ActivityType.message:
         return Icons.chat_bubble_rounded;
       case ActivityType.bffMessage:
@@ -109,6 +115,13 @@ class Activity {
         return 'You matched with $otherUserName!';
       case ActivityType.bffMatch:
         return 'Say hi to your new BFF $otherUserName';
+      case ActivityType.premiumMessage:
+        // When not premium, otherUserName may be 'Someone' and messagePreview may be null
+        if (otherUserName.isEmpty || otherUserName == 'Someone') {
+          return 'Someone sent you a message';
+        }
+        final previewPm = messagePreview != null && messagePreview!.isNotEmpty ? ': ${messagePreview!}' : '';
+        return '$otherUserName sent you$previewPm';
       case ActivityType.message:
         final preview = messagePreview != null && messagePreview!.isNotEmpty 
             ? ': ${messagePreview!}' 
