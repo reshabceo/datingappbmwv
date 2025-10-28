@@ -1,4 +1,11 @@
+import 'dart:io';
 import 'package:lovebug/Language/all_languages.dart';
+import 'package:lovebug/services/app_state_service.dart';
+import 'package:lovebug/services/android_background_service.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:lovebug/screens/call_screens/video_call_screen.dart';
+import 'package:lovebug/screens/call_screens/audio_call_screen.dart';
+import 'package:lovebug/models/call_models.dart';
 import 'package:lovebug/Screens/WelcomePage/welcome_screen.dart';
 import 'package:lovebug/global_data.dart';
 import 'package:lovebug/shared_prefrence_helper.dart';
@@ -7,6 +14,7 @@ import 'package:lovebug/services/analytics_service.dart';
 import 'package:lovebug/services/payment_service.dart';
 import 'package:lovebug/services/call_listener_service.dart';
 import 'package:lovebug/services/callkit_listener_service.dart';
+import 'package:lovebug/services/webrtc_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -28,9 +36,14 @@ import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'services/notification_service.dart';
 import 'services/local_notification_service.dart';
+import 'services/call_debug_helper.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // CRITICAL FIX: Initialize AppStateService FIRST before any other services
+  AppStateService.initialize();
+  print('🔧 DEBUG: AppStateService initialized at app startup');
   
   // Initialize Supabase
   await SupabaseService.initialize();
@@ -216,6 +229,139 @@ class MyApp extends StatelessWidget {
   }
 }
 
+// NEW METHOD: Handle call notification action
+void _handleCallNotificationAction(Map<String, dynamic> data) async {
+  try {
+    final callId = data['call_id'] as String?;
+    final callerName = data['caller_name'] as String?;
+    final callType = data['call_type'] as String?;
+    final callerId = data['caller_id'] as String?;
+    final matchId = data['match_id'] as String?;
+    final callerImageUrl = data['caller_image_url'] as String?;
+    
+    if (callId == null || callerName == null || callType == null) {
+      print('❌ Missing call data in push notification');
+      return;
+    }
+    
+    print('📱 ═══════════════════════════════════════════════');
+    print('📱 HANDLING CALL NOTIFICATION ACTION (iOS Push)');
+    print('📱 ═══════════════════════════════════════════════');
+    print('📱 Call ID: $callId');
+    print('📱 Caller: $callerName');
+    print('📱 Call Type: $callType');
+    print('📱 Match ID: $matchId');
+    print('📱 Caller Image: $callerImageUrl');
+    
+    // CRITICAL FIX: Update call session state to connecting (same as CallKit does)
+    try {
+      await SupabaseService.client
+          .from('call_sessions')
+          .update({'state': 'connecting'})
+          .eq('id', callId);
+      print('✅ Call state updated to connecting');
+    } catch (e) {
+      print('❌ Failed to update call state: $e');
+    }
+    
+    // CRITICAL FIX: Initialize WebRTC service if not registered (same as CallKit does)
+    if (!Get.isRegistered<WebRTCService>()) {
+      print('📱 Registering WebRTCService...');
+      Get.put(WebRTCService());
+    }
+    
+    // CRITICAL FIX: Get call session to check if BFF match
+    bool isBffMatch = false;
+    try {
+      final callSession = await SupabaseService.client
+          .from('call_sessions')
+          .select()
+          .eq('id', callId)
+          .single();
+      isBffMatch = callSession['is_bff_match'] as bool? ?? false;
+      print('📱 Is BFF Match: $isBffMatch');
+    } catch (e) {
+      print('⚠️ Failed to fetch call session: $e');
+    }
+    
+    // CRITICAL FIX: Initialize WebRTC and join the call as RECEIVER (same as CallKit does)
+    final webrtcService = Get.find<WebRTCService>();
+    await webrtcService.initializeCall(
+      roomId: callId,
+      callType: callType == 'video' ? CallType.video : CallType.audio,
+      matchId: matchId ?? '',
+      isBffMatch: isBffMatch,
+      isInitiator: false, // RECEIVER role (accepting call via push notification)
+    );
+    
+    print('✅ Joined call successfully via push notification');
+    
+    // CRITICAL FIX: Subscribe to call session updates to detect remote hangup (same as CallKit does)
+    try {
+      final updateChannel = SupabaseService.client.channel('call_session_updates_$callId');
+      updateChannel.onPostgresChanges(
+        event: PostgresChangeEvent.update,
+        schema: 'public',
+        table: 'call_sessions',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'id',
+          value: callId,
+        ),
+        callback: (payload) {
+          final newState = payload.newRecord['state'];
+          print('📱 [Push] Call session state updated: $newState');
+          if (newState == 'disconnected' || newState == 'failed' || newState == 'canceled' || 
+              newState == 'declined' || newState == 'timeout' || newState == 'ended') {
+            print('📱 [Push] Remote ended/canceled the call. State: $newState');
+            webrtcService.endCall();
+            if (Get.isOverlaysOpen) Get.back();
+          }
+        },
+      ).subscribe();
+    } catch (e) {
+      print('❌ [Push] Failed to subscribe to call session updates: $e');
+    }
+    
+    // Create call payload
+    final payload = CallPayload(
+      userId: callerId ?? '',
+      name: callerName,
+      username: callerName,
+      imageUrl: callerImageUrl,
+      callType: callType == 'video' ? CallType.video : CallType.audio,
+      callAction: CallAction.join,
+      notificationId: callId,
+      webrtcRoomId: callId,
+      matchId: matchId ?? '',
+      isBffMatch: isBffMatch,
+    );
+    
+    // CRITICAL FIX: Wait for WebRTC initialization before navigation
+    print('📱 Waiting for WebRTC initialization to complete...');
+    await Future.delayed(Duration(milliseconds: 500));
+    
+    // Navigate to appropriate call screen
+    if (callType == 'video') {
+      print('📱 Navigating to VideoCallScreen...');
+      Get.to(() => VideoCallScreen(payload: payload));
+    } else {
+      print('📱 Navigating to AudioCallScreen...');
+      Get.to(() => AudioCallScreen(payload: payload));
+    }
+    
+    print('✅ Push notification call acceptance complete');
+  } catch (e) {
+    print('❌ Error handling call notification action: $e');
+    Get.snackbar(
+      'Error',
+      'Failed to join call: $e',
+      backgroundColor: Colors.red,
+      colorText: Colors.white,
+    );
+  }
+}
+
 class _AuthGate extends StatefulWidget {
   @override
   State<_AuthGate> createState() => _AuthGateState();
@@ -256,6 +402,18 @@ class _AuthGateState extends State<_AuthGate> with WidgetsBindingObserver {
       // CRITICAL FIX: Handle OAuth redirects immediately
       if (authState.event == AuthChangeEvent.signedIn) {
         print('✅ DEBUG: User signed in via OAuth, refreshing state immediately');
+        
+        // 🔔 CRITICAL FIX: Register FCM token after successful authentication
+        try {
+          NotificationService.registerFCMToken().then((_) {
+            print('✅ DEBUG: FCM token registration attempted after OAuth sign-in');
+          }).catchError((e) {
+            print('❌ DEBUG: FCM token registration failed after OAuth sign-in: $e');
+          });
+        } catch (e) {
+          print('❌ DEBUG: FCM token registration failed after OAuth sign-in: $e');
+        }
+        
         // Force immediate state refresh for OAuth sign-ins
         Future.delayed(Duration(milliseconds: 100), () {
           _checkSessionAndProfile();
@@ -422,12 +580,79 @@ class _AuthGateState extends State<_AuthGate> with WidgetsBindingObserver {
             print('❌ Location update failed: $e');
           });
           
+          // AppStateService already initialized at app startup
+          
+          // CRITICAL FIX: Initialize Android background service
+          if (Platform.isAndroid) {
+            await AndroidBackgroundService.initialize();
+            await AndroidBackgroundService.requestBatteryOptimizationExemption();
+          }
+          
+          // CRITICAL FIX: Handle push notification actions
+          FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+            print('📱 Push notification opened app: ${message.data}');
+            if (message.data['action'] == 'incoming_call') {
+              _handleCallNotificationAction(message.data);
+            }
+          });
+
+          // Handle push notification when app is launched from TERMINATED state
+          FirebaseMessaging.instance.getInitialMessage().then((RemoteMessage? message) {
+            if (message != null && message.data['action'] == 'incoming_call') {
+              print('📱 App launched from terminated state with call notification');
+              _handleCallNotificationAction(message.data);
+            }
+          });
+          
           // Initialize call listener service for incoming calls
           print('📞 DEBUG: About to initialize CallListenerService...');
           // Ensure push notifications are set up so receiver gets invites
           await NotificationService.initialize();
-          await CallListenerService.initialize();
-          print('📞 DEBUG: CallListenerService initialization completed');
+          
+          try {
+            await CallListenerService.initialize();
+            print('📞 DEBUG: CallListenerService initialization completed');
+            
+            // CRITICAL FIX: For iOS, also set up additional call invitation handling
+            if (Platform.isIOS) {
+              print('📞 DEBUG: Setting up iOS-specific call invitation handling...');
+              // The CallKitListenerService is already initialized below
+              // This ensures both real-time and CallKit are working together
+            }
+          } catch (e) {
+            print('❌ DEBUG: CallListenerService initialization failed: $e');
+            // CRITICAL FIX: If CallListenerService fails on iOS, try aggressive polling
+            if (Platform.isIOS) {
+              print('📞 DEBUG: iOS CallListenerService failed, attempting recovery...');
+              try {
+                // Force reinitialize with aggressive polling
+                await CallListenerService.initialize();
+                print('📞 DEBUG: iOS CallListenerService recovery successful');
+              } catch (recoveryError) {
+                print('❌ DEBUG: iOS CallListenerService recovery failed: $recoveryError');
+              }
+            }
+          }
+          
+          // Retry FCM token registration after a delay to ensure APNS is ready
+          Future.delayed(Duration(seconds: 5), () async {
+            try {
+              await NotificationService.retryFCMTokenRegistration();
+            } catch (e) {
+              print('❌ DEBUG: FCM token retry failed: $e');
+            }
+          });
+          
+          // Run debug validations after a delay to ensure everything is initialized
+          // TEMPORARILY DISABLED TO FIX CRASH
+          // Future.delayed(Duration(seconds: 10), () async {
+          //   try {
+          //     print('🔧 DEBUG: Running call system validations...');
+          //     await CallDebugHelper.runAllValidations();
+          //   } catch (e) {
+          //     print('❌ DEBUG: Validation failed: $e');
+          //   }
+          // });
           
           // Initialize CallKit listener service for iOS CallKit events
           print('📞 DEBUG: About to initialize CallKitListenerService...');

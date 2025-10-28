@@ -19,75 +19,262 @@ class NotificationService {
   static FirebaseMessaging? _messaging;
 
   static Future<void> initialize() async {
-    if (_initialized) return;
+    if (_initialized) {
+      print('🔔 FCM: NotificationService already initialized, skipping');
+      return;
+    }
     try {
       // Skip on web for now (push not needed for in-tab calls)
       if (kIsWeb) {
+        print('🔔 FCM: Skipping FCM initialization on web platform');
         _initialized = true;
         return;
       }
 
+      print('🔔 FCM: Starting NotificationService initialization...');
+      
       // Ensure Firebase is initialized
       try {
         await Firebase.initializeApp();
-      } catch (_) {}
+        print('🔔 FCM: Firebase initialized successfully');
+      } catch (e) {
+        print('🔔 FCM: Firebase already initialized or error: $e');
+      }
 
       _messaging = FirebaseMessaging.instance;
+      print('🔔 FCM: FirebaseMessaging instance created');
 
       // Request permissions (iOS)
       if (Platform.isIOS) {
-        await _messaging!.requestPermission(
+        print('🍎 DEBUG: Requesting iOS push notification permissions...');
+        final permission = await _messaging!.requestPermission(
           alert: true,
           badge: true,
           sound: true,
           provisional: false,
         );
-        // Get APNs token (optional, for diagnostics)
-        await _messaging!.getAPNSToken();
+        print('🍎 DEBUG: iOS permission result: $permission');
+        
+        // CRITICAL: Get APNs token immediately after permission
+        print('🍎 DEBUG: Attempting to get APNs token...');
+        String? apnsToken = await _messaging!.getAPNSToken();
+        if (apnsToken != null) {
+          print('🍎 DEBUG: APNs token obtained during init: ${apnsToken.substring(0, 20)}...');
+        } else {
+          print('🍎 DEBUG: APNs token not available during init - will retry later');
+        }
       }
 
-      // Get FCM token
-      final token = await _messaging!.getToken() ?? '';
-      if (token.isNotEmpty) {
-        await SupabaseService.updateFCMToken(token);
-        print('FCM Token: $token');
+      // Android-specific configuration
+      if (Platform.isAndroid) {
+        print('🤖 ANDROID: Configuring Android push notifications...');
+        
+        // Set foreground notification presentation options
+        await _messaging!.setForegroundNotificationPresentationOptions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+        
+        // Create notification channel for Android 8+
+        await _createAndroidNotificationChannel();
+        
+        print('✅ ANDROID: Android push notification configuration completed');
       }
-
-      // Listen for token refresh
-      _messaging!.onTokenRefresh.listen((newToken) async {
-        await SupabaseService.updateFCMToken(newToken);
-        print('FCM token refreshed: $newToken');
-      });
 
       // Set up message handlers
       _setupMessageHandlers();
 
       _initialized = true;
-      print('✅ NotificationService initialized');
+      print('✅ NotificationService initialized (FCM token will be registered after login)');
     } catch (e) {
       print('❌ NotificationService init failed: $e');
     }
   }
 
+  /// Create Android notification channel for call notifications
+  static Future<void> _createAndroidNotificationChannel() async {
+    if (!Platform.isAndroid) return;
+    
+    try {
+      print('🤖 ANDROID: Creating notification channel for call notifications...');
+      
+      // This will be handled by the native Android code
+      // The channel should be created in MainActivity.java
+      print('🤖 ANDROID: Notification channel creation delegated to native Android code');
+    } catch (e) {
+      print('❌ ANDROID: Error creating notification channel: $e');
+    }
+  }
+
+  /// Register FCM token for the current user (call this after login)
+  static Future<void> registerFCMToken() async {
+    if (!_initialized || _messaging == null) {
+      print('❌ FCM: NotificationService not initialized');
+      return;
+    }
+
+    print('🔔 FCM: Starting FCM token registration...');
+    print('🔔 FCM: Platform: ${Platform.isAndroid ? "Android" : Platform.isIOS ? "iOS" : "Other"}');
+
+    try {
+      // iOS-specific: Ensure APNS token is available first
+      if (Platform.isIOS) {
+        print('🍎 DEBUG: iOS detected - checking APNS token...');
+
+        // Wait for APNS token to be available with exponential backoff
+        String? apnsToken;
+        int attempts = 0;
+        int delayMs = 500; // Start with 500ms delay
+        
+        while (apnsToken == null && attempts < 20) { // Increased attempts
+          apnsToken = await _messaging!.getAPNSToken();
+          if (apnsToken == null) {
+            print('🍎 DEBUG: APNS token not ready, waiting... (attempt ${attempts + 1}/20)');
+            await Future.delayed(Duration(milliseconds: delayMs));
+            attempts++;
+            // Exponential backoff: 500ms, 1s, 2s, 4s, 8s, then 8s max
+            delayMs = delayMs < 8000 ? delayMs * 2 : 8000;
+          } else {
+            print('🍎 DEBUG: APNS token obtained: ${apnsToken.substring(0, 20)}...');
+          }
+        }
+
+        if (apnsToken == null) {
+          print('❌ DEBUG: APNS token not available after 20 attempts - trying FCM anyway');
+          // Don't return, try FCM token anyway
+        }
+      }
+
+      // Get FCM token
+      print('🔔 FCM: Requesting FCM token...');
+      final token = await _messaging!.getToken() ?? '';
+      print('🔔 FCM: FCM Token obtained: ${token.isNotEmpty ? "YES" : "NO"}');
+      if (token.isNotEmpty) {
+        print('🔔 FCM: FCM Token: ${token.substring(0, 20)}...');
+        print('🔔 FCM: Storing FCM token in database...');
+        await SupabaseService.updateFCMToken(token);
+        print('✅ FCM: FCM Token stored in database successfully');
+
+        // Listen for token refresh
+        _messaging!.onTokenRefresh.listen((newToken) async {
+          print('🔔 FCM: FCM token refresh detected');
+          await SupabaseService.updateFCMToken(newToken);
+          print('✅ FCM: FCM token refreshed and stored: ${newToken.substring(0, 20)}...');
+        });
+      } else {
+        print('❌ FCM: FCM Token is empty!');
+        
+        // Platform-specific fallback: Try again after a longer delay
+        if (Platform.isIOS) {
+          print('🍎 IOS: iOS FCM fallback - retrying in 10 seconds...');
+          Future.delayed(Duration(seconds: 10), () async {
+            try {
+              final retryToken = await _messaging!.getToken() ?? '';
+              if (retryToken.isNotEmpty) {
+                print('🍎 IOS: FCM Token obtained on retry: ${retryToken.substring(0, 20)}...');
+                await SupabaseService.updateFCMToken(retryToken);
+                print('✅ IOS: FCM Token stored in database on retry');
+              } else {
+                print('❌ IOS: FCM Token still empty on retry');
+                // Final fallback: Try one more time after another delay
+                Future.delayed(Duration(seconds: 15), () async {
+                  try {
+                    final finalToken = await _messaging!.getToken() ?? '';
+                    if (finalToken.isNotEmpty) {
+                      print('🍎 IOS: FCM Token obtained on final retry: ${finalToken.substring(0, 20)}...');
+                      await SupabaseService.updateFCMToken(finalToken);
+                      print('✅ IOS: FCM Token stored in database on final retry');
+                    } else {
+                      print('❌ IOS: FCM Token still empty on final retry - giving up');
+                    }
+                  } catch (e) {
+                    print('❌ IOS: FCM final retry failed: $e');
+                  }
+                });
+              }
+            } catch (e) {
+              print('❌ IOS: FCM retry failed: $e');
+            }
+          });
+        } else if (Platform.isAndroid) {
+          print('🤖 ANDROID: Android FCM fallback - retrying in 5 seconds...');
+          Future.delayed(Duration(seconds: 5), () async {
+            try {
+              final retryToken = await _messaging!.getToken() ?? '';
+              if (retryToken.isNotEmpty) {
+                print('🤖 ANDROID: FCM Token obtained on retry: ${retryToken.substring(0, 20)}...');
+                await SupabaseService.updateFCMToken(retryToken);
+                print('✅ ANDROID: FCM Token stored in database on retry');
+              } else {
+                print('❌ ANDROID: FCM Token still empty on retry');
+                // Android-specific: Try one more time with longer delay
+                Future.delayed(Duration(seconds: 10), () async {
+                  try {
+                    final finalToken = await _messaging!.getToken() ?? '';
+                    if (finalToken.isNotEmpty) {
+                      print('🤖 ANDROID: FCM Token obtained on final retry: ${finalToken.substring(0, 20)}...');
+                      await SupabaseService.updateFCMToken(finalToken);
+                      print('✅ ANDROID: FCM Token stored in database on final retry');
+                    } else {
+                      print('❌ ANDROID: FCM Token still empty on final retry - giving up');
+                    }
+                  } catch (e) {
+                    print('❌ ANDROID: FCM final retry failed: $e');
+                  }
+                });
+              }
+            } catch (e) {
+              print('❌ ANDROID: FCM retry failed: $e');
+            }
+          });
+        }
+      }
+    } catch (e) {
+      print('❌ Failed to register FCM token: $e');
+    }
+  }
+
   static void _setupMessageHandlers() {
+    print('🔔 FCM: Setting up message handlers...');
+    
     // Handle messages when app is in foreground
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      print('Received foreground message: ${message.messageId}');
+      print('📱 PUSH: Received foreground message: ${message.messageId}');
+      print('📱 PUSH: Message data: ${message.data}');
+      print('📱 PUSH: Message notification: ${message.notification?.title} - ${message.notification?.body}');
       _handleForegroundMessage(message);
     });
 
     // Handle messages when app is opened from background
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      print('App opened from notification: ${message.messageId}');
+      print('📱 PUSH: App opened from notification: ${message.messageId}');
+      print('📱 PUSH: Message data: ${message.data}');
+      print('📱 PUSH: Message notification: ${message.notification?.title} - ${message.notification?.body}');
       _handleNotificationTap(message);
     });
 
     // Handle background messages
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    print('✅ FCM: Message handlers set up successfully');
   }
 
   static void _handleForegroundMessage(RemoteMessage message) {
-    // Show in-app notification or update UI
+    print('📱 FOREGROUND: Handling foreground message');
+    print('📱 FOREGROUND: Message data: ${message.data}');
+    
+    final data = message.data;
+    final type = data['type'];
+    
+    // CRITICAL FIX: Handle incoming call in foreground - don't show push notification
+    if (type == 'incoming_call') {
+      print('📱 FOREGROUND: Incoming call detected - CallListenerService should handle this via real-time');
+      // Don't show push notification UI - let CallListenerService handle it via real-time listener
+      // This prevents duplicate notifications when app is open
+      return;
+    }
+    
+    // For non-call notifications, show in-app notification
     final notification = message.notification;
     if (notification != null) {
       _showInAppNotification(notification.title ?? 'New Message', 
@@ -179,11 +366,19 @@ class NotificationService {
   // =============================================================================
 
   static void _handleIncomingCallNotification(Map<String, dynamic> data) {
+    print('📞 CALL: Handling incoming call notification');
+    print('📞 CALL: Data received: $data');
+    
     final callId = data['call_id'];
     final callerName = data['caller_name'];
     final callType = data['call_type'] ?? 'audio';
     
+    print('📞 CALL: Call ID: $callId');
+    print('📞 CALL: Caller Name: $callerName');
+    print('📞 CALL: Call Type: $callType');
+    
     if (callId != null) {
+      print('📞 CALL: Navigating to call screen with call data');
       // Navigate to call screen with call data
       Get.toNamed('/call', arguments: {
         'callId': callId,
@@ -192,6 +387,7 @@ class NotificationService {
         'isIncoming': true,
       });
     } else {
+      print('⚠️ CALL: Missing call ID, falling back to matches screen');
       // Fallback to matches screen
       Get.toNamed('/matches');
     }
@@ -290,6 +486,12 @@ class NotificationService {
     } catch (e) {
       print('Error unsubscribing from topic: $e');
     }
+  }
+
+  // Method to manually retry FCM token registration
+  static Future<void> retryFCMTokenRegistration() async {
+    print('🔄 DEBUG: Manually retrying FCM token registration...');
+    await registerFCMToken();
   }
 }
 

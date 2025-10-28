@@ -1,9 +1,11 @@
+import 'dart:io';
 import 'package:get/get.dart';
 import 'package:lovebug/models/call_models.dart';
 import 'package:lovebug/services/supabase_service.dart';
 import 'package:lovebug/services/webrtc_service.dart';
 import 'package:lovebug/services/callkit_service.dart';
 import 'package:lovebug/services/push_notification_service.dart';
+import 'package:lovebug/services/app_state_service.dart';
 import 'package:lovebug/screens/call_screens/video_call_screen.dart';
 import 'package:lovebug/screens/call_screens/audio_call_screen.dart';
 import 'package:uuid/uuid.dart';
@@ -58,6 +60,15 @@ class CallController extends GetxController {
       final currentUserId = SupabaseService.currentUser?.id;
       if (currentUserId == null) return;
 
+      // CRITICAL FIX: Get caller's image to send to receiver
+      final callerProfile = await SupabaseService.getProfile(currentUserId);
+      final callerImageUrls = callerProfile?['image_urls'];
+      String? callerImageUrl;
+      if (callerImageUrls is List && callerImageUrls.isNotEmpty) {
+        callerImageUrl = callerImageUrls.first.toString();
+      }
+      print('🎯 Caller Image URL: $callerImageUrl');
+
       // CRITICAL DEBUG: Log call initiation details
       print('🎯 ===========================================');
       print('🎯 CALL INITIATION DEBUG');
@@ -93,12 +104,13 @@ class CallController extends GetxController {
       // Store call session in database
       await SupabaseService.client.from('call_sessions').insert(callSession.toJson());
 
+      // CRITICAL FIX: Use caller's image (not receiver's) so push notification shows correct image
       // Create call payload (roomId == callId, notificationId == callId)
       final payload = CallPayload(
         userId: currentUserId,
         name: SupabaseService.currentUser?.userMetadata?['name'] ?? 'Unknown',
         username: receiverName,
-        imageUrl: receiverImage,
+        imageUrl: callerImageUrl, // CRITICAL FIX: Use caller's image for push notification
         fcmToken: receiverFcmToken,
         callType: callType,
         callAction: CallAction.create,
@@ -111,9 +123,10 @@ class CallController extends GetxController {
       // Start local call FIRST (don't wait for push notification)
       _startLocalCall(payload, receiverId);
 
-      // Send notification to receiver (non-blocking, fire and forget)
+      // Always send push notification to receiver (cannot rely on local app state for remote device)
+      print('📱 PUSH: Sending call notification to receiver');
       _sendCallNotification(payload).catchError((e) {
-        print('⚠️ Push notification failed (continuing with call anyway): $e');
+        print('⚠️ PUSH: Push notification failed (continuing with call anyway): $e');
       });
 
     } catch (e) {
@@ -124,28 +137,43 @@ class CallController extends GetxController {
 
   Future<void> _sendCallNotification(CallPayload payload) async {
     try {
+      print('📱 PUSH: Starting call notification process');
+      print('📱 PUSH: Match ID: ${payload.matchId}');
+      print('📱 PUSH: Call Type: ${payload.callType}');
+      print('📱 PUSH: Caller Name: ${payload.name}');
+      
       // Get receiver ID from the match
       final receiverId = await _getReceiverId(payload.matchId ?? '');
       if (receiverId == null) {
-        print('⚠️ Could not find receiver ID for match: ${payload.matchId}');
+        print('❌ PUSH: Could not find receiver ID for match: ${payload.matchId}');
         return;
       }
+      print('📱 PUSH: Receiver ID: $receiverId');
 
       // Get receiver's name
       final receiverProfile = await SupabaseService.getProfile(receiverId);
       final receiverName = receiverProfile?['name'] ?? 'Unknown';
+      print('📱 PUSH: Receiver Name: $receiverName');
+
+      // Convert call type to string
+      final callTypeString = payload.callType == CallType.video ? 'video' : 'audio';
+      print('📱 PUSH: Call Type String: $callTypeString');
 
       // Send incoming call notification using our unified system
+      print('📱 PUSH: Sending notification via PushNotificationService...');
       await PushNotificationService.sendIncomingCallNotification(
         userId: receiverId,
         callerName: payload.name ?? 'Unknown',
         callId: payload.webrtcRoomId ?? '',
-        callType: payload.callType?.name ?? 'audio', // 'audio' or 'video'
+        callType: callTypeString, // CRITICAL FIX: Ensure correct call type
+        callerImageUrl: payload.imageUrl, // CRITICAL FIX: Include caller image
+        callerId: payload.userId,
+        matchId: payload.matchId,
       );
 
-      print('✅ Call notification sent to $receiverName');
+      print('✅ PUSH: Call notification sent to $receiverName');
     } catch (e) {
-      print('Error sending call notification: $e');
+      print('❌ PUSH: Error sending call notification: $e');
     }
   }
 
@@ -233,11 +261,12 @@ class CallController extends GetxController {
       if (_currentCall.value != null) {
         final callSession = _currentCall.value!;
         
-        // Update call session
+        // Update call session to ended state (normal call termination)
+        // State 'ended' represents a successful call that either party hung up normally
         await SupabaseService.client
             .from('call_sessions')
             .update({
-              'state': CallState.disconnected.name,
+              'state': 'ended',
               'ended_at': DateTime.now().toIso8601String(),
             })
             .eq('id', callSession.id);

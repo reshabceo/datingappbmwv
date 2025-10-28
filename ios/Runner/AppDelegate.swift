@@ -44,6 +44,25 @@ extension AppDelegate {
   override func userNotificationCenter(_ center: UNUserNotificationCenter,
                             willPresent notification: UNNotification,
                             withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+    // CRITICAL FIX: Check if this is an incoming call notification
+    let userInfo = notification.request.content.userInfo
+    
+    // Check if this is a call notification by looking at the type or action field
+    if let type = userInfo["type"] as? String, type == "incoming_call" {
+      print("📱 iOS: Incoming call notification detected in foreground - suppressing system notification")
+      // Don't show system notification - let CallListenerService handle it with CallKit/in-app dialog
+      completionHandler([])
+      return
+    }
+    
+    if let action = userInfo["action"] as? String, action == "incoming_call" {
+      print("📱 iOS: Incoming call notification detected in foreground - suppressing system notification")
+      // Don't show system notification - let CallListenerService handle it with CallKit/in-app dialog
+      completionHandler([])
+      return
+    }
+    
+    // For non-call notifications, show the notification normally
     completionHandler([[.alert, .sound, .badge]])
   }
 }
