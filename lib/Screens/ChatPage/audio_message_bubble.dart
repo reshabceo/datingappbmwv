@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:lovebug/models/audio_message.dart';
@@ -39,6 +40,11 @@ class _AudioMessageBubbleState extends State<AudioMessageBubble>
   StreamSubscription? _durationSubscription;
   StreamSubscription? _completeSubscription;
 
+  // Listener handles to deregister later
+  void Function(Duration, Duration)? _onPlaybackPos;
+  VoidCallback? _onPlaybackStart;
+  VoidCallback? _onPlaybackStop;
+
   @override
   void initState() {
     super.initState();
@@ -50,45 +56,59 @@ class _AudioMessageBubbleState extends State<AudioMessageBubble>
     _positionSubscription?.cancel();
     _durationSubscription?.cancel();
     _completeSubscription?.cancel();
+    // Remove playback listeners
+    if (_onPlaybackPos != null || _onPlaybackStart != null || _onPlaybackStop != null) {
+      AudioRecordingService.removePlaybackListeners(
+        onPosition: _onPlaybackPos,
+        onStarted: _onPlaybackStart,
+        onStopped: _onPlaybackStop,
+      );
+    }
     super.dispose();
   }
 
   void _setupAudioListeners() {
-    // Listen to playback position changes
-    AudioRecordingService.onPlaybackPositionChanged = (position, duration) {
-      if (mounted) {
-        setState(() {
+    _onPlaybackPos = (position, duration) {
+      if (!mounted) return;
+      final isThisAudio = AudioRecordingService.currentAudioUrl == widget.audioMessage.audioUrl;
+      setState(() {
+        if (isThisAudio) {
           _playbackPosition = position;
           _playbackDuration = duration;
-        });
-      }
-    };
-
-    // Listen to playback state changes
-    AudioRecordingService.onPlaybackStarted = () {
-      if (mounted) {
-        setState(() {
-          _isPlaying = true;
-        });
-      }
-    };
-
-    AudioRecordingService.onPlaybackStopped = () {
-      if (mounted) {
-        setState(() {
+        } else {
           _isPlaying = false;
-          _playbackPosition = Duration.zero;
-        });
-      }
+        }
+      });
     };
+    _onPlaybackStart = () {
+      if (!mounted) return;
+      setState(() {
+        _isPlaying = AudioRecordingService.currentAudioUrl == widget.audioMessage.audioUrl;
+      });
+    };
+    _onPlaybackStop = () {
+      if (!mounted) return;
+      setState(() {
+        _isPlaying = false;
+        _playbackPosition = Duration.zero;
+      });
+    };
+    AudioRecordingService.addPlaybackListeners(
+      onPosition: _onPlaybackPos,
+      onStarted: _onPlaybackStart,
+      onStopped: _onPlaybackStop,
+    );
   }
 
   Future<void> _togglePlayback() async {
     try {
+      print('🔊 DEBUG: Tapped audio bubble for URL: ${widget.audioMessage.audioUrl}');
       if (_isPlaying) {
         await AudioRecordingService.pausePlayback();
       } else {
-        if (_playbackPosition > Duration.zero) {
+        // If we have progress AND it's the same audio as the current one, resume; otherwise start the requested audio
+        final isSameAudio = AudioRecordingService.currentAudioUrl == widget.audioMessage.audioUrl;
+        if (_playbackPosition > Duration.zero && isSameAudio) {
           await AudioRecordingService.resumePlayback();
         } else {
           await AudioRecordingService.playAudio(widget.audioMessage.audioUrl);
@@ -368,17 +388,19 @@ class _AudioMessageBubbleState extends State<AudioMessageBubble>
   }
 
   String _formatTimestamp(DateTime timestamp) {
+    // Mirror text message timestamp formatting to avoid locale/timezone discrepancies
+    final ts = timestamp.toLocal();
     final now = DateTime.now();
-    final difference = now.difference(timestamp);
-    
-    if (difference.inDays > 0) {
-      return '${difference.inDays}d ago';
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours}h ago';
-    } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes}m ago';
-    } else {
-      return 'Just now';
+    final isToday = ts.year == now.year && ts.month == now.month && ts.day == now.day;
+
+    final hour12 = ts.hour == 0 ? 12 : (ts.hour > 12 ? ts.hour - 12 : ts.hour);
+    final amPm = ts.hour < 12 ? 'AM' : 'PM';
+    final timeString = '${hour12.toString().padLeft(2, '0')}:${ts.minute.toString().padLeft(2, '0')} $amPm';
+
+    if (isToday) {
+      return timeString; // e.g., 2:30 PM
     }
+    // e.g., 19/10 2:30 PM
+    return '${ts.day.toString().padLeft(2, '0')}/${ts.month.toString().padLeft(2, '0')} $timeString';
   }
 }

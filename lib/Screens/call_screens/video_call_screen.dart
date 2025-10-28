@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -48,8 +49,30 @@ class _VideoCallScreenState extends State<VideoCallScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    localRender.dispose();
-    remoteRender.dispose();
+    
+    // CRITICAL FIX: Stop video renderers before disposing to prevent EglRenderer errors
+    try {
+      if (_renderersInitialized) {
+        // Clear video sources first
+        localRender.srcObject = null;
+        remoteRender.srcObject = null;
+        
+        // Wait a moment for cleanup
+        Future.delayed(Duration(milliseconds: 100), () {
+          try {
+            localRender.dispose();
+            remoteRender.dispose();
+            print('✅ Video renderers disposed successfully');
+          } catch (e) {
+            print('⚠️ Error disposing video renderers: $e');
+          }
+        });
+      }
+    } catch (e) {
+      print('⚠️ Error in video renderer cleanup: $e');
+    }
+    
+    // End the call after renderer cleanup
     webrtcService.endCall();
     super.dispose();
   }
@@ -66,6 +89,10 @@ class _VideoCallScreenState extends State<VideoCallScreen>
 
   Future<void> _initializeCall() async {
     try {
+      // CRITICAL FIX: Reset call state before initializing
+      // Note: Call state will be reset by the WebRTC service initialization
+      print('📞 VideoCallScreen: Preparing to initialize call');
+      
       // CRITICAL: Initialize renderers FIRST before any callbacks
       print('📞 VideoCallScreen: Initializing renderers...');
       await localRender.initialize();
@@ -287,6 +314,12 @@ class _VideoCallScreenState extends State<VideoCallScreen>
                   ),
                 ),
                 
+                // BEAUTIFUL: Profile picture background with pink gradient blur when not connected
+                if (!isConnected || !_hasRemoteStream)
+                  Positioned.fill(
+                    child: _buildProfileBackground(),
+                  ),
+                
                 // Removed verbose debug overlay in production
                 
                 // Local video (picture-in-picture when connected)
@@ -338,20 +371,20 @@ class _VideoCallScreenState extends State<VideoCallScreen>
                               webrtcService.switchCamera();
                             },
                           ),
-                          _buildCallControlButton(
+                          Obx(() => _buildCallControlButton(
                             icon: CupertinoIcons.videocam_fill,
                             onPressed: () {
                               webrtcService.toggleVideo();
                             },
                             isActive: webrtcService.isVideoEnabled,
-                          ),
-                          _buildCallControlButton(
+                          )),
+                          Obx(() => _buildCallControlButton(
                             icon: CupertinoIcons.mic_fill,
                             onPressed: () {
                               webrtcService.toggleMute();
                             },
                             isActive: !webrtcService.isMuted,
-                          ),
+                          )),
                           _buildCallControlButton(
                             icon: CupertinoIcons.phone_down_fill,
                             onPressed: () {
@@ -366,36 +399,59 @@ class _VideoCallScreenState extends State<VideoCallScreen>
                   ),
                 ),
                 
-                // Call status overlay
+                // BEAUTIFUL: Enhanced call status overlay
                 if (!isConnected)
-                  Center(
-                    child: Container(
-                      padding: EdgeInsets.all(20.w),
-                      decoration: BoxDecoration(
-                        color: themeController.blackColor.withOpacity(0.8),
-                        borderRadius: BorderRadius.circular(16.r),
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CircularProgressIndicator(
-                            color: themeController.getAccentColor(),
+                  Positioned(
+                    bottom: 200.h, // Position above the call controls
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: Container(
+                        margin: EdgeInsets.symmetric(horizontal: 40.w),
+                        padding: EdgeInsets.all(24.w),
+                        decoration: BoxDecoration(
+                          color: themeController.blackColor.withOpacity(0.6),
+                          borderRadius: BorderRadius.circular(20.r),
+                          border: Border.all(
+                            color: themeController.getAccentColor().withOpacity(0.3),
+                            width: 1,
                           ),
-                          heightBox(16.h.toInt()),
-                          TextConstant(
-                            title: _getConnectionStatusText(),
-                            color: themeController.whiteColor,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          heightBox(8.h.toInt()),
-                          TextConstant(
-                            title: 'Please wait while we connect your video call...',
-                            color: themeController.whiteColor.withOpacity(0.7),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w400,
-                          ),
-                        ],
+                          boxShadow: [
+                            BoxShadow(
+                              color: themeController.getAccentColor().withOpacity(0.1),
+                              blurRadius: 20,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Animated loading indicator
+                            Container(
+                              width: 40.w,
+                              height: 40.w,
+                              child: CircularProgressIndicator(
+                                color: themeController.getAccentColor(),
+                                strokeWidth: 3,
+                              ),
+                            ),
+                            SizedBox(height: 16.h),
+                            TextConstant(
+                              title: _getConnectionStatusText(),
+                              color: themeController.whiteColor,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            SizedBox(height: 8.h),
+                            TextConstant(
+                              title: 'Please wait while we connect your video call...',
+                              color: themeController.whiteColor.withOpacity(0.8),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -442,10 +498,208 @@ class _VideoCallScreenState extends State<VideoCallScreen>
       child: IconButton(
         padding: EdgeInsets.zero,
         onPressed: onPressed,
-        icon: Icon(
-          icon,
+        icon: Stack(
+          alignment: Alignment.center,
+          children: [
+            Icon(
+              icon,
+              color: themeController.whiteColor,
+              size: 30.sp,
+            ),
+            // CRITICAL FIX: Add strike-through when inactive (but not for end call button)
+            if (!isActive && !isEndCall)
+              Positioned(
+                child: Container(
+                  width: 40.w,
+                  height: 3.h,
+                  decoration: BoxDecoration(
+                    color: themeController.whiteColor,
+                    borderRadius: BorderRadius.circular(1.5.r),
+                    boxShadow: [
+                      BoxShadow(
+                        color: themeController.blackColor.withOpacity(0.3),
+                        blurRadius: 2,
+                        offset: Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// BEAUTIFUL: Build profile picture background with pink gradient blur
+  Widget _buildProfileBackground() {
+    final otherUserImage = widget.payload.imageUrl;
+    final otherUserName = widget.payload.name ?? 'Someone';
+    
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            themeController.getAccentColor().withOpacity(0.3),
+            themeController.getAccentColor().withOpacity(0.1),
+            Colors.black.withOpacity(0.8),
+          ],
+          stops: const [0.0, 0.5, 1.0],
+        ),
+      ),
+      child: Stack(
+        children: [
+          // Blurred profile picture background
+          if (otherUserImage != null && otherUserImage.isNotEmpty)
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  image: DecorationImage(
+                    image: NetworkImage(otherUserImage),
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                  child: Container(
+                    color: Colors.black.withOpacity(0.3),
+                  ),
+                ),
+              ),
+            ),
+          
+          // Pink gradient overlay
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    themeController.getAccentColor().withOpacity(0.4),
+                    themeController.getAccentColor().withOpacity(0.2),
+                    Colors.black.withOpacity(0.6),
+                  ],
+                  stops: const [0.0, 0.6, 1.0],
+                ),
+              ),
+            ),
+          ),
+          
+          // Profile picture in center
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Profile picture
+                Container(
+                  width: 120.w,
+                  height: 120.w,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: themeController.whiteColor.withOpacity(0.3),
+                      width: 3.w,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: themeController.getAccentColor().withOpacity(0.3),
+                        blurRadius: 20,
+                        spreadRadius: 5,
+                      ),
+                    ],
+                  ),
+                  child: ClipOval(
+                    child: otherUserImage != null && otherUserImage.isNotEmpty
+                        ? Image.network(
+                            otherUserImage,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return _buildDefaultAvatar(otherUserName);
+                            },
+                          )
+                        : _buildDefaultAvatar(otherUserName),
+                  ),
+                ),
+                
+                SizedBox(height: 20.h),
+                
+                // User name
+                TextConstant(
+                  title: otherUserName,
+                  color: themeController.whiteColor,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w600,
+                ),
+                
+                SizedBox(height: 8.h),
+                
+                // Call type indicator
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 6.h),
+                  decoration: BoxDecoration(
+                    color: themeController.getAccentColor().withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(20.r),
+                    border: Border.all(
+                      color: themeController.getAccentColor().withOpacity(0.5),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        widget.payload.callType == CallType.video 
+                            ? CupertinoIcons.videocam_fill 
+                            : CupertinoIcons.phone_fill,
+                        color: themeController.whiteColor,
+                        size: 16.sp,
+                      ),
+                      SizedBox(width: 6.w),
+                      TextConstant(
+                        title: widget.payload.callType == CallType.video 
+                            ? 'Video Call' 
+                            : 'Audio Call',
+                        color: themeController.whiteColor,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build default avatar when no image is available
+  Widget _buildDefaultAvatar(String name) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            themeController.getAccentColor(),
+            themeController.getAccentColor().withOpacity(0.7),
+          ],
+        ),
+      ),
+      child: Center(
+        child: TextConstant(
+          title: name.isNotEmpty ? name[0].toUpperCase() : '?',
           color: themeController.whiteColor,
-          size: 30.sp,
+          fontSize: 48,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );

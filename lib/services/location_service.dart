@@ -199,18 +199,34 @@ class LocationService {
     try {
       print('📍 LocationService: Updating user location in database...');
       
+      // Get location name from coordinates
+      final locationName = await _getLocationNameFromCoordinates(latitude, longitude);
+      
       await SupabaseService.client
           .from('profiles')
           .update({
             'latitude': latitude,
             'longitude': longitude,
-            'location_updated_at': DateTime.now().toIso8601String(),
+            'location': locationName ?? 'Unknown Location',
+            'updated_at': DateTime.now().toIso8601String(),
           })
           .eq('id', userId);
       
-      print('✅ LocationService: User location updated in database');
+      print('✅ LocationService: User location updated in database - $locationName');
     } catch (e) {
       print('❌ LocationService: Error updating location in database: $e');
+    }
+  }
+  
+  /// Get location name from coordinates using reverse geocoding
+  static Future<String?> _getLocationNameFromCoordinates(double latitude, double longitude) async {
+    try {
+      // You can implement reverse geocoding here using a service like Google Maps API
+      // For now, return a simple format
+      return '${latitude.toStringAsFixed(4)}, ${longitude.toStringAsFixed(4)}';
+    } catch (e) {
+      print('❌ LocationService: Error getting location name: $e');
+      return null;
     }
   }
   

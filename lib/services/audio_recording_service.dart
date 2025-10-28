@@ -16,6 +16,7 @@ class AudioRecordingService {
   static Duration _recordingDuration = Duration.zero;
   static Duration _playbackPosition = Duration.zero;
   static Duration _playbackDuration = Duration.zero;
+  static String? _currentAudioUrl;
 
   // Getters
   static bool get isRecording => _isRecording;
@@ -24,24 +25,202 @@ class AudioRecordingService {
   static Duration get recordingDuration => _recordingDuration;
   static Duration get playbackPosition => _playbackPosition;
   static Duration get playbackDuration => _playbackDuration;
+  static String? get currentAudioUrl => _currentAudioUrl;
 
-  // Callbacks
-  static Function(Duration)? onRecordingDurationChanged;
-  static Function(Duration, Duration)? onPlaybackPositionChanged;
-  static Function()? onRecordingStarted;
-  static Function()? onRecordingStopped;
-  static Function()? onPlaybackStarted;
-  static Function()? onPlaybackStopped;
+  // Callback registries (multiple listeners)
+  static final List<void Function(Duration)> _onRecordingDurationChanged = [];
+  static final List<void Function(Duration, Duration)> _onPlaybackPositionChanged = [];
+  static final List<VoidCallback> _onRecordingStarted = [];
+  static final List<VoidCallback> _onRecordingStopped = [];
+  static final List<VoidCallback> _onPlaybackStarted = [];
+  static final List<VoidCallback> _onPlaybackStopped = [];
+
+  // Back-compat legacy callback holders (for external code assigning single callbacks)
+  static void Function(Duration)? _legacyOnRecordingDurationChanged;
+  static void Function(Duration, Duration)? _legacyOnPlaybackPositionChanged;
+  static VoidCallback? _legacyOnRecordingStarted;
+  static VoidCallback? _legacyOnRecordingStopped;
+  static VoidCallback? _legacyOnPlaybackStarted;
+  static VoidCallback? _legacyOnPlaybackStopped;
+
+  // Back-compat setters/getters
+  static set onRecordingDurationChanged(void Function(Duration)? cb) {
+    if (_legacyOnRecordingDurationChanged != null) {
+      _onRecordingDurationChanged.remove(_legacyOnRecordingDurationChanged!);
+    }
+    _legacyOnRecordingDurationChanged = cb;
+    if (cb != null) {
+      _onRecordingDurationChanged.add(cb);
+    }
+  }
+  static void Function(Duration)? get onRecordingDurationChanged => _legacyOnRecordingDurationChanged;
+
+  static set onPlaybackPositionChanged(void Function(Duration, Duration)? cb) {
+    if (_legacyOnPlaybackPositionChanged != null) {
+      _onPlaybackPositionChanged.remove(_legacyOnPlaybackPositionChanged!);
+    }
+    _legacyOnPlaybackPositionChanged = cb;
+    if (cb != null) {
+      _onPlaybackPositionChanged.add(cb);
+    }
+  }
+  static void Function(Duration, Duration)? get onPlaybackPositionChanged => _legacyOnPlaybackPositionChanged;
+
+  static set onRecordingStarted(VoidCallback? cb) {
+    if (_legacyOnRecordingStarted != null) {
+      _onRecordingStarted.remove(_legacyOnRecordingStarted!);
+    }
+    _legacyOnRecordingStarted = cb;
+    if (cb != null) {
+      _onRecordingStarted.add(cb);
+    }
+  }
+  static VoidCallback? get onRecordingStarted => _legacyOnRecordingStarted;
+
+  static set onRecordingStopped(VoidCallback? cb) {
+    if (_legacyOnRecordingStopped != null) {
+      _onRecordingStopped.remove(_legacyOnRecordingStopped!);
+    }
+    _legacyOnRecordingStopped = cb;
+    if (cb != null) {
+      _onRecordingStopped.add(cb);
+    }
+  }
+  static VoidCallback? get onRecordingStopped => _legacyOnRecordingStopped;
+
+  static set onPlaybackStarted(VoidCallback? cb) {
+    if (_legacyOnPlaybackStarted != null) {
+      _onPlaybackStarted.remove(_legacyOnPlaybackStarted!);
+    }
+    _legacyOnPlaybackStarted = cb;
+    if (cb != null) {
+      _onPlaybackStarted.add(cb);
+    }
+  }
+  static VoidCallback? get onPlaybackStarted => _legacyOnPlaybackStarted;
+
+  static set onPlaybackStopped(VoidCallback? cb) {
+    if (_legacyOnPlaybackStopped != null) {
+      _onPlaybackStopped.remove(_legacyOnPlaybackStopped!);
+    }
+    _legacyOnPlaybackStopped = cb;
+    if (cb != null) {
+      _onPlaybackStopped.add(cb);
+    }
+  }
+  static VoidCallback? get onPlaybackStopped => _legacyOnPlaybackStopped;
+
+  static void addPlaybackListeners({
+    void Function(Duration, Duration)? onPosition,
+    VoidCallback? onStarted,
+    VoidCallback? onStopped,
+  }) {
+    if (onPosition != null) _onPlaybackPositionChanged.add(onPosition);
+    if (onStarted != null) _onPlaybackStarted.add(onStarted);
+    if (onStopped != null) _onPlaybackStopped.add(onStopped);
+  }
+
+  static void removePlaybackListeners({
+    void Function(Duration, Duration)? onPosition,
+    VoidCallback? onStarted,
+    VoidCallback? onStopped,
+  }) {
+    if (onPosition != null) _onPlaybackPositionChanged.remove(onPosition);
+    if (onStarted != null) _onPlaybackStarted.remove(onStarted);
+    if (onStopped != null) _onPlaybackStopped.remove(onStopped);
+  }
+
+  static void addRecordingListeners({
+    void Function(Duration)? onDuration,
+    VoidCallback? onStarted,
+    VoidCallback? onStopped,
+  }) {
+    if (onDuration != null) _onRecordingDurationChanged.add(onDuration);
+    if (onStarted != null) _onRecordingStarted.add(onStarted);
+    if (onStopped != null) _onRecordingStopped.add(onStopped);
+  }
+
+  static void removeRecordingListeners({
+    void Function(Duration)? onDuration,
+    VoidCallback? onStarted,
+    VoidCallback? onStopped,
+  }) {
+    if (onDuration != null) _onRecordingDurationChanged.remove(onDuration);
+    if (onStarted != null) _onRecordingStarted.remove(onStarted);
+    if (onStopped != null) _onRecordingStopped.remove(onStopped);
+  }
 
   /// Check and request microphone permission
   static Future<bool> checkMicrophonePermission() async {
+    print('🎤 DEBUG: Checking microphone permission...');
+
+    // First check permission_handler status
     final status = await Permission.microphone.status;
+    print('🎤 DEBUG: Permission.microphone.status = $status');
+
     if (status.isGranted) {
-      return true;
+      print('🎤 DEBUG: Permission granted via permission_handler');
+
+      // Double-check with recorder's own permission check
+      try {
+        final has = await _recorder.hasPermission();
+        print('🎤 DEBUG: AudioRecorder.hasPermission() = $has');
+        if (has == true) {
+          print('🎤 DEBUG: Both checks passed - permission confirmed');
+          return true;
+        } else {
+          print('🎤 DEBUG: Recorder says no permission, but permission_handler says granted - requesting again');
+        }
+      } catch (e) {
+        print('🎤 DEBUG: Recorder permission check failed: $e');
+      }
     }
-    
+
+    // If not granted or recorder disagrees, request permission
+    print('🎤 DEBUG: Requesting microphone permission...');
     final result = await Permission.microphone.request();
-    return result.isGranted;
+    print('🎤 DEBUG: Permission request result = $result');
+
+    if (result.isGranted) {
+      // Final check with recorder after granting
+      try {
+        final has = await _recorder.hasPermission();
+        print('🎤 DEBUG: After granting, AudioRecorder.hasPermission() = $has');
+        return has == true;
+      } catch (e) {
+        print('🎤 DEBUG: Recorder check failed after granting: $e');
+        return true; // Assume it's granted if permission_handler says so
+      }
+    }
+
+    // If permission is permanently denied, show user-friendly message
+    if (status.isPermanentlyDenied) {
+      print('🎤 DEBUG: Microphone permission permanently denied');
+      return false;
+    }
+
+    return false;
+  }
+
+  /// Reset microphone permission state after video calls
+  static Future<void> resetMicrophoneState() async {
+    print('🎤 DEBUG: Resetting microphone state after video call...');
+    
+    try {
+      // Force a fresh permission check
+      final status = await Permission.microphone.status;
+      print('🎤 DEBUG: Current permission status after reset: $status');
+      
+      if (status.isGranted) {
+        // Stop any ongoing recording and reset state
+        if (_isRecording) {
+          await stopRecording();
+        }
+        print('🎤 DEBUG: Microphone state reset after video call');
+      }
+    } catch (e) {
+      print('🎤 DEBUG: Error resetting microphone state: $e');
+    }
   }
 
   /// Start recording audio
@@ -75,7 +254,7 @@ class AudioRecordingService {
 
       _isRecording = true;
       _recordingDuration = Duration.zero;
-      onRecordingStarted?.call();
+      for (final cb in _onRecordingStarted) { cb(); }
 
       // Start duration timer
       _startDurationTimer();
@@ -95,7 +274,7 @@ class AudioRecordingService {
 
       final path = await _recorder.stop();
       _isRecording = false;
-      onRecordingStopped?.call();
+      for (final cb in _onRecordingStopped) { cb(); }
 
       print('🛑 Stopped recording: $path');
       return path;
@@ -113,7 +292,7 @@ class AudioRecordingService {
         _isRecording = false;
         _currentRecordingPath = null;
         _recordingDuration = Duration.zero;
-        onRecordingStopped?.call();
+        for (final cb in _onRecordingStopped) { cb(); }
         print('❌ Recording cancelled');
       }
     } catch (e) {
@@ -121,37 +300,63 @@ class AudioRecordingService {
     }
   }
 
-  /// Play audio file
-  static Future<bool> playAudio(String filePath) async {
+  /// Play audio file or URL
+  static Future<bool> playAudio(String pathOrUrl) async {
     try {
       if (_isPlaying) {
         await stopPlayback();
       }
 
-      await _player.play(DeviceFileSource(filePath));
+      // Ensure proper audio routing (iOS speaker + silent switch override; Android speakerphone)
+      await _player.setAudioContext(
+        AudioContext(
+          iOS: AudioContextIOS(
+            category: AVAudioSessionCategory.playback,
+            options: <AVAudioSessionOptions>{
+              AVAudioSessionOptions.mixWithOthers,
+            },
+          ),
+          android: AudioContextAndroid(
+            isSpeakerphoneOn: true,
+            contentType: AndroidContentType.music,
+            usageType: AndroidUsageType.media,
+            audioFocus: AndroidAudioFocus.gain,
+          ),
+        ),
+      );
+
+      // Choose source based on whether it's a URL or local file path
+      if (pathOrUrl.startsWith('http')) {
+        print('🔊 DEBUG: Playing remote URL');
+        await _player.play(UrlSource(pathOrUrl));
+      } else {
+        print('🔊 DEBUG: Playing local file');
+        await _player.play(DeviceFileSource(pathOrUrl));
+      }
       _isPlaying = true;
-      onPlaybackStarted?.call();
+      _currentAudioUrl = pathOrUrl;
+      for (final cb in _onPlaybackStarted) { cb(); }
 
       // Listen to position changes
       _player.onPositionChanged.listen((position) {
         _playbackPosition = position;
-        onPlaybackPositionChanged?.call(position, _playbackDuration);
+        for (final cb in _onPlaybackPositionChanged) { cb(position, _playbackDuration); }
       });
 
       // Listen to duration changes
       _player.onDurationChanged.listen((duration) {
         _playbackDuration = duration;
-        onPlaybackPositionChanged?.call(_playbackPosition, duration);
+        for (final cb in _onPlaybackPositionChanged) { cb(_playbackPosition, duration); }
       });
 
       // Listen to completion
       _player.onPlayerComplete.listen((_) {
         _isPlaying = false;
         _playbackPosition = Duration.zero;
-        onPlaybackStopped?.call();
+        for (final cb in _onPlaybackStopped) { cb(); }
       });
 
-      print('▶️ Started playing: $filePath');
+      print('▶️ Started playing: $pathOrUrl');
       return true;
     } catch (e) {
       print('❌ Error playing audio: $e');
@@ -166,7 +371,8 @@ class AudioRecordingService {
         await _player.stop();
         _isPlaying = false;
         _playbackPosition = Duration.zero;
-        onPlaybackStopped?.call();
+        _currentAudioUrl = null;
+        for (final cb in _onPlaybackStopped) { cb(); }
         print('⏹️ Stopped playback');
       }
     } catch (e) {
@@ -192,7 +398,7 @@ class AudioRecordingService {
       if (!_isPlaying && _playbackPosition > Duration.zero) {
         await _player.resume();
         _isPlaying = true;
-        onPlaybackStarted?.call();
+        for (final cb in _onPlaybackStarted) { cb(); }
         print('▶️ Resumed playback');
       }
     } catch (e) {
@@ -263,7 +469,7 @@ class AudioRecordingService {
     Future.delayed(Duration(seconds: 1), () {
       if (_isRecording) {
         _recordingDuration = Duration(seconds: _recordingDuration.inSeconds + 1);
-        onRecordingDurationChanged?.call(_recordingDuration);
+        for (final cb in _onRecordingDurationChanged) { cb(_recordingDuration); }
         _startDurationTimer();
       }
     });

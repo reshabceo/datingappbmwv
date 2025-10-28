@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:ui';
+import 'package:uuid/uuid.dart';
 import 'package:lovebug/Common/text_constant.dart';
 import 'package:lovebug/Common/widget_constant.dart';
 import 'package:lovebug/Constant/app_assets.dart';
@@ -36,6 +37,8 @@ import 'dart:typed_data';
 // Astro compatibility button states
 enum AstroCompatibilityButtonState { generate, show, hide, regenerate }
 
+// Helper to merge messages chronologically
+
 class EnhancedMessageScreen extends StatefulWidget {
   EnhancedMessageScreen({
     super.key,
@@ -64,6 +67,8 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
   
   // Astro compatibility button state
   AstroCompatibilityButtonState _astroButtonState = AstroCompatibilityButtonState.generate;
+  
+  
   
   // Audio recording state (press-and-hold UX)
   bool _isRecordingAudio = false; // kept for backward-compat, not used for UI now
@@ -1019,28 +1024,26 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
         ),
         child: Column(
           children: [
-            // Messages area - Show EITHER astro OR normal chat content
+            // Messages area - Show astro (optional) AND normal chat content
             Expanded(
               child: Obx(() {
-                // If astro is visible, show ONLY astro widget (no conversation starters)
-                if (astroVisible && !isLoadingZodiac && otherUserZodiac != null && otherUserZodiac != 'unknown') {
-                  return SingleChildScrollView(
-                    padding: EdgeInsets.zero,
-                    child: AstroCompatibilityWidget(
-                      matchId: widget.matchId,
-                      otherUserName: widget.userName ?? '',
-                      otherUserZodiac: otherUserZodiac!,
-                      visible: true,
-                      autoGenerateIfMissing: false,
-                    ),
-                  );
-                }
-                
-                // Otherwise, show normal chat content
-                if (controller.messages.isEmpty) {
+                // Determine visibility and content states
+                final showAstro = astroVisible && !isLoadingZodiac && otherUserZodiac != null && otherUserZodiac != 'unknown';
+                final hasAnyMessages = controller.messages.isNotEmpty || controller.audioMessages.isNotEmpty;
+
+                // Normal chat content (icebreaker optional)
+                if (!hasAnyMessages) {
                   return ListView(
                     padding: EdgeInsets.zero,
                     children: [
+                      if (showAstro)
+                        AstroCompatibilityWidget(
+                          matchId: widget.matchId,
+                          otherUserName: widget.userName ?? '',
+                          otherUserZodiac: otherUserZodiac!,
+                          visible: true,
+                          autoGenerateIfMissing: false,
+                        ),
                       Center(
                           child: Container(
                             margin: EdgeInsets.symmetric(horizontal: 20.w),
@@ -1083,7 +1086,7 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
                             ),
                           ),
                         ),
-                      // Conversation starters (always show when astro is NOT visible)
+                      // Conversation starters (optional; astro can be shown above)
                       ImprovedIceBreakerWidget(
                         matchId: widget.matchId,
                         otherUserName: widget.userName ?? '',
@@ -1095,6 +1098,14 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
               // When there are messages, show starters above the messages
               return Column(
                 children: [
+                  if (showAstro)
+                    AstroCompatibilityWidget(
+                      matchId: widget.matchId,
+                      otherUserName: widget.userName ?? '',
+                      otherUserZodiac: otherUserZodiac!,
+                      visible: true,
+                      autoGenerateIfMissing: false,
+                    ),
                   // Conversation starters (always show when astro is NOT visible)
                   ImprovedIceBreakerWidget(
                     matchId: widget.matchId,
@@ -1103,42 +1114,46 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
                   ),
                   // Messages list
                   Expanded(
-                    child: Obx(() {
-                      // Combine text and audio messages
-                      final allMessages = <Widget>[];
+                    child:                     Obx(() {
+                      print('🔊 DEBUG: Obx rebuilding - allSortedMessages count: ${controller.allSortedMessages.length}');
                       
-                      // Add text messages
-                      for (int i = 0; i < controller.messages.length; i++) {
-                        final message = controller.messages[i];
-                        allMessages.add(
-                          EnhancedChatBubble(
-                            message: message,
-                            userName: widget.userName ?? '',
-                            isBffMatch: widget.isBffMatch,
-                            userImage: currentUserImage,
-                            otherUserImage: widget.userImage,
-                          ),
-                        );
-                      }
-                      
-                      // Add audio messages
-                      for (int i = 0; i < controller.audioMessages.length; i++) {
-                        final audioMessage = controller.audioMessages[i];
-                        allMessages.add(
-                          AudioMessageBubble(
-                            audioMessage: audioMessage,
-                            isMe: audioMessage.senderId == (SupabaseService.currentUser?.id ?? ''),
-                            userImage: currentUserImage,
-                            otherUserImage: widget.userImage,
-                            isBffMatch: widget.isBffMatch,
-                          ),
-                        );
+                      // Debug: Print the actual order being displayed
+                      print('🔍 DEBUG: UI Display Order:');
+                      for (int i = 0; i < controller.allSortedMessages.length; i++) {
+                        final msg = controller.allSortedMessages[i];
+                        if (msg is Message) {
+                          print('  $i: TEXT "${msg.text}" at ${msg.timestamp}');
+                        } else if (msg is AudioMessage) {
+                          print('  $i: AUDIO at ${msg.createdAt}');
+                        }
                       }
                       
                       return ListView.builder(
                         controller: controller.scrollController,
-                        itemCount: allMessages.length,
-                        itemBuilder: (context, index) => allMessages[index],
+                        itemCount: controller.allSortedMessages.length,
+                        itemBuilder: (context, index) {
+                          final message = controller.allSortedMessages[index];
+                          
+                          if (message is Message) {
+                            return EnhancedChatBubble(
+                              message: message,
+                              userName: widget.userName ?? '',
+                              isBffMatch: widget.isBffMatch,
+                              userImage: currentUserImage,
+                              otherUserImage: widget.userImage,
+                            );
+                          } else if (message is AudioMessage) {
+                            return AudioMessageBubble(
+                              audioMessage: message,
+                              isMe: message.senderId == (SupabaseService.currentUser?.id ?? ''),
+                              userImage: currentUserImage,
+                              otherUserImage: widget.userImage,
+                              isBffMatch: widget.isBffMatch,
+                            );
+                          }
+                          
+                          return const SizedBox.shrink();
+                        },
                       );
                     }),
                   ),
@@ -1622,7 +1637,10 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
       _recordStartAt = DateTime.now();
       final ok = await AudioRecordingService.startRecording();
       if (!ok) {
-        Get.snackbar('Microphone', 'Microphone permission required');
+        print('🎤 DEBUG: Audio recording failed - checking permission status...');
+        final status = await Permission.microphone.status;
+        print('🎤 DEBUG: Current microphone permission status: $status');
+        Get.snackbar('Microphone', 'Microphone permission required. Status: $status');
         return;
       }
       setState(() {
@@ -1638,7 +1656,14 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
   void _handleMicLongPressStart(LongPressStartDetails details) async {
     try {
       _recordStartAt = DateTime.now();
-      await AudioRecordingService.startRecording();
+      final ok = await AudioRecordingService.startRecording();
+      if (!ok) {
+        print('🎤 DEBUG: Long press audio recording failed - checking permission status...');
+        final status = await Permission.microphone.status;
+        print('🎤 DEBUG: Current microphone permission status: $status');
+        Get.snackbar('Microphone', 'Microphone permission required. Status: $status');
+        return;
+      }
     } catch (e) {
       print('❌ Error starting long-press recording: $e');
     }
@@ -1759,15 +1784,16 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
         return;
       }
 
-      // Create audio message
+      // Create audio message with UTC time (like text messages)
       final audioMessage = AudioMessage(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        id: const Uuid().v4(), // Generate proper UUID
         matchId: widget.matchId,
         senderId: SupabaseService.currentUser?.id ?? '',
         audioUrl: audioUrl,
         duration: duration,
         fileSize: fileSize,
-        createdAt: DateTime.now(),
+        // Use UTC like text messages - fromMap will convert to local for display
+        createdAt: DateTime.now().toUtc(),
       );
 
       // Save to database
@@ -1805,13 +1831,13 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
       
       // Upload to Supabase Storage
       final response = await SupabaseService.client.storage
-          .from('audio-messages')
+          .from('chat-audio')
           .upload('$userId/$fileName', file);
       
       if (response.isNotEmpty) {
         // Get public URL
         final publicUrl = SupabaseService.client.storage
-            .from('audio-messages')
+            .from('chat-audio')
             .getPublicUrl('$userId/$fileName');
         
         return publicUrl;

@@ -44,37 +44,37 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'your-web-api-key',
-    appId: 'your-web-app-id',
-    messagingSenderId: 'your-sender-id',
-    projectId: 'your-project-id',
-    authDomain: 'your-project-id.firebaseapp.com',
-    storageBucket: 'your-project-id.appspot.com',
+    apiKey: 'AIzaSyDRhi5nwAdtk4_BxhDMK4yqDxB55aMVQYM', // Using Android API key for web
+    appId: '1:864463518345:web:...', // You'll need to add web app to get this
+    messagingSenderId: '864463518345',
+    projectId: 'lovebug-dating-app',
+    authDomain: 'lovebug-dating-app.firebaseapp.com',
+    storageBucket: 'lovebug-dating-app.appspot.com',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'your-android-api-key',
-    appId: 'your-android-app-id',
-    messagingSenderId: 'your-sender-id',
-    projectId: 'your-project-id',
-    storageBucket: 'your-project-id.appspot.com',
+    apiKey: 'AIzaSyDRhi5nwAdtk4_BxhDMK4yqDxB55aMVQYM',
+    appId: '1:864463518345:android:e328d64a31088ed7e9a458',
+    messagingSenderId: '864463518345',
+    projectId: 'lovebug-dating-app',
+    storageBucket: 'lovebug-dating-app.appspot.com',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'your-ios-api-key',
-    appId: 'your-ios-app-id',
-    messagingSenderId: 'your-sender-id',
-    projectId: 'your-project-id',
-    storageBucket: 'your-project-id.appspot.com',
-    iosBundleId: 'com.example.bolilerPlate',
+    apiKey: 'AIzaSyAeUes6CtrsIaKBhsKaXApU1QY5Tbr7sJ4',
+    appId: '1:864463518345:ios:df887012fd93469de9a458',
+    messagingSenderId: '864463518345',
+    projectId: 'lovebug-dating-app',
+    storageBucket: 'lovebug-dating-app.appspot.com',
+    iosBundleId: 'com.lovebug.app',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'your-macos-api-key',
-    appId: 'your-macos-app-id',
-    messagingSenderId: 'your-sender-id',
-    projectId: 'your-project-id',
-    storageBucket: 'your-project-id.appspot.com',
-    iosBundleId: 'com.example.bolilerPlate',
+    apiKey: 'AIzaSyAeUes6CtrsIaKBhsKaXApU1QY5Tbr7sJ4',
+    appId: '1:864463518345:ios:df887012fd93469de9a458',
+    messagingSenderId: '864463518345',
+    projectId: 'lovebug-dating-app',
+    storageBucket: 'lovebug-dating-app.appspot.com',
+    iosBundleId: 'com.lovebug.app',
   );
 }

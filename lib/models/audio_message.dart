@@ -30,13 +30,18 @@ class AudioMessage {
       'audio_url': audioUrl,
       'duration': duration,
       'file_size': fileSize,
-      'created_at': createdAt.toIso8601String(),
+      // Persist UTC so Postgres timestamptz stores the correct instant
+      'created_at': createdAt.toUtc().toIso8601String(),
       'is_read': isRead,
     };
   }
 
   // Create from Map (database response)
   factory AudioMessage.fromMap(Map<String, dynamic> map) {
+    // Parse the UTC timestamp from Supabase and convert to local time
+    final utcTimestamp = DateTime.parse(map['created_at'] ?? DateTime.now().toUtc().toIso8601String());
+    final localTimestamp = utcTimestamp.toLocal(); // Convert UTC to local timezone
+    
     return AudioMessage(
       id: map['id'] ?? '',
       matchId: map['match_id'] ?? '',
@@ -44,7 +49,7 @@ class AudioMessage {
       audioUrl: map['audio_url'] ?? '',
       duration: map['duration'] ?? 0,
       fileSize: map['file_size'] ?? 0,
-      createdAt: DateTime.parse(map['created_at'] ?? DateTime.now().toIso8601String()),
+      createdAt: localTimestamp, // Now in local timezone
       isRead: map['is_read'] ?? false,
     );
   }

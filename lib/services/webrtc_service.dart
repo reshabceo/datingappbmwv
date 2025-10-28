@@ -7,6 +7,8 @@ import 'package:get/get.dart';
 import 'package:lovebug/services/supabase_service.dart';
 import 'package:lovebug/models/call_models.dart';
 import 'package:lovebug/services/call_debug_service.dart';
+import 'package:lovebug/services/push_notification_service.dart';
+import 'package:lovebug/services/audio_recording_service.dart';
 import 'package:flutter/material.dart';
 
 class WebRTCService extends GetxController {
@@ -19,6 +21,7 @@ class WebRTCService extends GetxController {
   String? _currentMatchId;
   bool _isInitiator = false; // Track if this peer is the initiator
   bool _isEnding = false; // Guard to prevent repeated cleanup
+  bool _isInitialized = false; // Track if service is initialized
   String? _lastDbState; // Deduplicate DB state updates
   
   final Rx<CallState> _callState = CallState.initial.obs;
@@ -126,15 +129,30 @@ class WebRTCService extends GetxController {
       print('📞 WebRTCService.initializeCall() called');
       print('📞 Parameters: roomId=$roomId, callType=${callType.name}, matchId=$matchId, isBffMatch=$isBffMatch, isInitiator=$isInitiator');
       
+      // CRITICAL FIX: Prevent multiple initializations and race conditions
+      if (_isEnding) {
+        print('⚠️ initializeCall skipped: call is currently ending');
+        return;
+      }
+      
+      // CRITICAL FIX: Always reset state before starting new call
+      if (_isInitialized && _currentCallId != roomId) {
+        print('📞 Resetting service state for new call...');
+        await _resetServiceState();
+      }
+      
       // Strong double-init guard
       if (_peerConnection != null && _currentCallId == roomId) {
         print('⚠️ initializeCall skipped: existing peer connection for same room');
         return;
       }
+      
       // If another call is in progress with a different id, end it first
       if (_peerConnection != null && _currentCallId != null && _currentCallId != roomId) {
         print('⚠️ Existing call detected (${_currentCallId}), ending before starting new call $roomId');
         await endCall();
+        // Wait for cleanup to complete
+        await Future.delayed(Duration(milliseconds: 500));
       }
       // Cancel any lingering subscriptions before fresh start
       await _answerSubscription?.cancel();
@@ -273,6 +291,18 @@ class WebRTCService extends GetxController {
       
     } catch (e) {
       print('❌ Error initializing call: $e');
+      
+      // CRITICAL FIX: Don't fail the call for permission errors
+      // Only fail for critical WebRTC errors
+      if (e.toString().contains('Permission denied') || 
+          e.toString().contains('NotAllowedError') ||
+          e.toString().contains('getUserMedia')) {
+        print('📞 Permission-related error - call will continue without media');
+        // Don't update call state to failed for permission issues
+        return;
+      }
+      
+      // For other critical errors, fail the call
       _updateCallState(CallState.failed);
     }
   }
@@ -283,7 +313,27 @@ class WebRTCService extends GetxController {
       final constraints = _getPlatformOptimizedConstraints(callType);
       
       print('📞 Getting user media with constraints: $constraints');
-      _localStream = await webrtc.navigator.mediaDevices.getUserMedia(constraints);
+      
+      // CRITICAL FIX: Maintain call state during permission request
+      // Don't let permission dialog reset the call state
+      try {
+        _localStream = await webrtc.navigator.mediaDevices.getUserMedia(constraints);
+      } catch (permissionError) {
+        print('❌ Permission error during getUserMedia: $permissionError');
+        
+        // Handle permission errors without resetting call state
+        if (permissionError.toString().contains('Permission denied') || 
+            permissionError.toString().contains('NotAllowedError')) {
+          print('📞 Permission denied - call will continue but without media');
+          // Don't reset call state - let the call continue
+          // The UI can handle showing permission denied message
+          return;
+        } else {
+          // For other errors, still don't reset call state immediately
+          print('📞 Media access error - continuing call without local stream');
+          return;
+        }
+      }
       
       if (_localStream != null) {
         final audioTracks = _localStream!.getAudioTracks();
@@ -314,13 +364,31 @@ class WebRTCService extends GetxController {
             _isSpeakerEnabled.value = true;
             print('🔊 Defaulting audio to SPEAKER for video call');
             
-            // 🔧 CRITICAL FIX: Force speaker again after a delay to ensure it sticks
-            Future.delayed(Duration(milliseconds: 500), () {
+            // 🔧 CRITICAL FIX: Force speaker multiple times to ensure it sticks on iOS
+            Future.delayed(Duration(milliseconds: 200), () {
               try {
                 Helper.setSpeakerphoneOn(true);
-                print('✅ Speakerphone re-enabled after delay');
+                print('✅ Speakerphone re-enabled after 200ms');
               } catch (e) {
-                print('⚠️ Could not re-enable speakerphone: $e');
+                print('⚠️ Could not re-enable speakerphone at 200ms: $e');
+              }
+            });
+            
+            Future.delayed(Duration(milliseconds: 800), () {
+              try {
+                Helper.setSpeakerphoneOn(true);
+                print('✅ Speakerphone re-enabled after 800ms');
+              } catch (e) {
+                print('⚠️ Could not re-enable speakerphone at 800ms: $e');
+              }
+            });
+            
+            Future.delayed(Duration(milliseconds: 1500), () {
+              try {
+                Helper.setSpeakerphoneOn(true);
+                print('✅ Speakerphone re-enabled after 1500ms');
+              } catch (e) {
+                print('⚠️ Could not re-enable speakerphone at 1500ms: $e');
               }
             });
           } catch (e) {
@@ -994,13 +1062,82 @@ class WebRTCService extends GetxController {
       _isEnding = true;
       print('📞 Ending call...');
       
-      // Cancel ICE connection timeout
+      // CRITICAL FIX: Cancel all timers first to prevent race conditions
       _iceConnectionTimeout?.cancel();
       _noAnswerTimeout?.cancel();
       _relayWarnTimer?.cancel();
       _iceQuickFallbackTimer?.cancel();
+      _queuedIceFlushTimer?.cancel();
       
-      // Update call_sessions state first based on whether we were connected or still connecting
+      // CRITICAL FIX: Cancel all subscriptions immediately to prevent further callbacks
+      await _answerSubscription?.cancel();
+      await _iceCandidatesSubscription?.cancel();
+      await _callStateSubscription?.cancel();
+      await _callSessionStateSubscription?.cancel();
+      
+      // CRITICAL FIX: Stop all tracks BEFORE disposing streams to prevent EglRenderer errors
+      if (_localStream != null) {
+        _localStream!.getTracks().forEach((track) {
+          try {
+            track.stop();
+            print('📞 Stopped local track: ${track.kind}');
+          } catch (e) {
+            print('⚠️ Error stopping local track: $e');
+          }
+        });
+      }
+      
+      if (_remoteStream != null) {
+        _remoteStream!.getTracks().forEach((track) {
+          try {
+            track.stop();
+            print('📞 Stopped remote track: ${track.kind}');
+          } catch (e) {
+            print('⚠️ Error stopping remote track: $e');
+          }
+        });
+      }
+
+      // CRITICAL FIX: Close peer connection BEFORE disposing streams
+      if (_peerConnection != null) {
+        try {
+          await _peerConnection!.close();
+          print('📞 Peer connection closed');
+        } catch (e) {
+          print('⚠️ Error closing peer connection: $e');
+        }
+      }
+
+      // CRITICAL FIX: Dispose streams after tracks are stopped
+      if (_localStream != null) {
+        try {
+          _localStream!.dispose();
+          print('📞 Local stream disposed');
+        } catch (e) {
+          print('⚠️ Error disposing local stream: $e');
+        }
+      }
+      
+      if (_remoteStream != null) {
+        try {
+          _remoteStream!.dispose();
+          print('📞 Remote stream disposed');
+        } catch (e) {
+          print('⚠️ Error disposing remote stream: $e');
+        }
+      }
+
+      // CRITICAL FIX: Clear references immediately
+      _localStream = null;
+      _remoteStream = null;
+      _peerConnection = null;
+      _queuedIceCandidates = null;
+      _readyToAddRemoteCandidates = false;
+      _answerApplied = false;
+      _hasRelayCandidate = false;
+      _lastDbState = null;
+      
+      // Update call_sessions state after cleanup
       try {
         final isConnecting = _callState.value == CallState.connecting || _callState.value == CallState.initial;
         _updateDbStateSafe(isConnecting ? 'canceled' : 'disconnected');
@@ -1040,31 +1177,6 @@ class WebRTCService extends GetxController {
           // Non-critical error, continue with call cleanup
         }
       }
-      
-      // Cancel subscriptions
-      await _answerSubscription?.cancel();
-      await _iceCandidatesSubscription?.cancel();
-      await _callStateSubscription?.cancel();
-      await _callSessionStateSubscription?.cancel();
-      
-      // Stop all tracks
-      _localStream?.getTracks().forEach((track) {
-        track.stop();
-        print('📞 Stopped local track: ${track.kind}');
-      });
-      _remoteStream?.getTracks().forEach((track) {
-        track.stop();
-        print('📞 Stopped remote track: ${track.kind}');
-      });
-
-      // Close peer connection
-      await _peerConnection?.close();
-      print('📞 Peer connection closed');
-
-      // Clean up
-      _localStream?.dispose();
-      _remoteStream?.dispose();
-      _peerConnection = null;
 
       // Reset speaker route back to default earpiece when ending
       try {
@@ -1072,13 +1184,29 @@ class WebRTCService extends GetxController {
         _isSpeakerEnabled.value = false;
       } catch (_) {}
 
+      // Reset microphone state after video calls to fix audio note permission issues
+      try {
+        await AudioRecordingService.resetMicrophoneState();
+        print('🎤 Microphone state reset after call');
+      } catch (e) {
+        print('⚠️ Error resetting microphone state: $e');
+      }
+
+      // CRITICAL FIX: Update state and call callbacks AFTER cleanup
       _updateCallState(CallState.disconnected);
       onCallEnded?.call();
-      _updateDbStateSafe('disconnected');
       
-      print('✅ Call ended successfully');
+      // CRITICAL FIX: Reset ALL state flags after cleanup to prevent race conditions
+      _isEnding = false;
+      _isInitialized = false;  // CRITICAL: Reset initialization flag
+      _currentCallId = null;
+      _currentMatchId = null;
+      
+      print('✅ Call ended successfully - All state reset for next call');
     } catch (e) {
       print('❌ Error ending call: $e');
+      // CRITICAL FIX: Always reset ending flag even on error
+      _isEnding = false;
     }
   }
 
@@ -1132,6 +1260,14 @@ class WebRTCService extends GetxController {
           // If remote signaled termination, end locally
           if (_callState.value != CallState.disconnected && _callState.value != CallState.failed) {
             print('📞 Terminating due to call_sessions state=$state');
+            
+            // Send appropriate notification based on state
+            if (state == 'declined') {
+              _sendCallRejectedNotification();
+            } else if (state == 'canceled') {
+              _sendMissedCallNotification();
+            }
+            
             endCall();
           }
         }
@@ -1382,9 +1518,191 @@ class WebRTCService extends GetxController {
     });
   }
 
+  /// CRITICAL FIX: Reset service state for new call
+  Future<void> _resetServiceState() async {
+    try {
+      print('📞 Resetting WebRTCService state...');
+      
+      // Cancel all timers
+      _iceConnectionTimeout?.cancel();
+      _noAnswerTimeout?.cancel();
+      _relayWarnTimer?.cancel();
+      _iceQuickFallbackTimer?.cancel();
+      _queuedIceFlushTimer?.cancel();
+      
+      // Cancel all subscriptions
+      _answerSubscription?.cancel();
+      _iceCandidatesSubscription?.cancel();
+      _callStateSubscription?.cancel();
+      _callSessionStateSubscription?.cancel();
+      
+      // Reset all state variables
+      _localStream = null;
+      _remoteStream = null;
+      _peerConnection = null;
+      _currentCallId = null;
+      _currentMatchId = null;
+      _isInitialized = false;
+      _isEnding = false;
+      _queuedIceCandidates = null;
+      _readyToAddRemoteCandidates = false;
+      _answerApplied = false;
+      _hasRelayCandidate = false;
+      _lastDbState = null;
+      
+      print('✅ WebRTCService state reset completed');
+    } catch (e) {
+      print('❌ Error resetting WebRTCService state: $e');
+    }
+  }
+
   @override
   void onClose() {
-    endCall();
+    print('📞 WebRTCService onClose called - cleaning up...');
+    
+    // CRITICAL FIX: Ensure proper cleanup on service disposal
+    try {
+      // Cancel all timers immediately
+      _iceConnectionTimeout?.cancel();
+      _noAnswerTimeout?.cancel();
+      _relayWarnTimer?.cancel();
+      _iceQuickFallbackTimer?.cancel();
+      _queuedIceFlushTimer?.cancel();
+      
+      // Cancel all subscriptions
+      _answerSubscription?.cancel();
+      _iceCandidatesSubscription?.cancel();
+      _callStateSubscription?.cancel();
+      _callSessionStateSubscription?.cancel();
+      
+      // Stop all tracks if streams exist
+      if (_localStream != null) {
+        _localStream!.getTracks().forEach((track) {
+          try {
+            track.stop();
+          } catch (e) {
+            print('⚠️ Error stopping track in onClose: $e');
+          }
+        });
+      }
+      
+      if (_remoteStream != null) {
+        _remoteStream!.getTracks().forEach((track) {
+          try {
+            track.stop();
+          } catch (e) {
+            print('⚠️ Error stopping remote track in onClose: $e');
+          }
+        });
+      }
+      
+      // Close peer connection
+      if (_peerConnection != null) {
+        try {
+          _peerConnection!.close();
+        } catch (e) {
+          print('⚠️ Error closing peer connection in onClose: $e');
+        }
+      }
+      
+      // Dispose streams
+      _localStream?.dispose();
+      _remoteStream?.dispose();
+      
+      // Clear all references
+      _localStream = null;
+      _remoteStream = null;
+      _peerConnection = null;
+      _queuedIceCandidates = null;
+      _currentCallId = null;
+      _currentMatchId = null;
+      _isEnding = false;
+      
+      print('✅ WebRTCService cleanup completed');
+    } catch (e) {
+      print('❌ Error in WebRTCService onClose: $e');
+    }
+    
     super.onClose();
+  }
+
+  // =============================================================================
+  // CALL NOTIFICATION METHODS
+  // =============================================================================
+
+  Future<void> _sendCallRejectedNotification() async {
+    try {
+      if (_currentMatchId == null) return;
+
+      // Get the other participant's ID
+      final otherUserId = await _getOtherParticipantId(_currentMatchId!);
+      if (otherUserId == null) return;
+
+      // Get current user's name
+      final currentProfile = await SupabaseService.getProfile(SupabaseService.currentUser?.id ?? '');
+      final currentUserName = currentProfile?['name'] ?? 'Unknown';
+
+      // Determine call type
+      final callType = _isVideoEnabled.value ? 'video' : 'audio';
+
+      // Send call rejected notification
+      await PushNotificationService.sendCallRejectedNotification(
+        userId: otherUserId,
+        callerName: currentUserName,
+        callType: callType,
+      );
+
+      print('✅ Call rejected notification sent');
+    } catch (e) {
+      print('Error sending call rejected notification: $e');
+    }
+  }
+
+  Future<void> _sendMissedCallNotification() async {
+    try {
+      if (_currentMatchId == null) return;
+
+      // Get the other participant's ID
+      final otherUserId = await _getOtherParticipantId(_currentMatchId!);
+      if (otherUserId == null) return;
+
+      // Get current user's name
+      final currentProfile = await SupabaseService.getProfile(SupabaseService.currentUser?.id ?? '');
+      final currentUserName = currentProfile?['name'] ?? 'Unknown';
+
+      // Determine call type
+      final callType = _isVideoEnabled.value ? 'video' : 'audio';
+
+      // Send missed call notification
+      await PushNotificationService.sendMissedCallNotification(
+        userId: otherUserId,
+        callerName: currentUserName,
+        callType: callType,
+      );
+
+      print('✅ Missed call notification sent');
+    } catch (e) {
+      print('Error sending missed call notification: $e');
+    }
+  }
+
+  Future<String?> _getOtherParticipantId(String matchId) async {
+    try {
+      final response = await SupabaseService.client
+          .from('matches')
+          .select('user_id_1, user_id_2')
+          .eq('id', matchId)
+          .single();
+
+      final currentUserId = SupabaseService.currentUser?.id;
+      if (currentUserId == null) return null;
+
+      return response['user_id_1'] == currentUserId 
+          ? response['user_id_2'] 
+          : response['user_id_1'];
+    } catch (e) {
+      print('Error getting other participant ID: $e');
+      return null;
+    }
   }
 }

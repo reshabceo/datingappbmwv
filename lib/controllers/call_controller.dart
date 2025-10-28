@@ -3,6 +3,7 @@ import 'package:lovebug/models/call_models.dart';
 import 'package:lovebug/services/supabase_service.dart';
 import 'package:lovebug/services/webrtc_service.dart';
 import 'package:lovebug/services/callkit_service.dart';
+import 'package:lovebug/services/push_notification_service.dart';
 import 'package:lovebug/screens/call_screens/video_call_screen.dart';
 import 'package:lovebug/screens/call_screens/audio_call_screen.dart';
 import 'package:uuid/uuid.dart';
@@ -85,6 +86,8 @@ class CallController extends GetxController {
         state: CallState.initial,
         createdAt: DateTime.now(),
         isBffMatch: isBffMatch,
+        startedAt: DateTime.now().toIso8601String(),
+        callType: callType,
       );
 
       // Store call session in database
@@ -121,18 +124,48 @@ class CallController extends GetxController {
 
   Future<void> _sendCallNotification(CallPayload payload) async {
     try {
-      // Skip push if token is missing; rely on realtime if app is foreground
-      if ((payload.fcmToken ?? '').isEmpty) {
-        print('⚠️ Skipping push: receiver has no FCM token');
+      // Get receiver ID from the match
+      final receiverId = await _getReceiverId(payload.matchId ?? '');
+      if (receiverId == null) {
+        print('⚠️ Could not find receiver ID for match: ${payload.matchId}');
         return;
       }
-      // Send push notification via Supabase Edge Function
-      await SupabaseService.client.functions.invoke(
-        'send-call-notification',
-        body: payload.toJson(),
+
+      // Get receiver's name
+      final receiverProfile = await SupabaseService.getProfile(receiverId);
+      final receiverName = receiverProfile?['name'] ?? 'Unknown';
+
+      // Send incoming call notification using our unified system
+      await PushNotificationService.sendIncomingCallNotification(
+        userId: receiverId,
+        callerName: payload.name ?? 'Unknown',
+        callId: payload.webrtcRoomId ?? '',
+        callType: payload.callType?.name ?? 'audio', // 'audio' or 'video'
       );
+
+      print('✅ Call notification sent to $receiverName');
     } catch (e) {
       print('Error sending call notification: $e');
+    }
+  }
+
+  Future<String?> _getReceiverId(String matchId) async {
+    try {
+      final response = await SupabaseService.client
+          .from('matches')
+          .select('user_id_1, user_id_2')
+          .eq('id', matchId)
+          .single();
+
+      final currentUserId = SupabaseService.currentUser?.id;
+      if (currentUserId == null) return null;
+
+      return response['user_id_1'] == currentUserId 
+          ? response['user_id_2'] 
+          : response['user_id_1'];
+    } catch (e) {
+      print('Error getting receiver ID: $e');
+      return null;
     }
   }
 
@@ -198,6 +231,8 @@ class CallController extends GetxController {
   Future<void> endCall() async {
     try {
       if (_currentCall.value != null) {
+        final callSession = _currentCall.value!;
+        
         // Update call session
         await SupabaseService.client
             .from('call_sessions')
@@ -205,7 +240,10 @@ class CallController extends GetxController {
               'state': CallState.disconnected.name,
               'ended_at': DateTime.now().toIso8601String(),
             })
-            .eq('id', _currentCall.value!.id);
+            .eq('id', callSession.id);
+
+        // Send call ended notification to the other participant
+        await _sendCallEndedNotification(callSession);
       }
 
       _isInCall.value = false;
@@ -220,6 +258,42 @@ class CallController extends GetxController {
     } catch (e) {
       print('Error ending call: $e');
     }
+  }
+
+  Future<void> _sendCallEndedNotification(CallSession callSession) async {
+    try {
+      // Get the other participant's ID
+      final otherUserId = await _getReceiverId(callSession.matchId);
+      if (otherUserId == null) return;
+
+      // Get current user's name
+      final currentProfile = await SupabaseService.getProfile(SupabaseService.currentUser?.id ?? '');
+      final currentUserName = currentProfile?['name'] ?? 'Unknown';
+
+      // Calculate call duration
+      final startTime = DateTime.parse(callSession.startedAt);
+      final endTime = DateTime.now();
+      final duration = endTime.difference(startTime);
+      final durationString = _formatDuration(duration);
+
+      // Send call ended notification
+      await PushNotificationService.sendCallEndedNotification(
+        userId: otherUserId,
+        callerName: currentUserName,
+        callType: callSession.callType.name,
+        duration: durationString,
+      );
+
+      print('✅ Call ended notification sent');
+    } catch (e) {
+      print('Error sending call ended notification: $e');
+    }
+  }
+
+  String _formatDuration(Duration duration) {
+    final minutes = duration.inMinutes;
+    final seconds = duration.inSeconds % 60;
+    return '${minutes}m ${seconds}s';
   }
 
   Future<void> showIncomingCall(CallPayload payload) async {

@@ -169,22 +169,44 @@ class EnhancedChatController extends GetxController {
               .eq('id', otherUserId)
               .single();
 
-          // Get latest message
+          // Get latest text message
           final messages = await SupabaseService.client
               .from('messages')
-              .select('content, created_at, sender_id, message_type')
+              .select('content, created_at')
               .eq('match_id', matchId)
               .order('created_at', ascending: false)
               .limit(1);
 
-          String lastMessage = 'Start a conversation';
-          String lastMessageTime = '';
-          
-          if (messages.isNotEmpty) {
-            final message = messages[0];
-            lastMessage = message['content'] ?? 'Start a conversation';
-            lastMessageTime = _formatTime(DateTime.parse(message['created_at']));
+          // Get latest audio message
+          final audio = await SupabaseService.client
+              .from('audio_messages')
+              .select('created_at')
+              .eq('match_id', matchId)
+              .order('created_at', ascending: false)
+              .limit(1);
+
+          DateTime? textAt;
+          DateTime? audioAt;
+          if (messages.isNotEmpty && messages[0]['created_at'] != null) {
+            textAt = DateTime.tryParse(messages[0]['created_at'].toString());
           }
+          if (audio.isNotEmpty && audio[0]['created_at'] != null) {
+            audioAt = DateTime.tryParse(audio[0]['created_at'].toString());
+          }
+
+          // Choose latest among text, audio, or match creation time
+          final matchCreatedAt = DateTime.tryParse((match['created_at'] ?? '').toString());
+          DateTime? latestAt = textAt;
+          String lastMessage = 'Start a conversation';
+          if (messages.isNotEmpty) {
+            lastMessage = (messages[0]['content'] ?? 'Start a conversation').toString();
+          }
+          if (audioAt != null && (latestAt == null || audioAt.isAfter(latestAt))) {
+            latestAt = audioAt;
+            lastMessage = 'Voice message';
+          }
+          latestAt ??= matchCreatedAt;
+          final lastMessageTime = latestAt != null ? _formatTime(latestAt) : '';
 
           chatItems.add(ChatItem(
             id: matchId,
@@ -193,14 +215,16 @@ class EnhancedChatController extends GetxController {
             lastMessage: lastMessage,
             lastMessageTime: lastMessageTime,
             isBffMatch: false, // This is a dating match
+            lastMessageAt: latestAt,
           ));
         } catch (e) {
           print('Error processing dating match: $e');
         }
       }
 
-      // Sort by last message time
-      chatItems.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+      // Sort by last message DateTime (descending)
+      chatItems.sort((a, b) => (b.lastMessageAt ?? DateTime.fromMillisecondsSinceEpoch(0))
+          .compareTo(a.lastMessageAt ?? DateTime.fromMillisecondsSinceEpoch(0)));
       chatList.value = chatItems;
       print('✅ DEBUG: Dating chats loaded successfully: ${chatItems.length}');
       
@@ -249,22 +273,44 @@ class EnhancedChatController extends GetxController {
 
           if (otherUserProfile == null) continue;
 
-          // Get latest message
+          // Get latest text message
           final messages = await SupabaseService.client
               .from('messages')
-              .select('content, created_at, sender_id, message_type')
+              .select('content, created_at')
               .eq('match_id', matchId)
               .order('created_at', ascending: false)
               .limit(1);
 
-          String lastMessage = 'Start a conversation';
-          String lastMessageTime = '';
-          
-          if (messages.isNotEmpty) {
-            final message = messages[0];
-            lastMessage = message['content'] ?? 'Start a conversation';
-            lastMessageTime = _formatTime(DateTime.parse(message['created_at']));
+          // Get latest audio message
+          final audio = await SupabaseService.client
+              .from('audio_messages')
+              .select('created_at')
+              .eq('match_id', matchId)
+              .order('created_at', ascending: false)
+              .limit(1);
+
+          DateTime? textAt;
+          DateTime? audioAt;
+          if (messages.isNotEmpty && messages[0]['created_at'] != null) {
+            textAt = DateTime.tryParse(messages[0]['created_at'].toString());
           }
+          if (audio.isNotEmpty && audio[0]['created_at'] != null) {
+            audioAt = DateTime.tryParse(audio[0]['created_at'].toString());
+          }
+
+          // Choose latest among text, audio, or match creation time
+          final matchCreatedAt = DateTime.tryParse((match['created_at'] ?? '').toString());
+          DateTime? latestAt = textAt;
+          String lastMessage = 'Start a conversation';
+          if (messages.isNotEmpty) {
+            lastMessage = (messages[0]['content'] ?? 'Start a conversation').toString();
+          }
+          if (audioAt != null && (latestAt == null || audioAt.isAfter(latestAt))) {
+            latestAt = audioAt;
+            lastMessage = 'Voice message';
+          }
+          latestAt ??= matchCreatedAt;
+          final lastMessageTime = latestAt != null ? _formatTime(latestAt) : '';
 
           chatItems.add(ChatItem(
             id: matchId,
@@ -273,14 +319,16 @@ class EnhancedChatController extends GetxController {
             lastMessage: lastMessage,
             lastMessageTime: lastMessageTime,
             isBffMatch: true, // This is a BFF match
+            lastMessageAt: latestAt,
           ));
         } catch (e) {
           print('Error processing BFF match: $e');
         }
       }
 
-      // Sort by last message time
-      chatItems.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+      // Sort by last message DateTime (descending)
+      chatItems.sort((a, b) => (b.lastMessageAt ?? DateTime.fromMillisecondsSinceEpoch(0))
+          .compareTo(a.lastMessageAt ?? DateTime.fromMillisecondsSinceEpoch(0)));
       chatList.value = chatItems;
       print('✅ DEBUG: BFF chats loaded successfully: ${chatItems.length}');
       
@@ -339,6 +387,7 @@ class ChatItem {
   final String lastMessage;
   final String lastMessageTime;
   final bool isBffMatch;
+  final DateTime? lastMessageAt;
 
   ChatItem({
     required this.id,
@@ -347,5 +396,6 @@ class ChatItem {
     required this.lastMessage,
     required this.lastMessageTime,
     required this.isBffMatch,
+    this.lastMessageAt,
   });
 }

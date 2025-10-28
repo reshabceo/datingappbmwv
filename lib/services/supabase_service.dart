@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_config.dart';
+import 'push_notification_service.dart';
 
 class SupabaseService {
   static SupabaseClient get client => Supabase.instance.client;
@@ -52,6 +53,16 @@ class SupabaseService {
   static Future<void> signOut() async {
     try {
       print('🔄 DEBUG: Starting sign out process...');
+      
+      // CRITICAL FIX: Clean up call listener service before signing out
+      try {
+        // Call the cleanup method directly to avoid circular dependency
+        // This will be handled by the main.dart auth state listener
+        print('📞 CallListenerService cleanup will be handled by auth state listener');
+      } catch (e) {
+        print('⚠️ Error preparing CallListenerService cleanup: $e');
+      }
+      
       await client.auth.signOut(scope: SignOutScope.global);
       print('🔄 DEBUG: Sign out called, waiting for session to clear...');
       
@@ -175,6 +186,48 @@ class SupabaseService {
       print('✅ FCM token updated for user: $userId');
     } catch (e) {
       print('❌ Failed to update FCM token: $e');
+    }
+  }
+
+  /// Update notification preference
+  static Future<void> updateNotificationPreference(String key, bool value) async {
+    try {
+      final userId = currentUser?.id;
+      if (userId == null) return;
+      
+      await client
+          .from('profiles')
+          .update({key: value})
+          .eq('id', userId);
+      
+      print('✅ Notification preference updated: $key = $value');
+    } catch (e) {
+      print('❌ Failed to update notification preference: $e');
+    }
+  }
+
+  /// Get notification preferences
+  static Future<Map<String, bool>> getNotificationPreferences() async {
+    try {
+      final userId = currentUser?.id;
+      if (userId == null) return {};
+      
+      final response = await client
+          .from('profiles')
+          .select('notification_matches, notification_messages, notification_stories, notification_likes, notification_admin')
+          .eq('id', userId)
+          .single();
+      
+      return {
+        'notification_matches': response['notification_matches'] ?? true,
+        'notification_messages': response['notification_messages'] ?? true,
+        'notification_stories': response['notification_stories'] ?? true,
+        'notification_likes': response['notification_likes'] ?? true,
+        'notification_admin': response['notification_admin'] ?? true,
+      };
+    } catch (e) {
+      print('❌ Failed to get notification preferences: $e');
+      return {};
     }
   }
   
@@ -662,6 +715,9 @@ class SupabaseService {
       'is_story_reply': storyId != null,
       'story_user_name': storyUserName,
     });
+
+    // Send push notification to the recipient
+    await _sendMessageNotification(matchId, content);
   }
 
   static Future<void> sendSystemMessage({
@@ -726,6 +782,11 @@ class SupabaseService {
       final isPremium = await isPremiumUser();
       if (isPremium) {
         await _markSwipeAsRewindable(swipedId, action);
+      }
+
+      // Send push notification for likes
+      if (action == 'like' || action == 'super_like') {
+        await _sendLikeNotification(swipedId, action);
       }
     }
     
@@ -853,4 +914,116 @@ class SupabaseService {
     
     return (rows as List).cast<Map<String, dynamic>>();
   }
+
+  // =============================================================================
+  // NOTIFICATION HELPER METHODS
+  // =============================================================================
+
+  /// Send like notification to the swiped user
+  static Future<void> _sendLikeNotification(String swipedId, String action) async {
+    try {
+      // Get current user's name
+      final currentUser = SupabaseService.currentUser;
+      if (currentUser == null) return;
+
+      final profile = await getProfile(currentUser.id);
+      if (profile == null) return;
+
+      final userName = profile['name'] ?? 'Someone';
+
+      // Send push notification
+      await PushNotificationService.sendNewLikeNotification(
+        userId: swipedId,
+        likerName: userName,
+      );
+      print('✅ Like notification sent to $swipedId');
+    } catch (e) {
+      print('❌ Failed to send like notification: $e');
+    }
+  }
+
+  /// Send match notification to both users
+  static Future<void> sendMatchNotification(String matchId, String otherUserId) async {
+    try {
+      final currentUser = SupabaseService.currentUser;
+      if (currentUser == null) return;
+
+      // Get current user's name
+      final currentProfile = await getProfile(currentUser.id);
+      final currentUserName = currentProfile?['name'] ?? 'Someone';
+
+      // Get other user's name
+      final otherProfile = await getProfile(otherUserId);
+
+      // Send notification to the other user
+      await PushNotificationService.sendNewMatchNotification(
+        userId: otherUserId,
+        matchName: currentUserName,
+        matchId: matchId,
+      );
+      print('✅ Match notification sent to $otherUserId');
+    } catch (e) {
+      print('❌ Failed to send match notification: $e');
+    }
+  }
+
+  /// Send message notification to the recipient
+  static Future<void> sendMessageNotification({
+    required String recipientId,
+    required String senderName,
+    required String message,
+    required String chatId,
+  }) async {
+    try {
+      // Send push notification
+      await PushNotificationService.sendNewMessageNotification(
+        userId: recipientId,
+        senderName: senderName,
+        message: message,
+        chatId: chatId,
+      );
+      print('✅ Message notification sent to $recipientId');
+    } catch (e) {
+      print('❌ Failed to send message notification: $e');
+    }
+  }
+
+  /// Helper method to send message notification for a match
+  static Future<void> _sendMessageNotification(String matchId, String content) async {
+    try {
+      // Get match information to find the other user
+      final matchResponse = await client
+          .from('matches')
+          .select('user_id_1, user_id_2')
+          .eq('id', matchId)
+          .maybeSingle();
+
+      if (matchResponse == null) return;
+
+      final currentUserId = currentUser?.id;
+      if (currentUserId == null) return;
+
+      // Find the other user
+      final otherUserId = matchResponse['user_id_1'] == currentUserId 
+          ? matchResponse['user_id_2'] 
+          : matchResponse['user_id_1'];
+
+      if (otherUserId == null) return;
+
+      // Get current user's name
+      final currentProfile = await getProfile(currentUserId);
+      final senderName = currentProfile?['name'] ?? 'Someone';
+
+      // Send notification
+      await sendMessageNotification(
+        recipientId: otherUserId,
+        senderName: senderName,
+        message: content,
+        chatId: matchId,
+      );
+    } catch (e) {
+      print('❌ Failed to send message notification: $e');
+    }
+  }
+
 }

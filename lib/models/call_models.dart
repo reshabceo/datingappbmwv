@@ -87,6 +87,8 @@ class CallSession {
   final DateTime createdAt;
   final DateTime? endedAt;
   final bool isBffMatch;
+  final String startedAt;
+  final CallType callType;
 
   CallSession({
     required this.id,
@@ -98,6 +100,8 @@ class CallSession {
     required this.createdAt,
     this.endedAt,
     this.isBffMatch = false,
+    required this.startedAt,
+    required this.callType,
   });
 
   Map<String, dynamic> toJson() => {
@@ -110,6 +114,8 @@ class CallSession {
     'created_at': createdAt.toIso8601String(),
     'ended_at': endedAt?.toIso8601String(),
     'is_bff_match': isBffMatch,
+    'started_at': startedAt,
+    'call_type': callType.name,
   };
 
   factory CallSession.fromJson(Map<String, dynamic> json) => CallSession(
@@ -128,5 +134,10 @@ class CallSession {
     createdAt: DateTime.parse(json['created_at'] ?? DateTime.now().toIso8601String()),
     endedAt: json['ended_at'] != null ? DateTime.parse(json['ended_at']) : null,
     isBffMatch: json['is_bff_match'] ?? false,
+    startedAt: json['started_at'] ?? DateTime.now().toIso8601String(),
+    callType: CallType.values.firstWhere(
+      (e) => e.name == json['call_type'],
+      orElse: () => CallType.audio,
+    ),
   );
 }

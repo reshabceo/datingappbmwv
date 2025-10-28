@@ -152,44 +152,13 @@ class AuthController extends GetxController {
     
     print('Checking email: $email');
     try {
-      // Probe existence WITHOUT creating a user.
-      await SupabaseService.client.auth.signInWithOtp(
-        email: email,
-        shouldCreateUser: false,
-      );
-      // If OTP send succeeds, the email exists → check auth providers
-      print('Email exists, checking authentication providers...');
-      
-      // Check what authentication methods the user has
-      final userInfo = await SupabaseService.checkUserAuthProviders(email);
-      if (userInfo != null && userInfo['exists'] == true) {
-        final providers = userInfo['identities'] as List<String>? ?? [];
-        print('User providers: $providers');
-        
-        if (providers.contains('google') || providers.contains('apple')) {
-          // User signed up with OAuth - show OAuth option
-          final provider = providers.contains('google') ? 'google' : 'apple';
-          print('User signed up with OAuth ($provider), showing OAuth option');
-          isExistingEmail.value = true;
-          isSignupMode.value = false;
-          didProbeEmail.value = true;
-          Get.to(() => AuthScreen(prefillEmail: email, isOAuthMode: true, oauthProvider: provider));
-        } else {
-          // User has password auth - show password option
-          print('User has password auth, showing password option');
-          isExistingEmail.value = true;
-          isSignupMode.value = false;
-          didProbeEmail.value = true;
-          Get.to(() => AuthScreen(prefillEmail: email, isPasswordMode: true));
-        }
-      } else {
-        // Fallback to password mode
-        print('Could not determine auth providers, defaulting to password mode');
-        isExistingEmail.value = true;
-        isSignupMode.value = false;
-        didProbeEmail.value = true;
-        Get.to(() => AuthScreen(prefillEmail: email, isPasswordMode: true));
-      }
+      // Skip the admin-only provider check and go directly to password mode
+      // This avoids the "User not allowed" error
+      print('Email exists, showing password option');
+      isExistingEmail.value = true;
+      isSignupMode.value = false;
+      didProbeEmail.value = true;
+      Get.to(() => AuthScreen(prefillEmail: email, isPasswordMode: true));
     } on AuthApiException catch (e) {
       final code = (e.code ?? '').toLowerCase();
       final msg = (e.message).toLowerCase();
@@ -248,12 +217,33 @@ class AuthController extends GetxController {
     }
     try {
       isLoading.value = true;
+      print('🔄 DEBUG: Attempting email/password sign in for: $email');
       await SupabaseService.signInWithEmail(email: email, password: password);
+      print('✅ DEBUG: Email/password sign in successful');
       // Track login for UAC
       await AnalyticsService.trackLoginEnhanced('email_password');
       await _checkUserProfileAndNavigate();
     } on AuthApiException catch (e) {
-      Get.snackbar('Sign in failed', e.message);
+      print('❌ DEBUG: Auth error in signInWithPassword: ${e.code} - ${e.message}');
+      final code = (e.code ?? '').toLowerCase();
+      final msg = e.message.toLowerCase();
+      
+      if (code.contains('invalid_credentials') || 
+          code.contains('invalid_login') || 
+          msg.contains('invalid') || 
+          msg.contains('wrong password') ||
+          msg.contains('incorrect password')) {
+        Get.snackbar('Sign in failed', 'Invalid email or password');
+      } else if (code.contains('email_not_confirmed') || msg.contains('email not confirmed')) {
+        Get.snackbar('Email not verified', 'Please check your email and click the verification link');
+      } else if (code.contains('too_many_requests') || msg.contains('rate limit')) {
+        Get.snackbar('Too many attempts', 'Please wait a moment before trying again');
+      } else {
+        Get.snackbar('Sign in failed', e.message);
+      }
+    } catch (e) {
+      print('❌ DEBUG: General error in signInWithPassword: $e');
+      Get.snackbar('Sign in failed', 'An error occurred. Please try again.');
     } finally {
       isLoading.value = false;
     }
@@ -449,8 +439,34 @@ class AuthController extends GetxController {
   }
 
   Future<void> _checkUserProfileAndNavigate() async {
-    // Defer navigation decisions to _AuthGate to avoid route conflicts.
-    print('🔍 DEBUG: _checkUserProfileAndNavigate bypassed (delegating to _AuthGate)');
-    return;
+    print('🔍 DEBUG: _checkUserProfileAndNavigate called after successful login');
+    
+    // Wait a moment for the auth state to propagate
+    await Future.delayed(Duration(milliseconds: 500));
+    
+    // Check if user has a session
+    final session = SupabaseService.client.auth.currentSession;
+    print('🔍 DEBUG: Session check - session exists: ${session != null}');
+    print('🔍 DEBUG: User ID: ${session?.user?.id}');
+    print('🔍 DEBUG: User email: ${session?.user?.email}');
+    
+    if (session != null) {
+      print('✅ DEBUG: Session found, navigating to main app');
+      
+      // Force navigation to main app
+      Get.offAll(() => BottombarScreen());
+    } else {
+      print('❌ DEBUG: No session found after login, trying again...');
+      
+      // Try again after a longer delay
+      await Future.delayed(Duration(milliseconds: 1000));
+      final retrySession = SupabaseService.client.auth.currentSession;
+      if (retrySession != null) {
+        print('✅ DEBUG: Session found on retry, navigating to main app');
+        Get.offAll(() => BottombarScreen());
+      } else {
+        print('❌ DEBUG: Still no session after retry');
+      }
+    }
   }
 }

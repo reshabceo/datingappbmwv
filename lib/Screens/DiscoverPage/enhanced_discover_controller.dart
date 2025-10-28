@@ -263,6 +263,9 @@ class EnhancedDiscoverController extends GetxController {
       if (matched && matchId.isNotEmpty) {
         await AnalyticsService.trackMatch(matchId, otherId);
         
+        // Send match notification to the other user
+        await SupabaseService.sendMatchNotification(matchId, otherId);
+        
         // Generate ice breakers for the new match
         _generateIceBreakersForMatch(matchId);
         

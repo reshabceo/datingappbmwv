@@ -126,12 +126,14 @@ class CallListenerService {
       // Get caller profile information
       final callerProfile = await _getCallerProfile(callerId);
       final callerName = callerProfile?['name'] ?? 'Someone';
+      final callerImage = _getCallerImageUrl(callerProfile);
       
       // Show incoming call dialog
       _showIncomingCallDialog(
         callId: callId,
         callerId: callerId,
         callerName: callerName,
+        callerImage: callerImage,
         matchId: matchId,
         callType: callType,
       );
@@ -145,7 +147,7 @@ class CallListenerService {
     try {
       final response = await SupabaseService.client
           .from('profiles')
-          .select('name, image_urls')
+          .select('name, image_urls, photos')
           .eq('id', callerId)
           .single();
       
@@ -156,11 +158,59 @@ class CallListenerService {
     }
   }
 
+  /// Extract caller image URL from profile data
+  static String? _getCallerImageUrl(Map<String, dynamic>? profile) {
+    if (profile == null) return null;
+    
+    // Try image_urls first (array)
+    final imageUrls = profile['image_urls'];
+    if (imageUrls is List && imageUrls.isNotEmpty) {
+      return imageUrls.first.toString();
+    }
+    
+    // Try photos (array)
+    final photos = profile['photos'];
+    if (photos is List && photos.isNotEmpty) {
+      return photos.first.toString();
+    }
+    
+    return null;
+  }
+
+  /// Build default caller avatar when no image is available
+  static Widget _buildDefaultCallerAvatar(String name, ThemeController themeController) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            themeController.getAccentColor(),
+            themeController.getAccentColor().withValues(alpha: 0.7),
+          ],
+        ),
+      ),
+      child: Center(
+        child: Text(
+          name.isNotEmpty ? name[0].toUpperCase() : '?',
+          style: TextStyle(
+            color: themeController.whiteColor,
+            fontSize: 36.sp,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+
   /// Show incoming call dialog
   static void _showIncomingCallDialog({
     required String callId,
     required String callerId,
     required String callerName,
+    required String? callerImage,
     required String matchId,
     required String callType,
   }) {
@@ -202,30 +252,77 @@ class CallListenerService {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          isVideo ? Icons.videocam : Icons.call,
-                          color: themeController.whiteColor,
+                    // Caller profile picture
+                    Container(
+                      width: 100.w,
+                      height: 100.w,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: themeController.getAccentColor().withValues(alpha: 0.5),
+                          width: 3.w,
                         ),
-                        SizedBox(width: 8.w),
-                        Text(
-                          'Incoming ${isVideo ? 'Video' : 'Audio'} Call',
-                          style: TextStyle(
-                            color: themeController.whiteColor,
-                            fontSize: 20.sp,
-                            fontWeight: FontWeight.w700,
+                        boxShadow: [
+                          BoxShadow(
+                            color: themeController.getAccentColor().withValues(alpha: 0.3),
+                            blurRadius: 15,
+                            spreadRadius: 2,
                           ),
+                        ],
+                      ),
+                      child: ClipOval(
+                        child: callerImage != null && callerImage.isNotEmpty
+                            ? Image.network(
+                                callerImage,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return _buildDefaultCallerAvatar(callerName, themeController);
+                                },
+                              )
+                            : _buildDefaultCallerAvatar(callerName, themeController),
+                      ),
+                    ),
+                    SizedBox(height: 20.h),
+                    
+                    // Call type indicator
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 6.h),
+                      decoration: BoxDecoration(
+                        color: themeController.getAccentColor().withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(20.r),
+                        border: Border.all(
+                          color: themeController.getAccentColor().withValues(alpha: 0.5),
+                          width: 1,
                         ),
-                      ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isVideo ? Icons.videocam : Icons.call,
+                            color: themeController.whiteColor,
+                            size: 16.sp,
+                          ),
+                          SizedBox(width: 6.w),
+                          Text(
+                            'Incoming ${isVideo ? 'Video' : 'Audio'} Call',
+                            style: TextStyle(
+                              color: themeController.whiteColor,
+                              fontSize: 14.sp,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     SizedBox(height: 16.h),
+                    
+                    // Caller name
                     Text(
                       callerName,
                       style: TextStyle(
                         color: themeController.whiteColor,
-                        fontSize: 22.sp,
+                        fontSize: 24.sp,
                         fontWeight: FontWeight.bold,
                       ),
                       textAlign: TextAlign.center,
@@ -235,7 +332,7 @@ class CallListenerService {
                       'is calling you...',
                       style: TextStyle(
                         color: themeController.whiteColor.withValues(alpha: 0.8),
-                        fontSize: 15.sp,
+                        fontSize: 16.sp,
                       ),
                     ),
                     SizedBox(height: 24.h),
@@ -389,10 +486,10 @@ class CallListenerService {
           callback: (payload) {
             final newState = payload.newRecord['state'];
             print('📞 Call session state updated: $newState');
-            // Only end call if we're not still connecting (avoid race on accept)
-            if ((newState == 'disconnected' || newState == 'failed') &&
+            // CRITICAL FIX: Handle all call termination states including 'canceled'
+            if ((newState == 'disconnected' || newState == 'failed' || newState == 'canceled' || newState == 'declined') &&
                 webrtcService.callState != CallState.connecting) {
-              print('📞 Remote ended the call. Cleaning up...');
+              print('📞 Remote ended/canceled the call. Cleaning up...');
               webrtcService.endCall();
               if (Get.isOverlaysOpen) Get.back();
             }
@@ -476,16 +573,19 @@ class CallListenerService {
   static void _setupPollingFallback(String userId) {
     print('📞 Setting up polling fallback for user: $userId');
     
-    // Poll every 5 seconds for new incoming calls
-    _pollingTimer = Timer.periodic(Duration(seconds: 5), (timer) async {
+    // Poll every 10 seconds for new incoming calls (reduced frequency to avoid timeouts)
+    _pollingTimer = Timer.periodic(Duration(seconds: 10), (timer) async {
       try {
         // Check for new call sessions where this user is the receiver
+        // Use a shorter timeout and more specific query
         final response = await SupabaseService.client
             .from('call_sessions')
             .select('*')
             .eq('receiver_id', userId)
             .eq('state', 'initial')
-            .gte('created_at', DateTime.now().subtract(Duration(minutes: 1)).toIso8601String());
+            .gte('created_at', DateTime.now().subtract(Duration(minutes: 2)).toIso8601String())
+            .order('created_at', ascending: false)
+            .limit(5); // Limit to 5 most recent calls
         
         if (response.isNotEmpty) {
           print('📞 Polling detected ${response.length} missed call(s)');
@@ -496,6 +596,35 @@ class CallListenerService {
         }
       } catch (e) {
         print('❌ Error in polling fallback: $e');
+        // If we get too many errors, increase the polling interval
+        if (e.toString().contains('Connection timed out') || 
+            e.toString().contains('SocketException')) {
+          print('⚠️ Network issues detected, increasing polling interval to 30 seconds');
+          timer.cancel();
+          _pollingTimer = Timer.periodic(Duration(seconds: 30), (timer) async {
+            // Same logic but with longer interval
+            try {
+              final response = await SupabaseService.client
+                  .from('call_sessions')
+                  .select('*')
+                  .eq('receiver_id', userId)
+                  .eq('state', 'initial')
+                  .gte('created_at', DateTime.now().subtract(Duration(minutes: 2)).toIso8601String())
+                  .order('created_at', ascending: false)
+                  .limit(5);
+              
+              if (response.isNotEmpty) {
+                print('📞 Polling detected ${response.length} missed call(s)');
+                for (final callData in response) {
+                  print('📞 Processing missed call: ${callData['id']}');
+                  _handleIncomingCall(callData);
+                }
+              }
+            } catch (e) {
+              print('❌ Error in extended polling fallback: $e');
+            }
+          });
+        }
       }
     });
     
@@ -505,11 +634,48 @@ class CallListenerService {
   /// Dispose and clean up
   static void dispose() {
     print('📞 Disposing CallListenerService');
-    _callSessionSubscription?.cancel();
-    _webrtcRoomSubscription?.cancel();
-    _pollingTimer?.cancel();
-    _isInitialized = false;
-    _processedCallIds.clear();
+    
+    // CRITICAL FIX: Cancel all subscriptions and timers
+    try {
+      _callSessionSubscription?.cancel();
+      _webrtcRoomSubscription?.cancel();
+      _pollingTimer?.cancel();
+      
+      // Clear all processed call IDs
+      _processedCallIds.clear();
+      
+      // Reset initialization flag
+      _isInitialized = false;
+      
+      print('✅ CallListenerService disposed successfully');
+    } catch (e) {
+      print('❌ Error disposing CallListenerService: $e');
+    }
+  }
+  
+  /// Force cleanup of all resources
+  static void forceCleanup() {
+    print('📞 Force cleaning up CallListenerService');
+    
+    try {
+      // Cancel all subscriptions
+      _callSessionSubscription?.cancel();
+      _webrtcRoomSubscription?.cancel();
+      _pollingTimer?.cancel();
+      
+      // Clear all data
+      _processedCallIds.clear();
+      _isInitialized = false;
+      
+      // Reset all static variables
+      _callSessionSubscription = null;
+      _webrtcRoomSubscription = null;
+      _pollingTimer = null;
+      
+      print('✅ CallListenerService force cleanup completed');
+    } catch (e) {
+      print('❌ Error in force cleanup: $e');
+    }
   }
 }
 

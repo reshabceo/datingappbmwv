@@ -27,6 +27,7 @@ import 'Screens/AuthPage/auth_ui_screen.dart';
 import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'services/notification_service.dart';
+import 'services/local_notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -40,9 +41,16 @@ Future<void> main() async {
   // Request camera, photo, and location permissions on app startup
   await _requestPermissions();
   
-  // Initialize Firebase and Analytics for all platforms
-  // TEMPORARILY DISABLED TO PREVENT CRASHES
-  print('✅ Firebase Analytics temporarily disabled for debugging');
+  // Firebase is already initialized in AppDelegate.swift for iOS
+  // No need to initialize again in Flutter
+  
+  // Initialize Notification Service
+  await NotificationService.initialize();
+  
+  // Initialize Local Notification Service
+  await LocalNotificationService.initialize();
+  
+  print('✅ Firebase initialized successfully');
   
   // Initialize SharedPreferences
   await SharedPreferenceHelper.init();
@@ -64,6 +72,10 @@ Future<void> _requestPermissions() async {
     // Request camera permission
     final cameraStatus = await Permission.camera.request();
     print('🔍 DEBUG: Camera permission status: $cameraStatus');
+    
+    // Request microphone permission (for voice messages and calls)
+    final micStatus = await Permission.microphone.request();
+    print('🔍 DEBUG: Microphone permission status: $micStatus');
     
     // Request photo library permission
     final photosStatus = await Permission.photos.request();
@@ -88,16 +100,20 @@ Future<void> _requestPermissions() async {
     
     if (locationStatus.isGranted) {
       print('✅ Location permission granted');
-      // Automatically detect and update user location
-      await LocationService.updateUserLocation();
+      // Automatically detect and update user location (non-blocking)
+      LocationService.updateUserLocation().catchError((e) {
+        print('❌ Location update failed: $e');
+      });
     } else if (locationStatus.isPermanentlyDenied) {
       print('❌ Location permission permanently denied - user needs to enable in settings');
       // Show dialog to guide user to settings
       _showLocationPermissionDialog();
     } else {
       print('❌ Location permission denied: $locationStatus');
-      // Try to get location anyway (might work with cached location)
-      await LocationService.updateUserLocation();
+      // Try to get location anyway (non-blocking, might work with cached location)
+      LocationService.updateUserLocation().catchError((e) {
+        print('❌ Location update failed: $e');
+      });
     }
   } catch (e) {
     print('❌ Error requesting permissions: $e');
@@ -227,6 +243,14 @@ class _AuthGateState extends State<_AuthGate> with WidgetsBindingObserver {
       
       if (authState.event == AuthChangeEvent.signedOut) {
         _didNavigateToMain = false; // reset guard on sign out
+        
+        // CRITICAL FIX: Clean up call listener service on sign out
+        try {
+          CallListenerService.forceCleanup();
+          print('✅ CallListenerService cleaned up on sign out');
+        } catch (e) {
+          print('⚠️ Error cleaning up CallListenerService on sign out: $e');
+        }
       }
 
       // CRITICAL FIX: Handle OAuth redirects immediately
@@ -277,6 +301,14 @@ class _AuthGateState extends State<_AuthGate> with WidgetsBindingObserver {
           
           // Check if profile is incomplete (regardless of is_active status)
           if (profile != null) {
+            // Debug: Log each field to see what's missing
+            print('🔍 DEBUG: Profile completeness check:');
+            print('🔍 DEBUG: name: ${profile['name']} (null: ${profile['name'] == null}, empty: ${profile['name']?.toString().trim().isEmpty})');
+            print('🔍 DEBUG: age: ${profile['age']} (null: ${profile['age'] == null}, zero: ${profile['age'] == 0})');
+            print('🔍 DEBUG: description: ${profile['description']} (null: ${profile['description'] == null}, empty: ${profile['description']?.toString().trim().isEmpty})');
+            print('🔍 DEBUG: hobbies: ${profile['hobbies']} (null: ${profile['hobbies'] == null}, empty: ${(profile['hobbies'] as List?)?.isEmpty})');
+            print('🔍 DEBUG: image_urls: ${profile['image_urls']} (null: ${profile['image_urls'] == null}, empty: ${(profile['image_urls'] as List?)?.isEmpty})');
+            
             // Check if profile is incomplete (missing required fields for a complete profile)
             final hasIncompleteProfile = profile['name'] == null || 
                                        profile['name'].toString().trim().isEmpty ||
@@ -306,14 +338,27 @@ class _AuthGateState extends State<_AuthGate> with WidgetsBindingObserver {
           
           // Check if user account is deactivated (only for existing users with complete profiles)
           if (profile != null && profile['is_active'] == false) {
-            // Check if this is a new user (recently created profile)
+            // Check if this is a new user (recently created profile) OR has incomplete profile
             final profileCreatedAt = DateTime.parse(profile['created_at']);
             final now = DateTime.now();
             final timeDifference = now.difference(profileCreatedAt).inMinutes;
             
-            if (timeDifference < 5) {
-              // New user - go to profile creation instead of showing deactivation
-              print('🆕 DEBUG: New user detected, navigating to profile creation');
+            // Check if profile is incomplete (missing required fields)
+            final hasIncompleteProfile = profile['name'] == null || 
+                                       profile['name'].toString().trim().isEmpty ||
+                                       profile['age'] == null || 
+                                       profile['age'] == 0 ||
+                                       profile['description'] == null ||
+                                       profile['description'].toString().trim().isEmpty ||
+                                       profile['hobbies'] == null ||
+                                       (profile['hobbies'] as List).isEmpty ||
+                                       profile['image_urls'] == null ||
+                                       (profile['image_urls'] as List).isEmpty;
+            
+            if (timeDifference < 5 || hasIncompleteProfile) {
+              // New user OR incomplete profile - go to profile creation
+              print('🆕 DEBUG: New user or incomplete profile detected, navigating to profile creation');
+              print('🆕 DEBUG: Time difference: ${timeDifference}min, Incomplete: $hasIncompleteProfile');
               setState(() {
                 _ready = true;
                 _hasSession = true;
@@ -372,8 +417,10 @@ class _AuthGateState extends State<_AuthGate> with WidgetsBindingObserver {
             });
           }
           
-          // Detect and update location for authenticated user
-          await LocationService.updateUserLocation();
+          // Detect and update location for authenticated user (non-blocking)
+          LocationService.updateUserLocation().catchError((e) {
+            print('❌ Location update failed: $e');
+          });
           
           // Initialize call listener service for incoming calls
           print('📞 DEBUG: About to initialize CallListenerService...');
@@ -538,7 +585,7 @@ class _AuthGateState extends State<_AuthGate> with WidgetsBindingObserver {
         _checkSessionAndProfile();
       });
       
-      // Refresh location when app resumes to keep filtering accurate
+      // Refresh location when app resumes to keep filtering accurate (non-blocking)
       print('📍 Location: Refreshing location after app resume');
       LocationService.updateUserLocation().catchError((e) {
         print('❌ Error refreshing location on resume: $e');
