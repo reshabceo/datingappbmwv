@@ -20,6 +20,7 @@ import Notifications from './Notifications';
 import Analytics from './Analytics';
 import Settings from './Settings';
 import SystemHealth from './SystemHealth';
+import DunsSeal from '../components/DunsSeal';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -451,6 +452,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             })}
           </ul>
         </nav>
+        
+        {/* D&B Seal */}
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+          <DunsSeal size="small" showText={true} />
+        </div>
       </div>
 
       {/* Sidebar - Mobile */}
@@ -508,6 +514,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             })}
           </ul>
         </nav>
+        
+        {/* D&B Seal - Mobile */}
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+          <DunsSeal size="small" showText={true} />
+        </div>
       </div>
 
       {/* Main Content */}
