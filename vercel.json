@@ -1,16 +1,7 @@
 {
-  "builds": [
-    {
-      "src": "web_admin_dashboard/package.json",
-      "use": "@vercel/static-build",
-      "config": { "distDir": "dist" }
-    }
-  ],
-  "installCommand": "cd web_admin_dashboard && npm ci",
   "buildCommand": "npm run build",
-  "routes": [
-    { "src": "/(.*)", "dest": "web_admin_dashboard/dist/$1" }
-  ]
+  "outputDirectory": "dist",
+  "framework": "vite"
 }
 
 
