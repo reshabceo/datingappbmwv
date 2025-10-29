@@ -19,6 +19,7 @@ class MessageController extends GetxController {
   final ScrollController scrollController = ScrollController();
   RealtimeChannel? _channel;
   StreamSubscription<List<Map<String, dynamic>>>? _msgStreamSub;
+  StreamSubscription<List<Map<String, dynamic>>>? _audioStreamSub;
   String? _currentMatchId;
 
   final List<String> autoResponses = [
@@ -131,6 +132,7 @@ class MessageController extends GetxController {
     try { _channel?.unsubscribe(); } catch (_) {}
     _channel = null;
     try { _msgStreamSub?.cancel(); } catch (_) {}
+    try { _audioStreamSub?.cancel(); } catch (_) {}
 
     // Load both text and audio messages together
     await _loadAllMessages(matchId, isBffMatch);
@@ -227,6 +229,37 @@ class MessageController extends GetxController {
               print('DEBUG: Messages updated, count: ${loaded.length}');
             });
     } catch (_) {}
+
+    // Subscribe to audio messages for real-time updates
+    try {
+      _audioStreamSub = SupabaseService.client
+          .from('audio_messages')
+          .stream(primaryKey: ['id'])
+          .eq('match_id', matchId)
+          .order('created_at', ascending: true)
+          .listen((rows) async {
+            print('🔊 DEBUG: Audio stream received ${rows.length} audio messages');
+            final myId = SupabaseService.currentUser?.id;
+            
+            // Process audio messages
+            final loadedAudio = rows.map((r) {
+              final audio = AudioMessage.fromMap(r);
+              print('🔊 DEBUG: Audio message - ID: ${audio.id}, Sender: ${audio.senderId}, Duration: ${audio.duration}');
+              return audio;
+            }).toList();
+            
+            // Update audio messages
+            audioMessages.assignAll(loadedAudio);
+            
+            // Update allSortedMessages with current text messages + updated audio messages
+            _updateAllSortedMessages();
+            
+            scrollToBottom();
+            print('🔊 DEBUG: Audio messages updated, count: ${loadedAudio.length}');
+          });
+    } catch (e) {
+      print('❌ Error setting up audio message stream: $e');
+    }
   }
 
 
@@ -248,7 +281,7 @@ class MessageController extends GetxController {
     allMessages.addAll(messages);
     allMessages.addAll(audioMessages);
     
-    print('🔍 DEBUG: _updateAllSortedMessages - Text: ${messages.length}, Audio: ${audioMessages.length}');
+    print('🔊 DEBUG: _updateAllSortedMessages - Text: ${messages.length}, Audio: ${audioMessages.length}, Total: ${allMessages.length}');
     
     // Sort by timestamp
     allMessages.sort((a, b) {

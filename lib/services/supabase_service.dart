@@ -178,11 +178,24 @@ class SupabaseService {
   static Future<void> updateFCMToken(String token) async {
     try {
       final userId = currentUser?.id;
-      if (userId == null || token.isEmpty) return;
-      await client
+      print('🔔 DEBUG: updateFCMToken called - userId: $userId, token length: ${token.length}');
+      
+      if (userId == null) {
+        print('❌ DEBUG: No current user found, cannot update FCM token');
+        return;
+      }
+      
+      if (token.isEmpty) {
+        print('❌ DEBUG: FCM token is empty, cannot update');
+        return;
+      }
+      
+      final response = await client
           .from('profiles')
           .update({'fcm_token': token})
           .eq('id', userId);
+      
+      print('🔔 DEBUG: FCM token update response: $response');
       print('✅ FCM token updated for user: $userId');
     } catch (e) {
       print('❌ Failed to update FCM token: $e');

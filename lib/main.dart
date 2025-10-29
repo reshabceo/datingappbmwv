@@ -35,12 +35,18 @@ import 'Screens/AuthPage/auth_ui_screen.dart';
 import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'services/notification_service.dart';
+import 'services/notification_service.dart' show firebaseMessagingBackgroundHandler;
 import 'services/local_notification_service.dart';
 import 'services/call_debug_helper.dart';
+import 'services/android_call_action_service.dart';
+import 'services/notification_clearing_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
+  // Register the background message handler BEFORE runApp (critical for closed-app delivery)
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
   // CRITICAL FIX: Initialize AppStateService FIRST before any other services
   AppStateService.initialize();
   print('🔧 DEBUG: AppStateService initialized at app startup');
@@ -62,6 +68,15 @@ Future<void> main() async {
   
   // Initialize Local Notification Service
   await LocalNotificationService.initialize();
+
+  // Initialize Android call action handler (Accept/Decline from notification)
+  if (Platform.isAndroid) {
+    try {
+      await AndroidCallActionService.initialize();
+    } catch (e) {
+      print('❌ Failed to initialize AndroidCallActionService: $e');
+    }
+  }
   
   print('✅ Firebase initialized successfully');
   
@@ -80,7 +95,7 @@ Future<void> main() async {
 /// Request necessary permissions when app starts
 Future<void> _requestPermissions() async {
   try {
-    print('🔍 DEBUG: Requesting camera, photo, and location permissions on app startup...');
+    print('🔍 DEBUG: Requesting camera, photo, location, and notification permissions on app startup...');
     
     // Request camera permission
     final cameraStatus = await Permission.camera.request();
@@ -98,6 +113,23 @@ Future<void> _requestPermissions() async {
     print('🔍 DEBUG: Requesting location permission...');
     final locationStatus = await Permission.locationWhenInUse.request();
     print('🔍 DEBUG: Location permission status: $locationStatus');
+    
+    // Request notification permission (Android 13+)
+    if (Platform.isAndroid) {
+      print('🤖 ANDROID: Requesting notification permission...');
+      final notificationStatus = await Permission.notification.request();
+      print('🤖 ANDROID: Notification permission status: $notificationStatus');
+      
+      if (notificationStatus.isGranted) {
+        print('✅ ANDROID: Notification permission granted');
+      } else if (notificationStatus.isPermanentlyDenied) {
+        print('❌ ANDROID: Notification permission permanently denied - user needs to enable in settings');
+        // Show dialog to guide user to settings
+        _showNotificationPermissionDialog();
+      } else {
+        print('❌ ANDROID: Notification permission denied: $notificationStatus');
+      }
+    }
     
     if (cameraStatus.isGranted) {
       print('✅ Camera permission granted');
@@ -141,6 +173,34 @@ void _showLocationPermissionDialog() {
       content: Text(
         'LoveBug needs location access to show you nearby profiles and help you find matches in your area.\n\n'
         'Please go to Settings > Privacy & Security > Location Services > LoveBug and enable location access.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Get.back(),
+          child: Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () {
+            Get.back();
+            // Open app settings
+            openAppSettings();
+          },
+          child: Text('Open Settings'),
+        ),
+      ],
+    ),
+    barrierDismissible: false,
+  );
+}
+
+/// Show dialog to guide user to enable notification permission
+void _showNotificationPermissionDialog() {
+  Get.dialog(
+    AlertDialog(
+      title: Text('Notification Permission Required'),
+      content: Text(
+        'LoveBug needs notification access to alert you about incoming calls, new messages, and matches.\n\n'
+        'Please go to Settings > Apps > LoveBug > Notifications and enable notifications.',
       ),
       actions: [
         TextButton(

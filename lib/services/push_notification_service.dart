@@ -13,28 +13,42 @@ class PushNotificationService {
     Map<String, dynamic>? data,
   }) async {
     try {
+      print('📱 PUSH: sendNotification called');
+      print('📱 PUSH: User ID: $userId');
+      print('📱 PUSH: Type: $type');
+      print('📱 PUSH: Title: $title');
+      print('📱 PUSH: Body: $body');
+      print('📱 PUSH: Data: $data');
+      
       final client = Supabase.instance.client;
+      
+      final requestBody = {
+        'userId': userId,
+        'type': type,
+        'title': title,
+        'body': body,
+        'data': data ?? {},
+      };
+      
+      print('📱 PUSH: Calling Supabase edge function with body: $requestBody');
       
       final response = await client.functions.invoke(
         'send-push-notification',
-        body: {
-          'userId': userId,
-          'type': type,
-          'title': title,
-          'body': body,
-          'data': data ?? {},
-        },
+        body: requestBody,
       );
 
+      print('📱 PUSH: Edge function response status: ${response.status}');
+      print('📱 PUSH: Edge function response data: ${response.data}');
+
       if (response.status == 200) {
-        print('✅ Push notification sent successfully');
+        print('✅ PUSH: Push notification sent successfully');
         return true;
       } else {
-        print('❌ Failed to send push notification: ${response.data}');
+        print('❌ PUSH: Failed to send push notification: ${response.data}');
         return false;
       }
     } catch (e) {
-      print('❌ Error sending push notification: $e');
+      print('❌ PUSH: Error sending push notification: $e');
       return false;
     }
   }
@@ -152,19 +166,43 @@ class PushNotificationService {
     required String callerName,
     required String callId,
     required String callType, // 'audio' or 'video'
+    String? callerImageUrl, // CRITICAL FIX: Add caller image support
+    String? callerId,
+    String? matchId,
   }) async {
+    print('📱 PUSH: sendIncomingCallNotification called');
+    print('📱 PUSH: User ID: $userId');
+    print('📱 PUSH: Caller Name: $callerName');
+    print('📱 PUSH: Call ID: $callId');
+    print('📱 PUSH: Call Type: $callType');
+    print('📱 PUSH: Caller Image URL: $callerImageUrl');
+    
     final callIcon = callType == 'video' ? '📹' : '📞';
+    final callTypeDisplay = callType == 'video' ? 'Video' : 'Audio';
+    final title = '$callIcon Incoming $callTypeDisplay Call';
+    final body = '$callerName is calling you';
+    
+    print('📱 PUSH: Notification Title: $title');
+    print('📱 PUSH: Notification Body: $body');
+    
+    final data = {
+      'call_id': callId,
+      'caller_name': callerName,
+      'call_type': callType,
+      'caller_image_url': callerImageUrl, // CRITICAL FIX: Include caller image
+      'action': 'incoming_call',
+      if (callerId != null) 'caller_id': callerId,
+      if (matchId != null) 'match_id': matchId,
+    };
+    
+    print('📱 PUSH: Notification Data: $data');
+    
     return await sendNotification(
       userId: userId,
       type: 'incoming_call',
-      title: '$callIcon Incoming ${callType == 'video' ? 'Video' : 'Audio'} Call',
-      body: '$callerName is calling you',
-      data: {
-        'call_id': callId,
-        'caller_name': callerName,
-        'call_type': callType,
-        'action': 'incoming_call',
-      },
+      title: title,
+      body: body,
+      data: data,
     );
   }
 

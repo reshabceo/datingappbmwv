@@ -14,7 +14,8 @@ class CallKitService {
       handle: payload.callType == CallType.video
           ? 'Incoming video call'
           : 'Incoming audio call',
-      type: 0,
+      // 0 = audio, 1 = video in flutter_callkit_incoming
+      type: payload.callType == CallType.video ? 1 : 0,
       duration: 30000,
       textAccept: 'Accept',
       textDecline: 'Decline',
@@ -24,7 +25,15 @@ class CallKitService {
         subtitle: 'Missed call',
         callbackText: 'Call back',
       ),
-      extra: payload.toJson(),
+      extra: {
+        'callId': payload.webrtcRoomId ?? payload.notificationId,
+        'matchId': payload.matchId,
+        'callType': payload.callType?.name ?? 'audio',
+        'isBffMatch': payload.isBffMatch ?? false,
+        'callerId': payload.userId,
+        'callerName': payload.name ?? payload.username ?? 'Unknown',
+        ...payload.toJson(),
+      },
       headers: <String, dynamic>{'apiKey': 'LoveBug@123!', 'platform': 'flutter'},
       android: AndroidParams(
         isCustomNotification: true,

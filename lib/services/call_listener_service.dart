@@ -1,7 +1,11 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:math';
 import 'package:get/get.dart';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:lovebug/services/notification_clearing_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:lovebug/ThemeController/theme_controller.dart';
@@ -10,6 +14,8 @@ import 'webrtc_service.dart';
 import '../models/call_models.dart';
 import 'package:lovebug/screens/call_screens/video_call_screen.dart';
 import 'package:lovebug/screens/call_screens/audio_call_screen.dart';
+import 'package:lovebug/services/callkit_service.dart';
+import 'package:lovebug/services/app_state_service.dart';
 
 /// Service to listen for incoming calls in real-time
 /// This is especially important for web where push notifications don't work
@@ -19,6 +25,15 @@ class CallListenerService {
   static Timer? _pollingTimer;
   static bool _isInitialized = false;
   static final Set<String> _processedCallIds = <String>{};
+  // When the app is opened from an incoming_call notification body tap on Android,
+  // suppress the in-app invite once to avoid confusion and auto-join vibes.
+  static bool _suppressNextInvite = false;
+
+  /// Mark that the next in-app invite should be suppressed because the app
+  /// was opened from a notification body tap (no accept action yet).
+  static void markOpenedFromNotificationTap() {
+    _suppressNextInvite = true;
+  }
 
   /// Initialize the call listener service
   static Future<void> initialize() async {
@@ -81,6 +96,9 @@ class CallListenerService {
       });
     } catch (e) {
       print('❌ Error setting up call session listener: $e');
+      // CRITICAL FIX: If real-time subscription fails, fall back to polling immediately
+      print('📞 Real-time subscription failed, falling back to aggressive polling...');
+      _setupAggressivePollingFallback(userId);
     }
   }
 
@@ -96,13 +114,16 @@ class CallListenerService {
       final callId = callData['id'] as String;
       final callerId = callData['caller_id'] as String;
       final matchId = callData['match_id'] as String;
-      final callType = callData['type'] as String; // 'audio' or 'video'
+      final callType = callData['call_type'] as String; // FIXED: Use 'call_type' not 'type'
       final callState = callData['state'] as String;
 
-      // De-dupe: ignore already processed call rows
+      // De-dupe: ignore already processed call rows with 5s window
       if (_processedCallIds.contains(callId)) {
-        print('📞 Ignoring duplicate call event for $callId');
-        return;
+        final last = _processedCallTimestamps[callId];
+        if (last != null && DateTime.now().difference(last) < const Duration(seconds: 5)) {
+          print('📞 Ignoring duplicate call event for $callId (within window)');
+          return;
+        }
       }
       // Ignore accidental self-invites on creator device
       final currentUserId = SupabaseService.currentUser?.id;
@@ -118,6 +139,7 @@ class CallListenerService {
       }
 
       _processedCallIds.add(callId);
+      _processedCallTimestamps[callId] = DateTime.now();
       
       print('📞 Incoming $callType call from: $callerId');
       print('📞 Match ID: $matchId');
@@ -128,6 +150,13 @@ class CallListenerService {
       final callerName = callerProfile?['name'] ?? 'Someone';
       final callerImage = _getCallerImageUrl(callerProfile);
       
+      // If launched from notification body tap, skip showing in-app invite once.
+      if (_suppressNextInvite && Platform.isAndroid) {
+        print('📞 Skipping in-app invite (opened from notification tap)');
+        _suppressNextInvite = false;
+        return;
+      }
+
       // Show incoming call dialog
       _showIncomingCallDialog(
         callId: callId,
@@ -141,6 +170,8 @@ class CallListenerService {
       print('❌ Error handling incoming call: $e');
     }
   }
+
+  static final Map<String, DateTime> _processedCallTimestamps = {};
 
   /// Get caller profile information
   static Future<Map<String, dynamic>?> _getCallerProfile(String callerId) async {
@@ -177,36 +208,55 @@ class CallListenerService {
     return null;
   }
 
-  /// Build default caller avatar when no image is available
-  static Widget _buildDefaultCallerAvatar(String name, ThemeController themeController) {
-    return Container(
-      width: double.infinity,
-      height: double.infinity,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            themeController.getAccentColor(),
-            themeController.getAccentColor().withValues(alpha: 0.7),
-          ],
-        ),
-      ),
-      child: Center(
-        child: Text(
-          name.isNotEmpty ? name[0].toUpperCase() : '?',
-          style: TextStyle(
-            color: themeController.whiteColor,
-            fontSize: 36.sp,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-    );
+  /// Show CallKit incoming call for iOS
+  static void _showCallKitIncomingCall({
+    required String callId,
+    required String callerId,
+    required String callerName,
+    required String? callerImage,
+    required String matchId,
+    required String callType,
+  }) async {
+    try {
+      print('📞 Showing CallKit incoming call for iOS');
+      print('📞 Call ID: $callId');
+      print('📞 Caller: $callerName');
+      print('📞 Call Type: $callType');
+      
+      // Create CallPayload for CallKit
+      final payload = CallPayload(
+        userId: callerId,
+        name: callerName,
+        username: callerName,
+        imageUrl: callerImage,
+        callType: callType == 'video' ? CallType.video : CallType.audio,
+        callAction: CallAction.create,
+        notificationId: callId,
+        webrtcRoomId: callId,
+        matchId: matchId,
+        isBffMatch: false, // Will be updated by CallKit listener
+      );
+      
+      // Show CallKit incoming call
+      await CallKitService.showIncomingCall(payload: payload);
+      
+      print('✅ CallKit incoming call shown successfully');
+    } catch (e) {
+      print('❌ Error showing CallKit incoming call: $e');
+      // Fallback to in-app dialog if CallKit fails
+      _showInAppCallDialog(
+        callId: callId,
+        callerId: callerId,
+        callerName: callerName,
+        callerImage: callerImage,
+        matchId: matchId,
+        callType: callType,
+      );
+    }
   }
 
-  /// Show incoming call dialog
-  static void _showIncomingCallDialog({
+  /// Show in-app call dialog (fallback for Android and when CallKit fails)
+  static void _showInAppCallDialog({
     required String callId,
     required String callerId,
     required String callerName,
@@ -216,8 +266,10 @@ class CallListenerService {
   }) {
     final themeController = Get.find<ThemeController>();
     final isVideo = callType == 'video';
+    RealtimeChannel? _inviteChannel;
 
-    Get.dialog(
+    try {
+      Get.dialog(
       Dialog(
         backgroundColor: Colors.transparent,
         insetPadding: EdgeInsets.symmetric(horizontal: 24.w),
@@ -341,7 +393,8 @@ class CallListenerService {
                         Expanded(
                           child: GestureDetector(
                             onTap: () async {
-                              Get.back();
+                              try { _inviteChannel?.unsubscribe(); } catch (_) {}
+                              if (Get.isDialogOpen ?? false) Get.back();
                               await _declineCall(callId);
                             },
                             child: Container(
@@ -370,7 +423,8 @@ class CallListenerService {
                         Expanded(
                           child: GestureDetector(
                             onTap: () async {
-                              Get.back();
+                              try { _inviteChannel?.unsubscribe(); } catch (_) {}
+                              if (Get.isDialogOpen ?? false) Get.back();
                               await _acceptCall(callId, callerId, matchId, callType);
                             },
                             child: Container(
@@ -408,7 +462,113 @@ class CallListenerService {
         ),
       ),
       barrierDismissible: false,
+    ).then((_) {
+      // Cleanup when dialog is dismissed
+      try { _inviteChannel?.unsubscribe(); } catch (_) {}
+    });
+    } catch (e) {
+      print('❌ Failed to show dialog: $e');
+    }
+
+    // Subscribe to call state updates to auto-dismiss
+    try {
+      _inviteChannel = SupabaseService.client.channel('call_invite_$callId');
+      _inviteChannel.onPostgresChanges(
+        event: PostgresChangeEvent.update,
+        schema: 'public',
+        table: 'call_sessions',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'id',
+          value: callId,
+        ),
+        callback: (payload) {
+          final s = (payload.newRecord['state'] ?? '').toString();
+          if (s == 'canceled' || s == 'ended' || s == 'declined' || s == 'timeout') {
+            if (Get.isDialogOpen ?? false) {
+              print('📞 Auto-dismissing invite dialog due to state=$s');
+              Get.back();
+            }
+            try { _inviteChannel?.unsubscribe(); } catch (_) {}
+          }
+        },
+      ).subscribe();
+    } catch (e) {
+      print('❌ Failed to subscribe invite state updates: $e');
+    }
+
+    // Safety timeout: 30s
+    Future.delayed(const Duration(seconds: 30), () {
+      if (Get.isDialogOpen ?? false) {
+        print('📞 Call invitation timed out');
+        try { _inviteChannel?.unsubscribe(); } catch (_) {}
+        Get.back();
+      }
+    });
+  }
+
+  /// Build default caller avatar when no image is available
+  static Widget _buildDefaultCallerAvatar(String name, ThemeController themeController) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            themeController.getAccentColor(),
+            themeController.getAccentColor().withValues(alpha: 0.7),
+          ],
+        ),
+      ),
+      child: Center(
+        child: Text(
+          name.isNotEmpty ? name[0].toUpperCase() : '?',
+          style: TextStyle(
+            color: themeController.whiteColor,
+            fontSize: 36.sp,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
     );
+  }
+
+  /// Show incoming call dialog
+  static void _showIncomingCallDialog({
+    required String callId,
+    required String callerId,
+    required String callerName,
+    required String? callerImage,
+    required String matchId,
+    required String callType,
+  }) {
+    print('📞 CALL: _showIncomingCallDialog called');
+    print('📞 CALL: Call ID: $callId, Caller: $callerName, Type: $callType');
+    print('📞 CALL: Platform: ${Platform.isIOS ? "iOS" : Platform.isAndroid ? "Android" : "Other"}');
+
+    if (Platform.isIOS) {
+      print('📞 CALL: iOS: Using CallKit for in-app call invitation');
+      _showCallKitIncomingCall(
+        callId: callId,
+        callerId: callerId,
+        callerName: callerName,
+        callerImage: callerImage,
+        matchId: matchId,
+        callType: callType,
+      );
+    } else {
+      print('📞 CALL: Android: Using in-app dialog');
+      _showInAppCallDialog(
+        callId: callId,
+        callerId: callerId,
+        callerName: callerName,
+        callerImage: callerImage,
+        matchId: matchId,
+        callType: callType,
+      );
+    }
   }
 
   /// Accept incoming call
@@ -440,6 +600,27 @@ class CallListenerService {
       
       print('✅ Call accepted, updating state to connecting');
       
+      // CRITICAL FIX: Clear notifications using server-side clearing for reliability
+      final currentUserId = SupabaseService.currentUser?.id;
+      if (currentUserId != null) {
+        await NotificationClearingService.clearAllNotifications(
+          userId: currentUserId,
+          callId: callId,
+        );
+        print('✅ Notifications cleared via server for call acceptance');
+      }
+      
+      // Local clearing as backup
+      if (Platform.isAndroid) {
+        try {
+          final MethodChannel channel = MethodChannel('com.lovebug.app/notification');
+          await channel.invokeMethod('clearCallNotification');
+          print('✅ Android call notification cleared locally after in-app accept');
+        } catch (e) {
+          print('⚠️ Error clearing Android notification locally: $e');
+        }
+      }
+      
       // Ensure WebRTCService is registered
       if (!Get.isRegistered<WebRTCService>()) {
         print('📞 Registering WebRTCService...');
@@ -470,6 +651,8 @@ class CallListenerService {
       );
       
       print('✅ Joined call successfully');
+      // Dismiss any in-app invite that might still be visible
+      _dismissInAppInviteIfOpen();
       
       // Subscribe to call session updates to detect remote hangup/finish
       try {
@@ -486,12 +669,12 @@ class CallListenerService {
           callback: (payload) {
             final newState = payload.newRecord['state'];
             print('📞 Call session state updated: $newState');
-            // CRITICAL FIX: Handle all call termination states including 'canceled'
-            if ((newState == 'disconnected' || newState == 'failed' || newState == 'canceled' || newState == 'declined') &&
-                webrtcService.callState != CallState.connecting) {
-              print('📞 Remote ended/canceled the call. Cleaning up...');
+            // CRITICAL FIX: Handle all call termination states including 'timeout'
+            // Remove connecting state check to allow cancellation during connecting
+            if (newState == 'disconnected' || newState == 'failed' || newState == 'canceled' || newState == 'declined' || newState == 'timeout' || newState == 'ended') {
+              print('🔄 STATE: Remote ended/canceled the call. State: $newState');
               webrtcService.endCall();
-              if (Get.isOverlaysOpen) Get.back();
+              _dismissInAppInviteIfOpen();
             }
           },
         ).subscribe();
@@ -512,9 +695,22 @@ class CallListenerService {
       print('🎯 Match ID: $matchId');
       print('🎯 ===========================================');
       
+      // CRITICAL FIX: Wait for WebRTC initialization to complete before navigation
+      print('🎯 NAV: Waiting for WebRTC initialization to complete...');
+      await Future.delayed(Duration(milliseconds: 500)); // Give WebRTC time to initialize
+      
+      // Check if we're already in a call screen to prevent duplicate navigation
+      final currentRoute = Get.currentRoute;
+      print('🎯 NAV: Current route: $currentRoute');
+      
+      if (currentRoute.contains('VideoCallScreen') || currentRoute.contains('AudioCallScreen')) {
+        print('⚠️ NAV: Already in call screen, skipping navigation');
+        return;
+      }
+      
       // Navigate to call screen - use the same screens as the caller
       if (callType == 'video') {
-        print('🎯 Navigating to VideoCallScreen for RECEIVER');
+        print('🎯 NAV: Navigating to VideoCallScreen for RECEIVER');
         Get.to(() => VideoCallScreen(payload: CallPayload(
           userId: callerId,
           name: callerName,
@@ -526,7 +722,7 @@ class CallListenerService {
           isBffMatch: isBffMatch,
         )));
       } else {
-        print('🎯 Navigating to AudioCallScreen for RECEIVER');
+        print('🎯 NAV: Navigating to AudioCallScreen for RECEIVER');
         Get.to(() => AudioCallScreen(payload: CallPayload(
           userId: callerId,
           name: callerName,
@@ -549,10 +745,42 @@ class CallListenerService {
     }
   }
 
+  /// Dismiss in-app invite overlay if it is currently open
+  static void _dismissInAppInviteIfOpen() {
+    try {
+      if (Get.isOverlaysOpen) {
+        Get.back();
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
   /// Decline incoming call
   static Future<void> _declineCall(String callId) async {
     try {
       print('📞 Declining call: $callId');
+      
+      // Get call session info for server-side clearing
+      final callSession = await SupabaseService.client
+          .from('call_sessions')
+          .select('caller_id, receiver_id')
+          .eq('id', callId)
+          .single();
+      
+      // Get caller's name from profiles table (caller_name doesn't exist in call_sessions)
+      final callerId = callSession['caller_id']?.toString();
+      final receiverId = callSession['receiver_id']?.toString();
+      String callerName = 'Unknown';
+      
+      if (callerId != null) {
+        try {
+          final callerProfile = await SupabaseService.getProfile(callerId);
+          callerName = callerProfile?['name']?.toString() ?? 'Unknown';
+        } catch (e) {
+          print('⚠️ Error fetching caller profile: $e');
+        }
+      }
       
       // Update call session state to a valid terminal value
       await SupabaseService.client
@@ -563,18 +791,98 @@ class CallListenerService {
           })
           .eq('id', callId);
       
-      print('✅ Call declined');
+      // CRITICAL FIX: Clear notifications using server-side clearing
+      
+      if (callerId != null) {
+        await NotificationClearingService.clearCallNotification(
+          userId: callerId,
+          callId: callId,
+          callerName: callerName,
+        );
+      }
+      
+      if (receiverId != null) {
+        await NotificationClearingService.clearCallNotification(
+          userId: receiverId,
+          callId: callId,
+          callerName: callerName,
+        );
+      }
+      
+      print('✅ Call declined and notifications cleared');
     } catch (e) {
       print('❌ Error declining call: $e');
     }
+  }
+
+  // =========================
+  // Public bridge methods for notification/Android actions
+  // =========================
+  static Future<void> acceptCallFromNotification({
+    required String callId,
+    required String callerId,
+    required String matchId,
+    required String callType,
+  }) async {
+    await _acceptCall(callId, callerId, matchId, callType);
+  }
+
+  static Future<void> declineCall(String callId) async {
+    await _declineCall(callId);
+  }
+
+  /// Set up aggressive polling fallback for iOS when real-time fails
+  static void _setupAggressivePollingFallback(String userId) {
+    print('📞 Setting up AGGRESSIVE polling fallback for user: $userId (iOS fallback)');
+    
+    // Add jitter (2-4 seconds) to prevent thundering herd on database
+    final random = Random();
+    final baseInterval = 2;
+    final jitterSeconds = random.nextInt(3); // 0-2 seconds jitter
+    final intervalWithJitter = baseInterval + jitterSeconds;
+    
+    print('📞 Polling interval: ${intervalWithJitter}s (base: ${baseInterval}s + jitter: ${jitterSeconds}s)');
+    
+    _pollingTimer = Timer.periodic(Duration(seconds: intervalWithJitter), (timer) async {
+      try {
+        // Check for new call sessions where this user is the receiver
+        final response = await SupabaseService.client
+            .from('call_sessions')
+            .select('*')
+            .eq('receiver_id', userId)
+            .inFilter('state', ['initial', 'ringing'])
+            .gte('created_at', DateTime.now().subtract(Duration(minutes: 5)).toIso8601String())
+            .order('created_at', ascending: false)
+            .limit(10); // Increased limit for aggressive polling
+        
+        if (response.isNotEmpty) {
+          print('📞 AGGRESSIVE POLLING detected ${response.length} incoming call(s)');
+          for (final callData in response) {
+            print('📞 Processing incoming call via aggressive polling: ${callData['id']}');
+            _handleIncomingCall(callData);
+          }
+        }
+      } catch (e) {
+        print('❌ Error in aggressive polling fallback: $e');
+      }
+    });
+    
+    print('✅ Aggressive polling fallback set up successfully');
   }
 
   /// Set up polling fallback to catch missed calls
   static void _setupPollingFallback(String userId) {
     print('📞 Setting up polling fallback for user: $userId');
     
-    // Poll every 10 seconds for new incoming calls (reduced frequency to avoid timeouts)
-    _pollingTimer = Timer.periodic(Duration(seconds: 10), (timer) async {
+    // Add jitter (10-13 seconds) to prevent thundering herd on database
+    final random = Random();
+    final baseInterval = 10;
+    final jitterSeconds = random.nextInt(4); // 0-3 seconds jitter
+    final intervalWithJitter = baseInterval + jitterSeconds;
+    
+    print('📞 Polling interval: ${intervalWithJitter}s (base: ${baseInterval}s + jitter: ${jitterSeconds}s)');
+    
+    _pollingTimer = Timer.periodic(Duration(seconds: intervalWithJitter), (timer) async {
       try {
         // Check for new call sessions where this user is the receiver
         // Use a shorter timeout and more specific query
@@ -601,7 +909,9 @@ class CallListenerService {
             e.toString().contains('SocketException')) {
           print('⚠️ Network issues detected, increasing polling interval to 30 seconds');
           timer.cancel();
-          _pollingTimer = Timer.periodic(Duration(seconds: 30), (timer) async {
+          // Add jitter to long interval too (30-35 seconds)
+          final longIntervalJitter = Random().nextInt(6); // 0-5 seconds jitter
+          _pollingTimer = Timer.periodic(Duration(seconds: 30 + longIntervalJitter), (timer) async {
             // Same logic but with longer interval
             try {
               final response = await SupabaseService.client

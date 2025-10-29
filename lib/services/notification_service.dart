@@ -5,13 +5,87 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:lovebug/services/supabase_service.dart';
+import 'package:lovebug/services/call_listener_service.dart';
+import 'package:lovebug/services/callkit_service.dart';
+import 'package:lovebug/models/call_models.dart';
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
+import 'package:flutter_callkit_incoming/entities/entities.dart';
 
 // Background message handler (must be top-level function)
+// Public so it can be registered in main.dart before runApp
 @pragma('vm:entry-point')
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-  print('Handling a background message: ${message.messageId}');
-  print('Background message data: ${message.data}');
+  print('📱 BACKGROUND: Handling background message: ${message.messageId}');
+  print('📱 BACKGROUND: Message data: ${message.data}');
+  
+  final data = message.data;
+  final type = data['type'];
+  
+  // CRITICAL FIX: Handle incoming calls in background by triggering CallKit IMMEDIATELY
+  if (type == 'incoming_call' && Platform.isIOS) {
+    print('📱 BACKGROUND: Incoming call detected - triggering CallKit IMMEDIATELY...');
+    
+    try {
+      final callId = data['call_id'] as String?;
+      final callerId = data['caller_id'] as String?;
+      final callerName = data['caller_name'] as String? ?? 'Unknown';
+      final callType = data['call_type'] as String? ?? 'video';
+      final matchId = data['match_id'] as String?;
+      final callerImageUrl = data['caller_image_url'] as String?;
+      
+      if (callId != null && callerId != null && matchId != null) {
+        print('📱 BACKGROUND: CallKit data - ID: $callId, Caller: $callerName, Type: $callType');
+        
+        // CRITICAL: Use showCallkitIncoming for CallKit triggering
+        // This is the correct API for the current flutter_callkit_incoming version
+        final params = CallKitParams(
+          id: callId,
+          nameCaller: callerName,
+          appName: 'LoveBug',
+          avatar: callerImageUrl ?? 'https://i.pravatar.cc',
+          handle: callType == 'video' ? 'Incoming video call' : 'Incoming audio call',
+          type: callType == 'video' ? 1 : 0,
+          duration: 30000,
+          textAccept: 'Accept',
+          textDecline: 'Decline',
+          extra: {
+            'callId': callId,
+            'matchId': matchId,
+            'callType': callType,
+            'isBffMatch': false,
+            'callerId': callerId,
+            'callerName': callerName,
+          },
+          headers: <String, dynamic>{'apiKey': 'LoveBug@123!', 'platform': 'flutter'},
+          ios: IOSParams(
+            iconName: 'CallKitLogo',
+            handleType: 'generic',
+            supportsVideo: callType == 'video',
+            maximumCallGroups: 1,
+            maximumCallsPerCallGroup: 1,
+            audioSessionMode: 'default',
+            audioSessionActive: true,
+            audioSessionPreferredSampleRate: 44100.0,
+            audioSessionPreferredIOBufferDuration: 0.005,
+            supportsDTMF: true,
+            supportsHolding: true,
+            supportsGrouping: false,
+            supportsUngrouping: false,
+            ringtonePath: 'call_ringtone.wav',
+          ),
+        );
+        
+        // CRITICAL: Use showCallkitIncoming for CallKit triggering
+        await FlutterCallkitIncoming.showCallkitIncoming(params);
+        print('✅ BACKGROUND: CallKit incoming call reported successfully');
+      } else {
+        print('❌ BACKGROUND: Missing required call data for CallKit');
+      }
+    } catch (e) {
+      print('❌ BACKGROUND: Error triggering CallKit: $e');
+    }
+  }
 }
 
 class NotificationService {
@@ -254,9 +328,8 @@ class NotificationService {
       _handleNotificationTap(message);
     });
 
-    // Handle background messages
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-    print('✅ FCM: Message handlers set up successfully');
+    // Background handler must be registered in main.dart before runApp
+    print('✅ FCM: Message handlers set up successfully (background handler registered in main.dart)');
   }
 
   static void _handleForegroundMessage(RemoteMessage message) {
@@ -266,11 +339,11 @@ class NotificationService {
     final data = message.data;
     final type = data['type'];
     
-    // CRITICAL FIX: Handle incoming call in foreground - don't show push notification
+    // CRITICAL FIX: Suppress push notification for incoming calls when app is open
+    // Real-time listener will handle it via CallListenerService
     if (type == 'incoming_call') {
-      print('📱 FOREGROUND: Incoming call detected - CallListenerService should handle this via real-time');
-      // Don't show push notification UI - let CallListenerService handle it via real-time listener
-      // This prevents duplicate notifications when app is open
+      print('📱 FOREGROUND: Incoming call detected - suppressing notification (real-time listener will handle)');
+      // Do NOT show notification - let CallListenerService handle via real-time listener
       return;
     }
     
@@ -311,9 +384,15 @@ class NotificationService {
         Get.toNamed('/stories');
         break;
       case 'incoming_call':
-        // Handle incoming call notification
-        _handleIncomingCallNotification(data);
-        break;
+        // Do not auto-join on Android (use notification actions or in-app invite)
+        if (Platform.isAndroid) {
+          // Mark to suppress the in-app invite once; user hasn't accepted yet
+          CallListenerService.markOpenedFromNotificationTap();
+        }
+        if (Platform.isIOS) {
+          // iOS CallKit flow already manages UI; no navigation here
+        }
+        return; // foreground only
       case 'missed_call':
         // Navigate to calls or matches screen
         Get.toNamed('/matches');

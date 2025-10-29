@@ -8,7 +8,7 @@ const corsHeaders = {
 
 interface NotificationRequest {
   userId: string
-  type: 'new_match' | 'new_message' | 'new_like' | 'story_reply' | 'account_suspended' | 'admin_message' | 'incoming_call' | 'missed_call' | 'call_ended' | 'call_rejected'
+  type: 'new_match' | 'new_message' | 'new_like' | 'story_reply' | 'account_suspended' | 'admin_message' | 'incoming_call' | 'missed_call' | 'call_ended' | 'call_rejected' | 'clear_notification'
   title: string
   body: string
   data?: Record<string, any>
@@ -21,9 +21,12 @@ serve(async (req) => {
   }
 
   try {
+    console.log('📱 PUSH: Edge function called');
     const { userId, type, title, body, data = {} }: NotificationRequest = await req.json()
+    console.log('📱 PUSH: Request data:', { userId, type, title, body, data });
 
     if (!userId || !type || !title || !body) {
+      console.log('❌ PUSH: Missing required fields');
       return new Response(
         JSON.stringify({ error: 'Missing required fields' }),
         { 
@@ -39,6 +42,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     // Get user's FCM token and notification preferences
+    console.log('📱 PUSH: Fetching user profile for userId:', userId);
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('fcm_token, notification_matches, notification_messages, notification_stories, notification_likes, notification_admin')
@@ -46,6 +50,7 @@ serve(async (req) => {
       .single()
 
     if (profileError || !profile) {
+      console.log('❌ PUSH: User not found:', profileError);
       return new Response(
         JSON.stringify({ error: 'User not found' }),
         { 
@@ -55,8 +60,12 @@ serve(async (req) => {
       )
     }
 
+    console.log('📱 PUSH: User profile found, FCM token exists:', !!profile.fcm_token);
+    console.log('📱 PUSH: FCM token (first 20 chars):', profile.fcm_token ? profile.fcm_token.substring(0, 20) + '...' : 'null');
+
     // Check if user has FCM token
     if (!profile.fcm_token) {
+      console.log('❌ PUSH: User has no FCM token');
       return new Response(
         JSON.stringify({ error: 'User has no FCM token' }),
         { 
@@ -100,40 +109,117 @@ serve(async (req) => {
     
     // Determine if this is a call notification for special handling
     const isCallNotification = ['incoming_call', 'missed_call', 'call_ended', 'call_rejected'].includes(type)
+    const isClearNotification = type === 'clear_notification'
+    console.log('📱 PUSH: Is call notification:', isCallNotification);
+    console.log('📱 PUSH: Is clear notification:', isClearNotification);
+    console.log('📱 PUSH: Call type from data:', data.call_type);
     
+    // Build notification message with platform-specific handling
+    // Ensure all data values are strings (FCM requirement)
+    const stringifiedData: Record<string, string> = {}
+    Object.entries(data).forEach(([key, value]) => {
+      stringifiedData[key] = String(value ?? '')
+    })
+    stringifiedData['type'] = type
+    
+    // CRITICAL FIX: Include caller name in notification body for both platforms
+    const notificationTitle = isCallNotification && data.caller_name 
+      ? `${data.caller_name} is calling you`
+      : title;
+    const notificationBody = isCallNotification && data.caller_name 
+      ? `${data.caller_name} is calling you`
+      : body;
+
+    // Handle clear notification - send data-only message
+    if (isClearNotification) {
+      console.log('📱 PUSH: Sending clear notification (data-only)');
+      const clearMessage = {
+        message: {
+          token: profile.fcm_token,
+          data: stringifiedData,
+          android: {
+            priority: 'HIGH',
+            data: stringifiedData,
+          },
+          apns: {
+            payload: {
+              aps: {
+                'content-available': 1,
+                'mutable-content': 0,
+              },
+              ...stringifiedData,
+            }
+          }
+        }
+      };
+      
+      console.log('📱 PUSH: Clear notification message:', JSON.stringify(clearMessage, null, 2));
+      
+      const response = await fetch(fcmUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(clearMessage),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('❌ PUSH: Clear notification FCM Error:', errorText)
+        return new Response(
+          JSON.stringify({ error: 'Failed to send clear notification', details: errorText }),
+          { 
+            status: 500, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        )
+      }
+
+      const result = await response.json()
+      console.log('✅ PUSH: Clear notification sent successfully:', result)
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          messageId: result.name,
+          message: 'Clear notification sent successfully' 
+        }),
+        { 
+          status: 200, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      )
+    }
+
     const message = {
       message: {
         token: profile.fcm_token,
         notification: {
-          title: title,
-          body: body,
+          title: notificationTitle,
+          body: notificationBody,
         },
-        data: {
-          type: type,
-          ...data
-        },
+        data: stringifiedData,
         android: {
+          // CRITICAL FIX: Use correct priority field at android level (not in notification)
+          priority: isCallNotification ? 'HIGH' : 'NORMAL',
           notification: {
             icon: isCallNotification ? 'ic_call' : 'ic_notification',
             color: isCallNotification ? '#4CAF50' : '#FF6B6B',
             sound: isCallNotification ? 'call_ringtone' : 'default',
-            priority: isCallNotification ? 'high' : 'normal',
+            // CRITICAL FIX: Use notification_priority (valid values: PRIORITY_MIN, PRIORITY_LOW, PRIORITY_DEFAULT, PRIORITY_HIGH, PRIORITY_MAX)
+            notification_priority: isCallNotification ? 'PRIORITY_MAX' : 'PRIORITY_DEFAULT',
             visibility: 'public',
-            ...(isCallNotification && {
-              actions: [
-                {
-                  action: 'answer_call',
-                  title: 'Answer',
-                  icon: 'ic_call_answer'
-                },
-                {
-                  action: 'decline_call',
-                  title: 'Decline',
-                  icon: 'ic_call_decline'
-                }
-              ]
-            })
-          }
+            // Ensure channel matches the one created in MainActivity
+            channel_id: isCallNotification ? 'call_notifications' : 'default_notifications',
+            // CRITICAL FIX: Include caller name in Android notification title and body
+            title: notificationTitle,
+            body: notificationBody,
+            // Add caller image for Android notifications
+            ...(isCallNotification && data.caller_image_url && {
+              image: data.caller_image_url
+            }),
+          },
         },
         apns: {
           payload: {
@@ -143,16 +229,32 @@ serve(async (req) => {
               category: isCallNotification ? 'CALL_CATEGORY' : undefined,
               'mutable-content': isCallNotification ? 1 : 0,
               alert: {
-                title: title,
-                body: body,
+                title: notificationTitle,
+                body: notificationBody,
                 'launch-image': isCallNotification ? 'call_background.png' : undefined
               }
-            }
+            },
+            // CRITICAL FIX: Add caller image for iOS notifications
+            ...(isCallNotification && data.caller_image_url && {
+              caller_image_url: data.caller_image_url
+            }),
+            // CRITICAL FIX: Add call-specific data for iOS
+            ...(isCallNotification && {
+              call_id: data.call_id || '',
+              caller_id: data.caller_id || '',
+              caller_name: data.caller_name || '',
+              call_type: data.call_type || 'audio',
+              match_id: data.match_id || '',
+              action: 'incoming_call'
+            })
           }
         }
       }
     }
     
+    console.log('📱 PUSH: FCM message structure:', JSON.stringify(message, null, 2));
+    
+    console.log('📱 PUSH: Sending FCM request to:', fcmUrl);
     const response = await fetch(fcmUrl, {
       method: 'POST',
       headers: {
@@ -162,11 +264,14 @@ serve(async (req) => {
       body: JSON.stringify(message),
     })
 
+    console.log('📱 PUSH: FCM response status:', response.status);
+    console.log('📱 PUSH: FCM response headers:', Object.fromEntries(response.headers.entries()));
+
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('FCM Error:', errorText)
+      console.error('❌ PUSH: FCM Error:', errorText)
       return new Response(
-        JSON.stringify({ error: 'Failed to send notification' }),
+        JSON.stringify({ error: 'Failed to send notification', details: errorText }),
         { 
           status: 500, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -175,7 +280,7 @@ serve(async (req) => {
     }
 
     const result = await response.json()
-    console.log('Notification sent successfully:', result)
+    console.log('✅ PUSH: Notification sent successfully:', result)
 
     return new Response(
       JSON.stringify({ 

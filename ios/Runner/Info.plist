@@ -22,10 +22,6 @@
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
-	<!-- Removed placeholder Facebook URL scheme. Add real scheme later if needed. -->
-	<key>CFBundleVersion</key>
-	<string>$(FLUTTER_BUILD_NUMBER)</string>
-	<!-- URL Types for OAuth redirects -->
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -37,30 +33,28 @@
 			</array>
 		</dict>
 	</array>
-	<!-- Removed placeholder Facebook keys. -->
+	<key>CFBundleVersion</key>
+	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-3940256099942544~3347511713</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>LoveBug needs camera access to take photos in chat and for your profile.</string>
-	<key>NSLocationAlwaysUsageDescription</key>
-	<string>LoveBug needs location access to show you nearby profiles and help you find matches in your area.</string>
+	<string>LoveBug needs camera access for video calls and to take photos in chat and for your profile.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>LoveBug needs location access to show you nearby profiles and help you find matches in your area.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
 	<string>LoveBug needs location access to show you nearby profiles and help you find matches in your area.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>LoveBug needs location access to show you nearby profiles and help you find matches in your area.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>LoveBug needs photo library access to select photos for chat and your profile.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>LoveBug needs microphone access for video and audio calls with your matches.</string>
-	<key>NSCameraUsageDescription</key>
-	<string>LoveBug needs camera access for video calls and to take photos in chat and for your profile.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>LoveBug needs photo library access to select photos for chat and your profile.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>
 	<array>
-		<string>voip</string>
 		<string>audio</string>
 	</array>
 	<key>UILaunchStoryboardName</key>

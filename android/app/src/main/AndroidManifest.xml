@@ -18,6 +18,9 @@
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    
     <application
         android:label="LoveBug"
         android:name="${applicationName}"
@@ -54,6 +57,24 @@
             </intent-filter>
         </activity>
         
+        <!-- Custom Firebase Messaging Service -->
+        <service
+            android:name=".MyFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        
+        <!-- Receiver for call notification actions -->
+        <receiver android:name=".CallActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="ACCEPT_CALL" />
+                <action android:name="DECLINE_CALL" />
+            </intent-filter>
+        </receiver>
+        
         <!-- UCrop Activity for image cropping -->
         <activity
             android:name="com.yalantis.ucrop.UCropActivity"
@@ -65,6 +86,17 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+            
+        <!-- Firebase Cloud Messaging default notification settings -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notification" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification_color" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="default_notifications" />
             
         <!-- Google Mobile Ads App ID -->
         <meta-data

@@ -105,10 +105,13 @@ class CallController extends GetxController {
       await SupabaseService.client.from('call_sessions').insert(callSession.toJson());
 
       // CRITICAL FIX: Use caller's image (not receiver's) so push notification shows correct image
+      // Get caller's name from profile (reuse the callerProfile from above)
+      final callerName = callerProfile?['name'] ?? 'Unknown';
+      
       // Create call payload (roomId == callId, notificationId == callId)
       final payload = CallPayload(
         userId: currentUserId,
-        name: SupabaseService.currentUser?.userMetadata?['name'] ?? 'Unknown',
+        name: callerName,
         username: receiverName,
         imageUrl: callerImageUrl, // CRITICAL FIX: Use caller's image for push notification
         fcmToken: receiverFcmToken,
@@ -161,9 +164,13 @@ class CallController extends GetxController {
 
       // Send incoming call notification using our unified system
       print('📱 PUSH: Sending notification via PushNotificationService...');
+      // Resolve caller's display name from profile if missing
+      final currentProfile = await SupabaseService.getProfile(payload.userId ?? '');
+      final resolvedCallerName = payload.name ?? (currentProfile?['name'] ?? 'Someone');
+
       await PushNotificationService.sendIncomingCallNotification(
         userId: receiverId,
-        callerName: payload.name ?? 'Unknown',
+        callerName: resolvedCallerName,
         callId: payload.webrtcRoomId ?? '',
         callType: callTypeString, // CRITICAL FIX: Ensure correct call type
         callerImageUrl: payload.imageUrl, // CRITICAL FIX: Include caller image

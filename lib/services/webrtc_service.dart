@@ -1,15 +1,19 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' as webrtc;
 import 'package:get/get.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:lovebug/services/supabase_service.dart';
 import 'package:lovebug/models/call_models.dart';
 import 'package:lovebug/services/call_debug_service.dart';
 import 'package:lovebug/services/push_notification_service.dart';
 import 'package:lovebug/services/audio_recording_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
+import 'package:lovebug/services/notification_clearing_service.dart';
 
 class WebRTCService extends GetxController {
   static WebRTCService get instance => Get.find<WebRTCService>();
@@ -44,6 +48,8 @@ class WebRTCService extends GetxController {
   Timer? _iceConnectionTimeout;
   Timer? _iceQuickFallbackTimer; // quick restart timer when stuck in checking
   Timer? _noAnswerTimeout; // auto-cancel if no answer within window
+  Timer? _androidRetryTimer; // Android-specific retry timer
+  int _androidRetryCount = 0; // Track Android retry attempts
 
   // Flags to guard duplicate operations
   bool _answerApplied = false;
@@ -74,18 +80,13 @@ class WebRTCService extends GetxController {
   // Optimized for iOS to Android compatibility
   final Map<String, dynamic> _webrtcConfiguration = {
     'iceServers': [
-      // Google STUN servers for NAT discovery
+      // STUN servers for NAT discovery (reduced to 3 for better performance)
       {'urls': 'stun:stun.l.google.com:19302'},
       {'urls': 'stun:stun1.l.google.com:19302'},
-      {'urls': 'stun:stun2.l.google.com:19302'},
-      // Additional STUN servers for better connectivity
-      {'urls': 'stun:stun3.l.google.com:19302'},
-      {'urls': 'stun:stun4.l.google.com:19302'},
       {'urls': 'stun:stun.cloudflare.com:3478'},
-      {'urls': 'stun:global.stun.twilio.com:3478'},
-      {'urls': 'stun:stun.stunprotocol.org:3478'},
       // Free TURN server for relay when direct connection fails
       // NOTE: For production, replace with your own TURN server (Coturn/Twilio/Xirsys)
+      // Using multiple ports/protocols for redundancy
       {
         'urls': 'turn:openrelay.metered.ca:80',
         'username': 'openrelayproject',
@@ -105,7 +106,7 @@ class WebRTCService extends GetxController {
     'sdpSemantics': 'unified-plan',
     'iceTransportPolicy': 'all', // Use all ICE candidates (host, srflx, relay)
     'iceCandidatePoolSize': 10, // Pre-gather ICE candidates for faster connection
-    'bundlePolicy': 'max-bundle', // Bundle audio and video for better performance
+    'bundlePolicy': 'balanced', // More compatible bundle policy
     'rtcpMuxPolicy': 'require', // Require RTCP multiplexing
   };
 
@@ -204,6 +205,9 @@ class WebRTCService extends GetxController {
       );
       
       _updateCallState(CallState.connecting);
+      
+      // CRITICAL FIX: Pre-request permissions before initializing stream
+      await _preRequestPermissions(callType);
       
       // Initialize local stream
       await _initializeLocalStream(callType);
@@ -307,6 +311,41 @@ class WebRTCService extends GetxController {
     }
   }
 
+  /// Pre-request permissions before initializing the call
+  /// This prevents permission dialogs from interrupting the call flow
+  Future<void> _preRequestPermissions(CallType callType) async {
+    try {
+      print('🔐 DEBUG: Pre-requesting permissions for ${callType.name} call...');
+      
+      // Request microphone permission (required for both audio and video calls)
+      final micStatus = await Permission.microphone.status;
+      if (!micStatus.isGranted) {
+        print('🔐 DEBUG: Requesting microphone permission...');
+        final micResult = await Permission.microphone.request();
+        print('🔐 DEBUG: Microphone permission result: $micResult');
+      } else {
+        print('🔐 DEBUG: Microphone permission already granted');
+      }
+      
+      // Request camera permission (only for video calls)
+      if (callType == CallType.video) {
+        final cameraStatus = await Permission.camera.status;
+        if (!cameraStatus.isGranted) {
+          print('🔐 DEBUG: Requesting camera permission...');
+          final cameraResult = await Permission.camera.request();
+          print('🔐 DEBUG: Camera permission result: $cameraResult');
+        } else {
+          print('🔐 DEBUG: Camera permission already granted');
+        }
+      }
+      
+      print('🔐 DEBUG: Permission pre-request completed');
+    } catch (e) {
+      print('❌ DEBUG: Error pre-requesting permissions: $e');
+      // Don't fail the call for permission errors - let it continue
+    }
+  }
+
   Future<void> _initializeLocalStream(CallType callType) async {
     try {
       // Platform-optimized constraints for cross-platform compatibility
@@ -318,19 +357,23 @@ class WebRTCService extends GetxController {
       // Don't let permission dialog reset the call state
       try {
         _localStream = await webrtc.navigator.mediaDevices.getUserMedia(constraints);
+        print('✅ Local stream obtained successfully');
       } catch (permissionError) {
         print('❌ Permission error during getUserMedia: $permissionError');
         
         // Handle permission errors without resetting call state
         if (permissionError.toString().contains('Permission denied') || 
-            permissionError.toString().contains('NotAllowedError')) {
+            permissionError.toString().contains('NotAllowedError') ||
+            permissionError.toString().contains('getUserMedia')) {
           print('📞 Permission denied - call will continue but without media');
+          print('📞 Call state remains: ${_callState.value}');
           // Don't reset call state - let the call continue
           // The UI can handle showing permission denied message
           return;
         } else {
           // For other errors, still don't reset call state immediately
           print('📞 Media access error - continuing call without local stream');
+          print('📞 Call state remains: ${_callState.value}');
           return;
         }
       }
@@ -357,42 +400,31 @@ class WebRTCService extends GetxController {
         }
         print('🎯 ===========================================');
 
-        // 🔧 CRITICAL FIX: Default audio route: speaker for VIDEO calls (all OS). Do it early.
+        // 🔧 CRITICAL FIX: Set appropriate audio route based on call type
         if (callType == CallType.video) {
+          // VIDEO CALLS: Speaker by default (all platforms)
           try {
             Helper.setSpeakerphoneOn(true);
             _isSpeakerEnabled.value = true;
-            print('🔊 Defaulting audio to SPEAKER for video call');
+            print('🔊 VIDEO CALL: Defaulting audio to SPEAKER (all platforms)');
             
-            // 🔧 CRITICAL FIX: Force speaker multiple times to ensure it sticks on iOS
-            Future.delayed(Duration(milliseconds: 200), () {
-              try {
-                Helper.setSpeakerphoneOn(true);
-                print('✅ Speakerphone re-enabled after 200ms');
-              } catch (e) {
-                print('⚠️ Could not re-enable speakerphone at 200ms: $e');
-              }
-            });
-            
-            Future.delayed(Duration(milliseconds: 800), () {
-              try {
-                Helper.setSpeakerphoneOn(true);
-                print('✅ Speakerphone re-enabled after 800ms');
-              } catch (e) {
-                print('⚠️ Could not re-enable speakerphone at 800ms: $e');
-              }
-            });
-            
-            Future.delayed(Duration(milliseconds: 1500), () {
-              try {
-                Helper.setSpeakerphoneOn(true);
-                print('✅ Speakerphone re-enabled after 1500ms');
-              } catch (e) {
-                print('⚠️ Could not re-enable speakerphone at 1500ms: $e');
-              }
-            });
+            // 🔧 AGGRESSIVE FIX: Force speaker multiple times to ensure it sticks on iOS
+            // iOS audio routing is very fragile and gets reset frequently
+            _enforceSpeakerForVideoCall();
           } catch (e) {
-            print('⚠️ Could not enable speakerphone by default: $e');
+            print('⚠️ Could not enable speakerphone for video call: $e');
+          }
+        } else if (callType == CallType.audio) {
+          // AUDIO CALLS: Earpiece by default (all platforms)
+          try {
+            Helper.setSpeakerphoneOn(false);
+            _isSpeakerEnabled.value = false;
+            print('📞 AUDIO CALL: Defaulting audio to EARPIECE (all platforms)');
+            
+            // For audio calls, we don't need aggressive enforcement
+            // Users can manually toggle to speaker if they want
+          } catch (e) {
+            print('⚠️ Could not set earpiece for audio call: $e');
           }
         }
       }
@@ -471,61 +503,57 @@ class WebRTCService extends GetxController {
 
       // CRITICAL FIX: Check if roomData is null OR if offer is null
       if (roomData == null || roomData['offer'] == null) {
-        print('⚠️ Join failed due to 0 rows (no offer). Acting as CALLER now...');
-        print('📞 This usually means the CALLER hasn\'t created the room yet.');
-        print('📞 Waiting 2 seconds before creating room as fallback...');
-        
-        // Wait a bit for the caller to create the room
-        await Future.delayed(Duration(seconds: 2));
-        
-        // Try fetching again
-        final retryRoomData = await SupabaseService.client
-            .from('webrtc_rooms')
-            .select('offer')
-            .eq('room_id', roomId)
-            .maybeSingle();
-        
-        // If still no offer, THEN switch to caller mode
-        if (retryRoomData == null || retryRoomData['offer'] == null) {
-          print('⚠️ Still no offer after retry. Switching to CALLER mode...');
-          _isInitiator = true;
-          // Ensure we have a live RTCPeerConnection before creating room
-          if (_peerConnection == null) {
-            print('📞 Peer connection is null. Recreating before creating room...');
-            _peerConnection = await createPeerConnection(_webrtcConfiguration);
-            _registerPeerConnectionListeners();
-            _localStream?.getTracks().forEach((track) {
-              _peerConnection?.addTrack(track, _localStream!);
-            });
+        print('⚠️ No offer found yet. Polling for offer before switching to CALLER...');
+        // Poll up to 3 times (2s interval) for the caller to write the offer
+        final int maxTries = 3;
+        Map<String, dynamic>? retryRoomData;
+        for (int i = 0; i < maxTries; i++) {
+          await Future.delayed(const Duration(seconds: 2));
+          retryRoomData = await SupabaseService.client
+              .from('webrtc_rooms')
+              .select('offer')
+              .eq('room_id', roomId)
+              .maybeSingle();
+          if (retryRoomData != null && retryRoomData['offer'] != null) {
+            break;
           }
+          print('⌛ Waiting for offer... attempt ${i + 1}/$maxTries');
+        }
+
+        if (retryRoomData == null || retryRoomData['offer'] == null) {
+          print('⚠️ Still no offer after retries. Switching to CALLER mode...');
+          _isInitiator = true;
+          // CRITICAL FIX: Always recreate peer connection when switching modes
+          print('📞 Recreating peer connection for caller mode...');
+          await _peerConnection?.close();
+          _peerConnection = await createPeerConnection(_webrtcConfiguration);
+          _registerPeerConnectionListeners();
+          _localStream?.getTracks().forEach((track) {
+            _peerConnection?.addTrack(track, _localStream!);
+          });
           await _createRoom(roomId);
           return;
         } else {
           // Got the offer on retry, continue with receiver flow
-          print('✅ Got offer on retry, continuing as RECEIVER...');
+          print('✅ Got offer during polling, continuing as RECEIVER...');
           final offer = RTCSessionDescription(
             retryRoomData['offer']['sdp'],
             retryRoomData['offer']['type'],
           );
-          
           print('📞 Got offer from database: ${offer.type}');
           print('📞 Setting remote description (offer)...');
           await _peerConnection!.setRemoteDescription(offer);
           print('✅ Remote description (offer) set successfully');
           _readyToAddRemoteCandidates = true;
           _scheduleFlushQueuedIceCandidates();
-          
           // Handle Android-specific connection issues for receivers
           _handleAndroidConnectionIssues();
-          
-          // Continue with answer creation below (code will continue after this block)
+          // Continue with answer creation below
           final answer = await _peerConnection!.createAnswer({
             'offerToReceiveAudio': true,
             'offerToReceiveVideo': true,
           });
-          
           await _peerConnection!.setLocalDescription(answer);
-          
           print('📞 Answer created: ${answer.type}');
           print('📞 Storing answer in Supabase...');
           await SupabaseService.client
@@ -533,7 +561,6 @@ class WebRTCService extends GetxController {
               .update({'answer': {'sdp': answer.sdp, 'type': answer.type}})
               .eq('room_id', roomId);
           print('✅ Answer stored successfully');
-          
           // Listen for ICE candidates
           _listenForIceCandidates(roomId);
           return;
@@ -606,6 +633,9 @@ class WebRTCService extends GetxController {
       
       // CRITICAL FIX: Listen for call state changes (disconnection detection)
       _listenForCallStateChanges(roomId);
+      
+      // Start receiver timeout (30 seconds to answer)
+      _startReceiverTimeout();
       
     } catch (e) {
       // If we failed to join because there are 0 rows (PGRST116), try acting as caller
@@ -1006,7 +1036,14 @@ class WebRTCService extends GetxController {
     final oldState = _callState.value;
     _callState.value = state;
     
-    print('📞 Call state changed: ${oldState.name} -> ${state.name}');
+    print('📞 ===========================================');
+    print('📞 CALL STATE CHANGE: ${oldState.name} -> ${state.name}');
+    print('📞 Call ID: ${_currentCallId ?? 'unknown'}');
+    print('📞 Match ID: ${_currentMatchId ?? 'unknown'}');
+    print('📞 Is Initiator: $_isInitiator');
+    print('📞 Is Ending: $_isEnding');
+    print('📞 Is Initialized: $_isInitialized');
+    print('📞 ===========================================');
     
     // Log state change
     CallDebugService.logCallStateChange(
@@ -1014,6 +1051,87 @@ class WebRTCService extends GetxController {
       fromState: oldState.name,
       toState: state.name,
     );
+    
+    // 🔧 CRITICAL FIX: Enforce appropriate audio route when call becomes connected
+    if (state == CallState.connected) {
+      // Check if this is a video call (has video enabled)
+      if (_isVideoEnabled.value) {
+        print('🍎 Video call connected - enforcing speaker');
+        _forceSpeakerOn();
+        
+        // Additional enforcement after a short delay
+        Future.delayed(Duration(milliseconds: 500), () {
+          if (_callState.value == CallState.connected && _isVideoEnabled.value) {
+            _forceSpeakerOn();
+            print('🍎 Post-connection speaker enforcement for video call');
+          }
+        });
+      } else {
+        // Audio call - ensure earpiece is used
+        print('📞 Audio call connected - ensuring earpiece');
+        _forceEarpieceForAudioCall();
+      }
+    }
+  }
+
+  
+
+  /// AGGRESSIVE FIX: Enforce speaker for video calls on iOS
+  /// iOS audio routing is very fragile and gets reset frequently
+  void _enforceSpeakerForVideoCall() {
+    if (!Platform.isIOS) return;
+    
+    print('🍎 AGGRESSIVE FIX: Starting persistent speaker enforcement for iOS VIDEO call');
+    
+    // Immediate enforcement
+    _forceSpeakerOn();
+    
+    // Multiple delayed enforcements to catch iOS audio routing resets
+    final delays = [100, 200, 500, 800, 1200, 2000, 3000, 5000, 8000, 12000];
+    
+    for (int i = 0; i < delays.length; i++) {
+      Future.delayed(Duration(milliseconds: delays[i]), () {
+        // Only enforce for video calls
+        if (_callState.value == CallState.connected && _isVideoEnabled.value) {
+          _forceSpeakerOn();
+          print('🍎 Video call speaker enforcement #${i + 1} at ${delays[i]}ms');
+        }
+      });
+    }
+    
+    // Continuous enforcement every 5 seconds while VIDEO call is active
+    Timer.periodic(Duration(seconds: 5), (timer) {
+      if (_callState.value != CallState.connected || !_isVideoEnabled.value) {
+        timer.cancel();
+        print('🍎 Stopping continuous speaker enforcement - video call ended');
+        return;
+      }
+      
+      _forceSpeakerOn();
+      print('🍎 Continuous speaker enforcement for video call (every 5s)');
+    });
+  }
+  
+  /// Force speaker on with error handling
+  void _forceSpeakerOn() {
+    try {
+      Helper.setSpeakerphoneOn(true);
+      _isSpeakerEnabled.value = true;
+      print('🔊 Speaker forced ON');
+    } catch (e) {
+      print('⚠️ Failed to force speaker on: $e');
+    }
+  }
+  
+  /// Force earpiece for audio calls
+  void _forceEarpieceForAudioCall() {
+    try {
+      Helper.setSpeakerphoneOn(false);
+      _isSpeakerEnabled.value = false;
+      print('📞 Earpiece forced ON for audio call');
+    } catch (e) {
+      print('⚠️ Failed to force earpiece on: $e');
+    }
   }
 
   // Call control methods
@@ -1041,6 +1159,21 @@ class WebRTCService extends GetxController {
       print('❌ Error toggling speaker: $e');
     }
     print('📞 Speaker toggled: ${_isSpeakerEnabled.value}');
+    
+    // 🔧 CRITICAL FIX: Enforce appropriate audio route based on call type
+    if (_callState.value == CallState.connected) {
+      if (_isVideoEnabled.value) {
+        // VIDEO CALL: Always enforce speaker (all platforms)
+        if (!_isSpeakerEnabled.value) {
+          print('🔊 Video Call: Forcing speaker back ON (video calls must use speaker)');
+          _isSpeakerEnabled.value = true;
+          Helper.setSpeakerphoneOn(true);
+        }
+      } else {
+        // AUDIO CALL: Allow user to toggle freely
+        print('📞 Audio Call: Speaker toggle allowed - user preference respected');
+      }
+    }
   }
 
   void switchCamera() {
@@ -1068,6 +1201,7 @@ class WebRTCService extends GetxController {
       _relayWarnTimer?.cancel();
       _iceQuickFallbackTimer?.cancel();
       _queuedIceFlushTimer?.cancel();
+      _androidRetryTimer?.cancel();
       
       // CRITICAL FIX: Cancel all subscriptions immediately to prevent further callbacks
       await _answerSubscription?.cancel();
@@ -1138,9 +1272,11 @@ class WebRTCService extends GetxController {
       _lastDbState = null;
       
       // Update call_sessions state after cleanup
+      final isConnecting = _callState.value == CallState.connecting || _callState.value == CallState.initial;
+      final terminationState = isConnecting ? 'canceled' : 'ended';
+      
       try {
-        final isConnecting = _callState.value == CallState.connecting || _callState.value == CallState.initial;
-        _updateDbStateSafe(isConnecting ? 'canceled' : 'disconnected');
+        _updateDbStateSafe(terminationState);
       } catch (_) {}
 
       // CRITICAL FIX: Clean up room data to prevent duplicate key errors on next call
@@ -1148,7 +1284,30 @@ class WebRTCService extends GetxController {
         try {
           print('🧹 Cleaning up WebRTC room data for: $_currentCallId');
           
-          // CRITICAL FIX: Update call state to notify other participant
+          // CRITICAL FIX: Clear Android notifications when call ends
+          if (Platform.isAndroid) {
+            try {
+              // Clear the call notification
+              final MethodChannel channel = MethodChannel('com.lovebug.app/notification');
+              await channel.invokeMethod('clearCallNotification');
+              print('✅ Android call notification cleared');
+            } catch (e) {
+              print('⚠️ Error clearing Android notification: $e');
+            }
+          }
+          
+          // CRITICAL FIX: Update BOTH tables to notify other participant
+          // Update call_sessions (watched by real-time listener)
+          await SupabaseService.client
+              .from('call_sessions')
+              .update({
+                'state': terminationState,
+                'ended_at': DateTime.now().toIso8601String(),
+              })
+              .eq('id', _currentCallId!);
+          print('✅ Call session state updated to $terminationState');
+          
+          // Update webrtc_rooms (for cleanup)
           await SupabaseService.client
               .from('webrtc_rooms')
               .update({
@@ -1193,8 +1352,11 @@ class WebRTCService extends GetxController {
       }
 
       // CRITICAL FIX: Update state and call callbacks AFTER cleanup
-      _updateCallState(CallState.disconnected);
+      _updateCallState(CallState.initial); // Reset to initial state to clear UI indicators
       onCallEnded?.call();
+      
+      // CRITICAL FIX: Force reset call state to prevent stuck states
+      await forceResetCallState();
       
       // CRITICAL FIX: Reset ALL state flags after cleanup to prevent race conditions
       _isEnding = false;
@@ -1256,20 +1418,77 @@ class WebRTCService extends GetxController {
         final state = (row['state'] ?? '').toString();
         if (state.isEmpty) return;
         print('📞 call_sessions state change: $state');
-        if (state == 'declined' || state == 'canceled' || state == 'ended' || state == 'failed' || state == 'disconnected') {
+        if (state == 'declined' || state == 'canceled' || state == 'timeout' || state == 'ended' || state == 'failed' || state == 'disconnected') {
+          // CRITICAL FIX: Get caller name from profiles table (caller_name doesn't exist in call_sessions)
+          final receiverId = row['receiver_id']?.toString();
+          final callerId = row['caller_id']?.toString();
+          
+          // Local clearing as backup (immediate, doesn't need caller name)
+          if (Platform.isAndroid) {
+            try {
+              final MethodChannel channel = MethodChannel('com.lovebug.app/notification');
+              channel.invokeMethod('clearCallNotification');
+              print('✅ Android notification cleared locally due to state change: $state');
+            } catch (e) {
+              print('⚠️ Error clearing Android notification locally: $e');
+            }
+          }
+          
+          if (Platform.isIOS) {
+            try {
+              FlutterCallkitIncoming.endCall(callId);
+              print('✅ iOS CallKit cleared locally due to state change: $state');
+            } catch (e) {
+              print('⚠️ Error clearing iOS CallKit locally: $e');
+            }
+          }
+          
           // If remote signaled termination, end locally
           if (_callState.value != CallState.disconnected && _callState.value != CallState.failed) {
             print('📞 Terminating due to call_sessions state=$state');
-            
-            // Send appropriate notification based on state
-            if (state == 'declined') {
-              _sendCallRejectedNotification();
-            } else if (state == 'canceled') {
-              _sendMissedCallNotification();
-            }
-            
             endCall();
           }
+          
+          // Fetch caller name asynchronously and clear notifications (fire and forget)
+          Future.microtask(() async {
+            String callerName = 'Unknown';
+            if (callerId != null) {
+              try {
+                final callerProfile = await SupabaseService.getProfile(callerId);
+                callerName = callerProfile?['name']?.toString() ?? 'Unknown';
+              } catch (e) {
+                print('⚠️ Error fetching caller profile in webrtc_service: $e');
+              }
+            }
+            
+            // Clear notifications for the receiver
+            if (receiverId != null) {
+              NotificationClearingService.clearCallNotification(
+                userId: receiverId,
+                callId: callId,
+                callerName: callerName,
+              );
+            }
+            
+            // Also clear for caller if they're different
+            if (callerId != null && callerId != receiverId) {
+              NotificationClearingService.clearCallNotification(
+                userId: callerId,
+                callId: callId,
+                callerName: callerName,
+              );
+            }
+            
+            // Send missed-call notification for canceled timeouts
+            if (state == 'canceled' && receiverId != null) {
+              NotificationClearingService.sendMissedCallNotification(
+                userId: receiverId,
+                callId: callId,
+                callerName: callerName,
+                callType: row['call_type']?.toString() ?? 'audio',
+              );
+            }
+          });
         }
       });
     } catch (e) {
@@ -1280,22 +1499,51 @@ class WebRTCService extends GetxController {
   void _updateDbStateSafe(String state) {
     final callId = _currentCallId;
     if (callId == null) return;
-    if (_lastDbState == state) {
+    // Normalize state to comply with DB constraint
+    final normalized = _normalizeDbState(state);
+    if (_lastDbState == normalized) {
       // Avoid spamming identical states
       return;
     }
-    _lastDbState = state;
+    _lastDbState = normalized;
+    
+    // Determine if this is a terminal state (call has ended)
+    final isTerminalState = _isTerminalState(normalized);
     
     // Fire and forget
     SupabaseService.client
         .from('call_sessions')
         .update({
-          'state': state,
-          if (state != 'connected') 'ended_at': DateTime.now().toIso8601String(),
+          'state': normalized,
+          if (isTerminalState) 'ended_at': DateTime.now().toIso8601String(),
         })
         .eq('id', callId)
-        .then((_) => print('✅ Call state updated in DB: $state'))
+        .then((_) => print('✅ Call state updated in DB: $normalized'))
         .catchError((e) => print('❌ Error updating call state: $e'));
+  }
+
+  /// Normalize legacy/internal states to DB-compliant states
+  /// 
+  /// Allowed DB states (after migration):
+  /// - Active: initial, ringing, connecting, connected
+  /// - Terminal: ended, declined, canceled, timeout
+  /// - Legacy (deprecated): disconnected, failed
+  String _normalizeDbState(String state) {
+    switch (state) {
+      case 'disconnected': // Legacy state from old code
+      case 'failed':       // Legacy state from old code
+        return 'ended';    // Normalize to standard terminal state
+      default:
+        return state;      // Use state as-is (initial, ringing, connecting, connected, ended, declined, canceled, timeout)
+    }
+  }
+
+  /// Check if state represents a terminal call state (call has ended)
+  bool _isTerminalState(String state) {
+    return state == 'ended' || 
+           state == 'declined' || 
+           state == 'canceled' || 
+           state == 'timeout';
   }
 
   /// Start ICE connection timeout
@@ -1312,13 +1560,51 @@ class WebRTCService extends GetxController {
     _noAnswerTimeout?.cancel();
     // Only relevant for initiator while connecting
     if (!_isInitiator) return;
+    
+    print('⏰ DEBUG: Starting 30-second timeout for caller (no answer)');
     _noAnswerTimeout = Timer(const Duration(seconds: 30), () async {
+      print('⏰ DEBUG: 30-second timeout triggered for caller');
+      print('⏰ DEBUG: Current call state: ${_callState.value}');
+      print('⏰ DEBUG: Answer applied: $_answerApplied');
+      
       if (_callState.value == CallState.connecting && !_answerApplied) {
         print('⏰ No answer within 30s – auto-canceling invite');
         try {
-          _updateDbStateSafe('canceled');
-        } catch (_) {}
+          _updateDbStateSafe('timeout');
+        } catch (e) {
+          print('⚠️ Failed to update DB state to timeout: $e');
+          // Still proceed with endCall() since local cleanup is critical
+        }
         await endCall();
+      } else {
+        print('⏰ DEBUG: Timeout ignored - call state: ${_callState.value}, answer applied: $_answerApplied');
+      }
+    });
+  }
+
+  // Auto-cancel if receiver doesn't answer within 30 seconds
+  void _startReceiverTimeout() {
+    _noAnswerTimeout?.cancel();
+    // Only relevant for receiver while connecting
+    if (_isInitiator) return;
+    
+    print('⏰ DEBUG: Starting 30-second timeout for receiver (not answering)');
+    _noAnswerTimeout = Timer(const Duration(seconds: 30), () async {
+      print('⏰ DEBUG: 30-second timeout triggered for receiver');
+      print('⏰ DEBUG: Current call state: ${_callState.value}');
+      print('⏰ DEBUG: Answer applied: $_answerApplied');
+      
+      if (_callState.value == CallState.connecting && !_answerApplied) {
+        print('⏰ Receiver timeout - call not answered within 30s');
+        try {
+          _updateDbStateSafe('timeout');
+        } catch (e) {
+          print('⚠️ Failed to update DB state to timeout: $e');
+          // Still proceed with endCall() since local cleanup is critical
+        }
+        await endCall();
+      } else {
+        print('⏰ DEBUG: Receiver timeout ignored - call state: ${_callState.value}, answer applied: $_answerApplied');
       }
     });
   }
@@ -1346,16 +1632,31 @@ class WebRTCService extends GetxController {
     }
   }
 
-  /// Schedule additional retry for Android receivers
+  /// Schedule additional retry for Android receivers with retry limit
   void _scheduleAndroidRetry() {
-    Timer(Duration(seconds: 5), () {
-      if (_peerConnection != null && _callState.value == CallState.connecting) {
-        print('🔄 Android retry: Attempting ICE restart again...');
-        try {
-          _peerConnection!.restartIce();
-        } catch (e) {
-          print('❌ Android retry failed: $e');
-        }
+    // Cancel any existing retry timer
+    _androidRetryTimer?.cancel();
+    _androidRetryCount = 0;
+    
+    print('🔄 Starting Android retry mechanism (max 3 attempts)');
+    
+    _androidRetryTimer = Timer.periodic(Duration(seconds: 5), (timer) {
+      if (_peerConnection == null || 
+          _callState.value != CallState.connecting ||
+          _androidRetryCount >= 3) {
+        print('🔄 Android retry stopped: ${_androidRetryCount >= 3 ? "max attempts reached" : "call state changed"}');
+        timer.cancel();
+        return;
+      }
+      
+      _androidRetryCount++;
+      print('🔄 Android retry attempt ${_androidRetryCount}/3: Attempting ICE restart...');
+      
+      try {
+        _peerConnection!.restartIce();
+      } catch (e) {
+        print('❌ Android retry ${_androidRetryCount} failed: $e');
+        timer.cancel();
       }
     });
   }
@@ -1550,10 +1851,21 @@ class WebRTCService extends GetxController {
       _hasRelayCandidate = false;
       _lastDbState = null;
       
+      // CRITICAL FIX: Force update call state to initial to clear UI
+      _updateCallState(CallState.initial);
+      
       print('✅ WebRTCService state reset completed');
     } catch (e) {
       print('❌ Error resetting WebRTCService state: $e');
     }
+  }
+
+  /// CRITICAL FIX: Force reset call state (public method for external calls)
+  Future<void> forceResetCallState() async {
+    print('📞 FORCE RESET: Resetting call state...');
+    await _resetServiceState();
+    _updateCallState(CallState.initial);
+    print('✅ FORCE RESET: Call state reset completed');
   }
 
   @override
@@ -1704,5 +2016,110 @@ class WebRTCService extends GetxController {
       print('Error getting other participant ID: $e');
       return null;
     }
+  }
+
+  /// NEW METHOD: Receiver join with offer polling (iOS CallKit integration)
+  Future<void> receiverJoinWithPolling({
+    required String callId,
+    required String callType,
+    required String matchId,
+  }) async {
+    print('🍎 ===========================================');
+    print('🍎 RECEIVER JOIN WITH POLLING');
+    print('🍎 Call ID: $callId');
+    print('🍎 ===========================================');
+    
+    try {
+      // Poll for offer (2s × 3 attempts = 6s max)
+      final offer = await _pollForOffer(callId, maxAttempts: 3, interval: 2000);
+      
+      if (offer != null) {
+        print('✅ Offer found after polling - proceeding to join...');
+        
+        // Initialize as receiver with the offer
+        await initializeCall(
+          roomId: callId,
+          callType: callType == 'video' ? CallType.video : CallType.audio,
+          matchId: matchId,
+          isBffMatch: false,
+          isInitiator: false,
+        );
+        
+        // Join with the polled offer
+        await _joinRoom(callId);
+        
+      } else {
+        print('⚠️ No offer found after 6s - flipping to caller mode...');
+        
+        // Fallback: become caller
+        await initializeCall(
+          roomId: callId,
+          callType: callType == 'video' ? CallType.video : CallType.audio,
+          matchId: matchId,
+          isBffMatch: false,
+          isInitiator: true, // Flip to caller
+        );
+      }
+      
+    } catch (e) {
+      print('❌ Error in receiverJoinWithPolling: $e');
+      rethrow;
+    }
+  }
+  
+  Future<Map<String, dynamic>?> _pollForOffer(
+    String callId, {
+    int maxAttempts = 3,
+    int interval = 2000,
+  }) async {
+    print('🔍 Polling for offer - max attempts: $maxAttempts, interval: ${interval}ms');
+    
+    for (int i = 0; i < maxAttempts; i++) {
+      print('🔍 Poll attempt ${i + 1}/$maxAttempts...');
+      
+      try {
+        // FIX: Query webrtc_rooms table for offer, not call_sessions
+        final response = await SupabaseService.client
+            .from('webrtc_rooms')
+            .select('offer')
+            .eq('room_id', callId)
+            .maybeSingle();
+        
+        if (response != null && response['offer'] != null && response['offer'].toString().isNotEmpty) {
+          print('✅ Offer found on attempt ${i + 1}');
+          return response;
+        }
+        
+        // Check if call was cancelled/declined by querying call_sessions
+        final callStateResponse = await SupabaseService.client
+            .from('call_sessions')
+            .select('state')
+            .eq('id', callId)
+            .maybeSingle();
+        
+        if (callStateResponse != null) {
+          final state = callStateResponse['state'] ?? '';
+          if (state == 'declined' || state == 'canceled' || state == 'ended') {
+            print('⚠️ Call state is $state - stopping poll');
+            return null;
+          }
+        }
+        
+        print('⏳ No offer yet, waiting ${interval}ms...');
+        
+        if (i < maxAttempts - 1) {
+          await Future.delayed(Duration(milliseconds: interval));
+        }
+        
+      } catch (e) {
+        print('❌ Error polling for offer: $e');
+        if (i < maxAttempts - 1) {
+          await Future.delayed(Duration(milliseconds: interval));
+        }
+      }
+    }
+    
+    print('⚠️ No offer found after $maxAttempts attempts');
+    return null;
   }
 }

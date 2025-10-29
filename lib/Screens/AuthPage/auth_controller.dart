@@ -1,11 +1,14 @@
 import 'package:lovebug/global_data.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:io';
 import '../ProfileFormPage/multi_step_profile_form.dart';
 import '../BottomBarPage/bottombar_screen.dart';
 import '../../services/supabase_service.dart';
 import '../../services/analytics_service.dart';
+import '../../services/notification_service.dart';
 import 'email_code_verify_screen.dart';
 import 'auth_ui_screen.dart';
 import '../WelcomePage/welcome_screen.dart';
@@ -452,6 +455,27 @@ class AuthController extends GetxController {
     
     if (session != null) {
       print('✅ DEBUG: Session found, navigating to main app');
+      
+      // 🔔 CRITICAL FIX: Register FCM token after successful authentication
+      try {
+        await NotificationService.registerFCMToken();
+        print('✅ DEBUG: FCM token registration attempted after login');
+        
+        // iOS-specific: Retry FCM registration after a delay if it failed
+        if (Platform.isIOS) {
+          Future.delayed(Duration(seconds: 3), () async {
+            try {
+              print('🍎 DEBUG: Retrying FCM token registration for iOS...');
+              await NotificationService.registerFCMToken();
+              print('✅ DEBUG: iOS FCM token retry completed');
+            } catch (e) {
+              print('❌ DEBUG: iOS FCM token retry failed: $e');
+            }
+          });
+        }
+      } catch (e) {
+        print('❌ DEBUG: FCM token registration failed: $e');
+      }
       
       // Force navigation to main app
       Get.offAll(() => BottombarScreen());
