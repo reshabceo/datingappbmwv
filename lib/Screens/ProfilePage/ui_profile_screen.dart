@@ -137,7 +137,7 @@ class ProfileScreen extends StatelessWidget {
                                                ? themeController.bffPrimaryColor
                                                : themeController.lightPinkColor,
                                          ),
-                                        widthBox(8),
+                                        SizedBox(width: 12.w),
                                         Obx(() => controller.isPremium.value
                                             ? PremiumBadge(size: 12.sp, showText: true)
                                             : Container(
@@ -158,6 +158,7 @@ class ProfileScreen extends StatelessWidget {
                                               )),
                                        ],
                                      ),
+                                     SizedBox(height: 10.h),
                                      Row(
                                        children: [
                                          Icon(
@@ -167,7 +168,7 @@ class ProfileScreen extends StatelessWidget {
                                                : themeController.lightPinkColor,
                                            size: 14.sp,
                                          ),
-                                         widthBox(3),
+                                         SizedBox(width: 6.w),
                                          Flexible(
                                            child: TextConstant(
                                              fontSize: 12.sp,
@@ -176,7 +177,7 @@ class ProfileScreen extends StatelessWidget {
                                              color: themeController.whiteColor,
                                            ),
                                          ),
-                                         widthBox(4),
+                                         SizedBox(width: 12.w),
                                          // Location update button
                                          GestureDetector(
                                            onTap: () async {
@@ -244,7 +245,7 @@ class ProfileScreen extends StatelessWidget {
                                              size: 16.sp,
                                            ),
                                          ),
-                                         widthBox(8),
+                                         SizedBox(width: 12.w),
                                          // Verification badge integrated here
                                          _buildCompactVerificationBadge(controller, themeController),
                                        ],
@@ -988,106 +989,109 @@ class ProfileScreen extends StatelessWidget {
           fontWeight: FontWeight.bold,
           color: themeController.whiteColor,
         ),
-        Padding(
-          padding: EdgeInsets.only(top: 0),
+        Transform.translate(
+          offset: Offset(0, -100.h),
           child: ReorderableGridView.count(
-            crossAxisCount: 2,
-            childAspectRatio: 1.0,
-            crossAxisSpacing: 8.w,
-            mainAxisSpacing: 8.h,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            semanticChildCount: controller.myPhotos.length,
-            dragEnabled: true,
-            onReorder: (oldIndex, newIndex) async {
-              final moved = controller.myPhotos.removeAt(oldIndex);
-              controller.myPhotos.insert(newIndex, moved);
-              controller.myPhotos.refresh();
-              // Persist new order immediately so it survives hot reloads
-              await controller.updateProfile();
-            },
-            footer: [
-              GestureDetector(
-                onTap: () {
-                  controller.pickImageFromCamera(ImageSource.gallery);
-                },
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: discoverController.currentMode.value == 'bff'
-                          ? [
-                              themeController.bffPrimaryColor.withValues(alpha: 0.1),
-                              themeController.bffSecondaryColor.withValues(alpha: 0.05),
-                            ]
-                          : [
-                              themeController.lightPinkColor.withValues(alpha: 0.1),
-                              themeController.purpleColor.withValues(alpha: 0.05),
-                            ],
-                    ),
-                    border: Border.all(
+          crossAxisCount: 2,
+          childAspectRatio: 1.0,
+          crossAxisSpacing: 8.w,
+          mainAxisSpacing: 8.h,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          semanticChildCount: controller.myPhotos.length,
+          dragEnabled: true,
+          onReorder: (oldIndex, newIndex) async {
+            final moved = controller.myPhotos.removeAt(oldIndex);
+            controller.myPhotos.insert(newIndex, moved);
+            controller.myPhotos.refresh();
+            // Persist new order immediately so it survives hot reloads
+            await controller.updateProfile();
+          },
+          footer: [
+            GestureDetector(
+              onTap: () {
+                controller.pickImageFromCamera(ImageSource.gallery);
+              },
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: discoverController.currentMode.value == 'bff'
+                        ? [
+                            themeController.bffPrimaryColor.withValues(alpha: 0.1),
+                            themeController.bffSecondaryColor.withValues(alpha: 0.05),
+                          ]
+                        : [
+                            themeController.lightPinkColor.withValues(alpha: 0.1),
+                            themeController.purpleColor.withValues(alpha: 0.05),
+                          ],
+                  ),
+                  border: Border.all(
+                    color: discoverController.currentMode.value == 'bff'
+                        ? themeController.bffPrimaryColor.withValues(alpha: 0.3)
+                        : themeController.lightPinkColor.withValues(alpha: 0.3),
+                    width: 1.w,
+                  ),
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.add,
                       color: discoverController.currentMode.value == 'bff'
-                          ? themeController.bffPrimaryColor.withValues(alpha: 0.3)
-                          : themeController.lightPinkColor.withValues(alpha: 0.3),
-                      width: 1.w,
+                          ? themeController.bffPrimaryColor
+                          : themeController.lightPinkColor,
+                      size: 30.sp,
                     ),
-                    borderRadius: BorderRadius.circular(12.r),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.add,
-                        color: discoverController.currentMode.value == 'bff'
-                            ? themeController.bffPrimaryColor
-                            : themeController.lightPinkColor,
-                        size: 30.sp,
-                      ),
-                      heightBox(4),
-                      TextConstant(
-                        title: 'Add Photo',
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: themeController.whiteColor,
-                      ),
-                    ],
-                  ),
+                    heightBox(4),
+                    TextConstant(
+                      title: 'Add Photo',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: themeController.whiteColor,
+                    ),
+                  ],
                 ),
               ),
-            ],
-            children: controller.myPhotos
-                .asMap()
-                .entries
-                .map((entry) {
-              final index = entry.key;
-              final photo = entry.value;
-              return Stack(
-                key: ValueKey(index),
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12.r),
-                    child: Image.network(photo, fit: BoxFit.cover, width: double.infinity, height: double.infinity),
-                  ),
-                  Positioned(
-                    top: 6.w,
-                    right: 6.w,
-                    child: GestureDetector(
-                      onTap: () {
-                        controller.myPhotos.removeAt(index);
-                        controller.myPhotos.refresh();
-                      },
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.45),
-                          shape: BoxShape.circle,
-                        ),
-                        padding: const EdgeInsets.all(4),
-                        child: Icon(Icons.close, color: Colors.white, size: 16.sp),
+            ),
+          ],
+          children: controller.myPhotos
+              .asMap()
+              .entries
+              .map((entry) {
+            final index = entry.key;
+            final photo = entry.value;
+            return Stack(
+              key: ValueKey(index),
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12.r),
+                  child: Image.network(photo, fit: BoxFit.cover, width: double.infinity, height: double.infinity),
+                ),
+                Positioned(
+                  top: 6.w,
+                  right: 6.w,
+                  child: GestureDetector(
+                    onTap: () async {
+                      controller.myPhotos.removeAt(index);
+                      controller.myPhotos.refresh();
+                      // Immediately save to database to remove deleted photo
+                      await controller.updateProfile();
+                      print('✅ DEBUG: Photo deleted and profile updated');
+                    },
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.45),
+                        shape: BoxShape.circle,
                       ),
+                      padding: const EdgeInsets.all(4),
+                      child: Icon(Icons.close, color: Colors.white, size: 16.sp),
                     ),
                   ),
-                ],
-              );
-            }).toList(),
+                ),
+              ],
+            );
+          }).toList(),
           ),
         ),
         heightBox(16),

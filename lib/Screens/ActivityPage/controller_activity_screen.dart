@@ -48,24 +48,28 @@ class ActivityController extends GetxController {
         final createdAt = DateTime.parse((row['created_at'] ?? DateTime.now().toIso8601String()).toString());
         String otherName = 'Someone';
         String? otherPhoto;
-        if (isPremium.value) {
-          // Fetch sender profile only for premium receivers
-          try {
-            final p = await SupabaseService.getProfileById(senderId);
+        
+        // Always fetch profile photo (even for free users) so we can blur it
+        // But only reveal name and message content for premium users
+        try {
+          final p = await SupabaseService.getProfileById(senderId);
+          if (isPremium.value) {
+            // Premium users see name and message
             otherName = (p?['name'] ?? otherName).toString();
-            // Try first image_urls entry if available
-            final imgs = p?['image_urls'];
-            if (imgs is List && imgs.isNotEmpty) {
-              otherPhoto = imgs.first?.toString();
-            }
-          } catch (_) {}
-        }
+          }
+          // Always fetch photo for blurring (free users see blurred, premium see clear)
+          final imgs = p?['image_urls'];
+          if (imgs is List && imgs.isNotEmpty) {
+            otherPhoto = imgs.first?.toString();
+          }
+        } catch (_) {}
+        
         filtered.add(Activity(
           id: (row['id'] ?? '').toString(),
           type: ActivityType.premiumMessage,
           otherUserId: senderId,
           otherUserName: otherName,
-          otherUserPhoto: isPremium.value ? otherPhoto : null,
+          otherUserPhoto: otherPhoto, // Always include photo for blurring
           messagePreview: isPremium.value ? (row['message_content']?.toString()) : null,
           createdAt: createdAt,
           isUnread: true,
@@ -74,7 +78,10 @@ class ActivityController extends GetxController {
 
       // Sort newest first
       filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      activities.value = filtered;
+
+      // Reconcile blur entries once a match happens
+      final normalized = _normalizeActivities(filtered);
+      activities.value = normalized;
 
       print('✅ Loaded ${activities.length} activities (after filtering & premium messages)');
     } catch (e) {
@@ -83,6 +90,58 @@ class ActivityController extends GetxController {
     } finally {
       isLoading.value = false;
     }
+  }
+
+  List<Activity> _normalizeActivities(List<Activity> items) {
+    final Set<String> usersWithMatches = items
+        .where((a) => a.type == ActivityType.match || a.type == ActivityType.bffMatch)
+        .map((a) => a.otherUserId)
+        .toSet();
+
+    final List<Activity> normalized = [];
+    final Set<String> matchAlreadyAdded = {};
+
+    for (final activity in items) {
+      final userId = activity.otherUserId;
+      final isMatchActivity = activity.type == ActivityType.match || activity.type == ActivityType.bffMatch;
+      if (isMatchActivity) {
+        matchAlreadyAdded.add(userId);
+        normalized.add(activity);
+        continue;
+      }
+
+      final isLike = activity.type == ActivityType.like || activity.type == ActivityType.superLike;
+      if (isLike && usersWithMatches.contains(userId)) {
+        if (matchAlreadyAdded.contains(userId)) {
+          // We already have a match entry for this user, skip the blurred like
+          continue;
+        }
+
+        normalized.add(Activity(
+          id: activity.id,
+          type: ActivityType.match,
+          otherUserId: activity.otherUserId,
+          otherUserName: activity.otherUserName,
+          otherUserPhoto: activity.otherUserPhoto,
+          messagePreview: null,
+          createdAt: activity.createdAt,
+          isUnread: activity.isUnread,
+        ));
+        matchAlreadyAdded.add(userId);
+        continue;
+      }
+
+      // Filter out premium messages if already matched with that user
+      // Premium messages are meant for BEFORE matching - once matched, use regular chat
+      if (activity.type == ActivityType.premiumMessage && usersWithMatches.contains(userId)) {
+        print('🔕 Filtering premium message from ${activity.otherUserName} - already matched');
+        continue;
+      }
+
+      normalized.add(activity);
+    }
+
+    return normalized;
   }
 
   Future<void> refresh() async {

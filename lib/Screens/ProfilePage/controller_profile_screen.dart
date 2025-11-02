@@ -179,11 +179,10 @@ class ProfileController extends GetxController {
         // Interests/Photos: include current selections if available
         if (myInterestList.isNotEmpty) {
           profileData['hobbies'] = myInterestList.toList();
-          profileData['interests'] = myInterestList.toList();
         }
-        if (myPhotos.isNotEmpty) {
-          profileData['image_urls'] = myPhotos.toList();
-        }
+        // Always update image_urls (even if empty) and clear old photos field to prevent old data
+        profileData['image_urls'] = myPhotos.toList();
+        profileData['photos'] = myPhotos.toList(); // Also update photos to keep in sync
 
         print('DEBUG: Updating profile with data: $profileData');
         await SupabaseService.updateProfile(
@@ -193,11 +192,9 @@ class ProfileController extends GetxController {
         
         print('DEBUG: Profile updated successfully in database');
         userProfile.value = {...userProfile.value, ...profileData};
-        Get.snackbar('Success', 'Profile updated successfully!');
       }
     } catch (e) {
       print('Error updating profile: $e');
-      Get.snackbar('Error', 'Failed to update profile');
     } finally {
       isLoading.value = false;
     }
@@ -229,9 +226,8 @@ class ProfileController extends GetxController {
     try {
       await updateProfile();
       isEditMode.value = false;
-      Get.snackbar('Success', 'Profile updated successfully!');
     } catch (e) {
-      Get.snackbar('Error', 'Failed to save changes');
+      print('Error saving changes: $e');
     }
   }
 

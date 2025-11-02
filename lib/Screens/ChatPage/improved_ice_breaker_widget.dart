@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:lovebug/services/supabase_service.dart';
 import 'package:lovebug/ThemeController/theme_controller.dart';
+import 'package:lovebug/Screens/ChatPage/controller_message_screen.dart';
 
 class ImprovedIceBreakerWidget extends StatefulWidget {
   final String matchId;
@@ -441,21 +442,26 @@ class _ImprovedIceBreakerWidgetState extends State<ImprovedIceBreakerWidget> {
     if (currentUserId == null) return;
     
     try {
-      // Send the ice breaker as a message
-      await SupabaseService.sendMessage(
-        matchId: widget.matchId,
-        content: question,
-      );
-      
-      // Mark ice breaker as used using the new function
-      await SupabaseService.client.rpc(
-        'mark_icebreaker_used',
-        params: {
-          'p_match_id': widget.matchId,
-          'p_ice_breaker_text': question,
-          'p_user_id': currentUserId,
-        },
-      );
+      final controller = Get.find<MessageController>(tag: 'msg_${widget.matchId}');
+      if (!await controller.ensureMessagingAllowed()) {
+        return;
+      }
+
+      await controller.sendMessage(widget.matchId, question);
+
+      // Mark ice breaker as used using the RPC so other clients see the exact text
+      try {
+        await SupabaseService.client.rpc(
+          'mark_icebreaker_used',
+          params: {
+            'p_match_id': widget.matchId,
+            'p_ice_breaker_text': question,
+            'p_user_id': currentUserId,
+          },
+        );
+      } catch (e) {
+        print('⚠️ Icebreaker mark failed: $e');
+      }
       
       // Update local state
       setState(() {

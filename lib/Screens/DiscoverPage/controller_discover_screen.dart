@@ -15,6 +15,7 @@ import 'package:lovebug/shared_prefrence_helper.dart';
 import 'package:lovebug/services/location_service.dart';
 import 'package:collection/collection.dart';
 import '../ChatPage/controller_chat_screen.dart';
+import 'package:flutter_card_swiper/flutter_card_swiper.dart';
 
 class DiscoverController extends GetxController {
   // Feature flags
@@ -36,6 +37,33 @@ class DiscoverController extends GetxController {
   final RxInt deckVersion = 0.obs;
   // Minimum number of cards before first render to avoid instant-jump glitches
   static const int _minInitialDeckCount = 10;
+  
+  // Track last swiped profile for rewind functionality
+  Profile? _lastSwipedProfile;
+  int? _lastSwipedIndex;
+  CardSwiperDirection? _lastSwipeDirection; // Track swipe direction for reverse animation
+  final RxBool isRewinding = false.obs; // Track if we're in rewind animation mode
+  
+  // Getter for last swipe direction (used by UI for reverse animation)
+  CardSwiperDirection? get lastSwipeDirection => _lastSwipeDirection;
+  
+  // Callback for programmatic swipe (set by UI)
+  VoidCallback? _onSwipeRightCallback;
+  
+  // Set callback for programmatic swipe
+  void setSwipeRightCallback(VoidCallback? callback) {
+    _onSwipeRightCallback = callback;
+  }
+  
+  // Trigger programmatic swipe right (called after sending premium message)
+  void triggerSwipeRight() {
+    if (_onSwipeRightCallback != null && currentProfile != null) {
+      _onSwipeRightCallback!();
+    } else if (currentProfile != null) {
+      // Fallback: just call onSwipeRight which will handle backend
+      onSwipeRight(currentProfile!);
+    }
+  }
 
   // Mode toggle (Dating/BFF)
   final RxString currentMode = 'dating'.obs; // 'dating' or 'bff'
@@ -144,7 +172,7 @@ class DiscoverController extends GetxController {
     // Ensure current auth user has a profile row in DB
     SupabaseService.ensureCurrentUserProfile();
     _loadModeFromPrefs();
-    _loadFiltersFromPrefs();
+    _loadFiltersFromPrefs(); // This is now async but we don't await it here
     _ensureLocationThenLoad();
   }
 
@@ -215,8 +243,18 @@ class DiscoverController extends GetxController {
         print('🔍 DEBUG: getBffProfiles() returned ${rows.length} profiles');
       } else {
         print('🔍 DEBUG: Calling SupabaseService.getProfilesWithSuperLikes()...');
-        rows = await SupabaseService.getProfilesWithSuperLikes();
+        // Pass location parameters if available for backend filtering
+        rows = await SupabaseService.getProfilesWithSuperLikes(
+          userLatitude: _userLat,
+          userLongitude: _userLon,
+          maxDistanceKm: (_userLat != null && _userLon != null && maxDistanceKm.value > 0) 
+              ? maxDistanceKm.value 
+              : null,
+        );
         print('🔍 DEBUG: getProfilesWithSuperLikes() returned ${rows.length} profiles');
+        if (_userLat != null && _userLon != null && maxDistanceKm.value > 0) {
+          print('📍 DEBUG: Location filter applied - Lat: $_userLat, Lon: $_userLon, Max: ${maxDistanceKm.value} km');
+        }
       }
       
       // If no profiles found, show "no more profiles" state
@@ -308,26 +346,33 @@ class DiscoverController extends GetxController {
         return hasName && hasPhoto;
       }).toList();
 
+      // Session-level filtering to avoid resurfacing cards that were already swiped
+      final List<Profile> sessionFiltered = displayable
+          .where((p) => !seenIds.contains(p.id) && !passedIds.contains(p.id) && !likedIds.contains(p.id))
+          .toList();
+
       // Update profiles list with fresh data - optimized loading order
-      profiles.value = displayable;
+      profiles.value = sessionFiltered;
       currentIndex.value = 0;
       overlayIndex.value = 0; // keep neon overlay in sync on initial load
       deckVersion.value++; // force deck rebuild with fresh data
       
       // Update cached profiles for the new mode (FIXED: Use displayable instead of loaded)
       if (mode == 'bff') {
-        bffProfiles.clear();
-        bffProfiles.addAll(displayable);
+        bffProfiles
+          ..clear()
+          ..addAll(sessionFiltered);
         print('🔄 DEBUG: Cached ${bffProfiles.length} bff profiles');
       } else {
-        datingProfiles.clear();
-        datingProfiles.addAll(displayable);
+        datingProfiles
+          ..clear()
+          ..addAll(sessionFiltered);
         print('🔄 DEBUG: Cached ${datingProfiles.length} dating profiles');
       }
       
       // Debug: Log the first 3 profiles
-      for (int i = 0; i < (displayable.length > 3 ? 3 : displayable.length); i++) {
-        final p = displayable[i];
+      for (int i = 0; i < (sessionFiltered.length > 3 ? 3 : sessionFiltered.length); i++) {
+        final p = sessionFiltered[i];
         print('🔍 DEBUG: Profile $i: ID=${p.id}, Name="${p.name}", Photos=${p.photos.length}');
         if (p.photos.isNotEmpty) {
           print('🔍 DEBUG:   First photo: "${p.photos.first}"');
@@ -341,15 +386,15 @@ class DiscoverController extends GetxController {
       await Future.delayed(Duration(milliseconds: 50));
       
       // Preload remaining cards in background (optimized loading order)
-      if (loaded.length > 1) {
-        _preloadRemainingCards(loaded);
+      if (sessionFiltered.length > 1) {
+        _preloadRemainingCards(sessionFiltered);
       }
       
       print('✅ Profiles refreshed for mode: $mode, count: ${profiles.length}');
       
       // 🔧 CRITICAL FIX: Set initial loading to false after profiles are loaded
       isInitialLoading.value = false;
-      print('🔄 DEBUG: Set isInitialLoading = false, profiles loaded: ${displayable.length}');
+      print('🔄 DEBUG: Set isInitialLoading = false, profiles loaded (session-filtered): ${sessionFiltered.length}');
       
     } catch (e) {
       print('❌ Error refreshing profiles for mode $mode: $e');
@@ -377,18 +422,66 @@ class DiscoverController extends GetxController {
   }
 
   Future<void> reloadWithFilters() async {
+    print('🔄 DEBUG: reloadWithFilters() called');
+    print('🔄 DEBUG: Current mode: $currentMode');
+    print('🔄 DEBUG: Clearing profiles list before reload...');
+    profiles.clear();
+    datingProfiles.clear();
+    bffProfiles.clear();
+    currentIndex.value = 0;
+    deckVersion.value++;
     await _loadActiveProfiles();
+    print('🔄 DEBUG: reloadWithFilters() completed - profiles.length: ${profiles.length}');
   }
 
-  void _loadFiltersFromPrefs() {
+  Future<void> _loadFiltersFromPrefs() async {
     try {
       minAge.value = SharedPreferenceHelper.getInt(_kMinAgeKey, defaultValue: 18);
       maxAge.value = SharedPreferenceHelper.getInt(_kMaxAgeKey, defaultValue: 99);
-      gender.value = SharedPreferenceHelper.getString(_kGenderKey, defaultValue: 'Everyone');
+      
+      // Check if user has saved a gender preference
+      final savedGender = SharedPreferenceHelper.getString(_kGenderKey, defaultValue: '');
+      
+      if (savedGender.isEmpty) {
+        // No saved preference, set default based on user's gender
+        try {
+          final userSummary = await SupabaseService.getCurrentUserSummary();
+          final userGenderRaw = (userSummary['gender'] ?? '').toString();
+          
+          String defaultGender = 'Everyone';
+          // Normalize user gender to lowercase for comparison
+          final normalizedUserGender = userGenderRaw.toLowerCase().trim();
+          
+          if (normalizedUserGender == 'female') {
+            defaultGender = 'Male';
+          } else if (normalizedUserGender == 'male') {
+            defaultGender = 'Female';
+          } else if (normalizedUserGender == 'non-binary' || normalizedUserGender == 'nonbinary') {
+            defaultGender = 'Non-binary';
+          }
+          
+          gender.value = defaultGender;
+          print('🔍 DEBUG: Set default gender filter to "$defaultGender" based on user gender "$normalizedUserGender"');
+          
+          // Save the default so it persists
+          await SharedPreferenceHelper.setString(_kGenderKey, defaultGender);
+        } catch (e) {
+          print('❌ DEBUG: Error getting user gender, defaulting to Everyone: $e');
+          gender.value = 'Everyone';
+        }
+      } else {
+        // User has a saved preference, use it
+        gender.value = savedGender;
+      }
+      
       maxDistanceKm.value = SharedPreferenceHelper.getInt(_kDistanceKey, defaultValue: 100).toDouble();
       final intents = SharedPreferenceHelper.getStringList(_kIntentsKey, defaultValue: []);
       selectedIntents.value = intents.toSet();
-    } catch (_) {}
+    } catch (e) {
+      print('❌ DEBUG: Error loading filters: $e');
+      // Fallback to defaults
+      gender.value = 'Everyone';
+    }
   }
 
   void resetFilters() {
@@ -410,14 +503,72 @@ class DiscoverController extends GetxController {
 
   Future<void> _ensureLocationThenLoad() async {
     try {
-      // Use LocationService to get location with auto-update
-      final location = await LocationService.getLocationWithAutoUpdate();
-      if (location != null) {
+      // First try to get location from LocationService (SharedPreferences cache)
+      var location = await LocationService.getLocationWithAutoUpdate();
+      
+      // If no cached location, try to get from user's profile in database
+      if (location == null) {
+        print('📍 DiscoverPage: No cached location, trying to get from profile...');
+        final currentUserId = SupabaseService.currentUser?.id;
+        if (currentUserId != null) {
+          try {
+            final profile = await SupabaseService.getProfile(currentUserId);
+            if (profile != null) {
+              final lat = (profile['latitude'] as num?)?.toDouble();
+              final lon = (profile['longitude'] as num?)?.toDouble();
+              if (lat != null && lon != null) {
+                _userLat = lat;
+                _userLon = lon;
+                print('📍 DiscoverPage: Using location from profile - Lat: $_userLat, Lon: $_userLon');
+                // Cache it in SharedPreferences for next time
+                await SharedPreferenceHelper.setDouble('user_latitude', lat);
+                await SharedPreferenceHelper.setDouble('user_longitude', lon);
+              } else {
+                print('📍 DiscoverPage: Profile has no location data, attempting fresh update...');
+                // Try to update location in background (non-blocking)
+                LocationService.updateUserLocation().catchError((e) {
+                  print('❌ DiscoverPage: Background location update failed: $e');
+                });
+              }
+            }
+          } catch (e) {
+            print('❌ DiscoverPage: Error getting location from profile: $e');
+          }
+        }
+      } else {
+        // Use cached location
         _userLat = location['latitude'];
         _userLon = location['longitude'];
-        print('📍 DiscoverPage: Using location - Lat: $_userLat, Lon: $_userLon');
-      } else {
+        print('📍 DiscoverPage: Using cached location - Lat: $_userLat, Lon: $_userLon');
+        
+        // Still try to update location in background if it's been a while (non-blocking)
+        // This ensures location stays fresh
+        final lastUpdate = SharedPreferenceHelper.getString('last_location_update');
+        if (lastUpdate.isNotEmpty) {
+          try {
+            final lastUpdateTime = DateTime.parse(lastUpdate);
+            final now = DateTime.now();
+            final timeDiff = now.difference(lastUpdateTime);
+            // If location is older than 30 minutes, update in background
+            if (timeDiff.inMinutes > 30) {
+              print('📍 DiscoverPage: Location is ${timeDiff.inMinutes} minutes old, updating in background...');
+              LocationService.updateUserLocation().catchError((e) {
+                print('❌ DiscoverPage: Background location update failed: $e');
+              });
+            }
+          } catch (e) {
+            // Ignore parse errors, just try to update
+            LocationService.updateUserLocation().catchError((_) {});
+          }
+        }
+      }
+      
+      if (_userLat == null || _userLon == null) {
         print('📍 DiscoverPage: No location available, proceeding without location filter');
+        // Still try to get location in background for next time
+        LocationService.updateUserLocation().catchError((e) {
+          print('❌ DiscoverPage: Background location update failed: $e');
+        });
       }
     } catch (e) {
       print('❌ DiscoverPage: Error getting location: $e');
@@ -628,8 +779,29 @@ class DiscoverController extends GetxController {
         uniqueFiltered.add(p);
       }
 
+      // IMPORTANT: Maintain database order - superlikes should be first
+      // The database already sorted them correctly, so preserve that order
+      // Split into superlikes and non-superlikes to ensure correct order
+      final List<Profile> superLikedProfiles = [];
+      final List<Profile> regularProfiles = [];
+      for (final p in uniqueFiltered) {
+        if (p.isSuperLiked) {
+          superLikedProfiles.add(p);
+        } else {
+          regularProfiles.add(p);
+        }
+      }
+      
+      // Combine: superlikes first, then regular profiles (maintaining their order)
+      final List<Profile> orderedProfiles = [...superLikedProfiles, ...regularProfiles];
+      
+      print('🔍 DEBUG: After ordering - Superlikes: ${superLikedProfiles.length}, Regular: ${regularProfiles.length}');
+      if (superLikedProfiles.isNotEmpty) {
+        print('🔍 DEBUG: First superlike profile: ${superLikedProfiles.first.name} (ID: ${superLikedProfiles.first.id})');
+      }
+
       // Preload profiles and trigger background loading
-      profiles.assignAll(uniqueFiltered);
+      profiles.assignAll(orderedProfiles);
       preloadedCount.value = uniqueFiltered.length;
       isPreloading.value = false;
 
@@ -763,33 +935,42 @@ class DiscoverController extends GetxController {
   double _toRad(double deg) => deg * 3.141592653589793 / 180.0;
 
   // Match functionality
-  Future<void> onSwipeLeft(Profile profile) async {
+  Future<bool> onSwipeLeft(Profile profile) async {
     print('🚫 SWIPE LEFT: ${profile.name} (ID: ${profile.id})');
     // Track swipe action
     await AnalyticsService.trackSwipe('pass', profile.id);
     // Record pass (deck removal deferred to UI)
-    await _handleSwipe(profile, action: 'pass', deferRemoval: true);
-    passedIds.add(profile.id);
-    seenIds.add(profile.id);
+    final ok = await _handleSwipe(profile, action: 'pass', deferRemoval: true);
+    if (ok) {
+      passedIds.add(profile.id);
+      seenIds.add(profile.id);
+    }
+    return ok;
   }
 
-  Future<void> onSwipeRight(Profile profile) async {
+  Future<bool> onSwipeRight(Profile profile) async {
     print('❤️ SWIPE RIGHT: ${profile.name} (ID: ${profile.id})');
     // Track swipe action
     await AnalyticsService.trackSwipe('like', profile.id);
     // Like via server-side RPC (deck removal deferred to UI)
-    await _handleSwipe(profile, action: 'like', deferRemoval: true);
-    likedIds.add(profile.id);
-    seenIds.add(profile.id);
+    final ok = await _handleSwipe(profile, action: 'like', deferRemoval: true);
+    if (ok) {
+      likedIds.add(profile.id);
+      seenIds.add(profile.id);
+    }
+    return ok;
   }
 
-  Future<void> onSuperLike(Profile profile) async {
+  Future<bool> onSuperLike(Profile profile) async {
     print('⭐ SUPER LIKE: ${profile.name} (ID: ${profile.id})');
     // Track swipe action
     await AnalyticsService.trackSwipe('super_like', profile.id);
-    await _handleSwipe(profile, action: 'super_like', deferRemoval: true);
-    likedIds.add(profile.id);
-    seenIds.add(profile.id);
+    final ok = await _handleSwipe(profile, action: 'super_like', deferRemoval: true);
+    if (ok) {
+      likedIds.add(profile.id);
+      seenIds.add(profile.id);
+    }
+    return ok;
   }
 
   void _moveToNextCard() {
@@ -827,7 +1008,7 @@ class DiscoverController extends GetxController {
     }
   }
 
-  Future<void> _handleSwipe(Profile profile, {required String action, int? previousIndex, bool deferRemoval = true}) async {
+  Future<bool> _handleSwipe(Profile profile, {required String action, int? previousIndex, bool deferRemoval = true}) async {
     final currentUserId = SupabaseService.currentUser?.id;
     final otherId = profile.id;
 
@@ -836,13 +1017,13 @@ class DiscoverController extends GetxController {
     if (currentUserId == null || otherId.isEmpty) {
       print('DEBUG: Invalid user IDs, skipping swipe');
       _moveToNextCard();
-      return;
+      return true;
     }
 
     if (otherId == currentUserId) {
       print('DEBUG: Cannot swipe on yourself, skipping');
       _moveToNextCard();
-      return;
+      return true;
     }
   
 
@@ -862,7 +1043,7 @@ class DiscoverController extends GetxController {
       // Check for freemium limits
       if (res.containsKey('limit_reached') && res['limit_reached'] == true) {
         _showLimitReachedDialog(res['error'], res['action']);
-        return;
+        return false;
       }
       
       matched = (res['matched'] == true);
@@ -886,9 +1067,11 @@ class DiscoverController extends GetxController {
         await Future.delayed(const Duration(milliseconds: 300));
         _showMatchDialog(profile, matchId, currentMode.value);
       }
+      return true;
     } catch (e) {
       print('DEBUG: RPC swipe failed, removing card anyway. Error: $e');
       // Keep deck changes deferred to UI to maintain consistency
+      return true;
     }
   }
 
@@ -1018,13 +1201,20 @@ class DiscoverController extends GetxController {
   }
 
   // Variant that uses an absolute deck index (safer with rapid swipes)
-  void _advanceDeckAfterSwipeByIndex(int prevIndex) {
+  void _advanceDeckAfterSwipeByIndex(int prevIndex, {CardSwiperDirection? direction}) {
     if (prevIndex < 0 || prevIndex >= profiles.length) {
       print('🔍 DEBUG: _advanceDeckAfterSwipeByIndex prevIndex out of range: $prevIndex');
       _moveToNextCard();
       return;
     }
     print('🔍 DEBUG: _advanceDeckAfterSwipeByIndex prevIndex=$prevIndex, currentIndex=${currentIndex.value}, length=${profiles.length}');
+    
+    // Store last swiped profile and direction for rewind functionality
+    _lastSwipedProfile = profiles[prevIndex];
+    _lastSwipedIndex = prevIndex;
+    _lastSwipeDirection = direction;
+    print('🔄 DEBUG: Stored last swiped profile for rewind: ${_lastSwipedProfile?.name}, direction: $direction');
+    
     profiles.removeAt(prevIndex);
     if (profiles.isEmpty) {
       currentIndex.value = 0;
@@ -1038,9 +1228,50 @@ class DiscoverController extends GetxController {
   }
 
   // Public: finalize a swipe by removing the swiped card after animation completes
-  void finalizeSwipeAtIndex(int? prevIndex) {
+  void finalizeSwipeAtIndex(int? prevIndex, {CardSwiperDirection? direction}) {
     if (prevIndex == null) return;
-    _advanceDeckAfterSwipeByIndex(prevIndex);
+    _advanceDeckAfterSwipeByIndex(prevIndex, direction: direction);
+  }
+
+  // Undo last swipe - re-insert the last swiped profile at index 0 (smooth animation)
+  bool undoLastSwipe() {
+    if (_lastSwipedProfile == null || _lastSwipedIndex == null) {
+      print('⚠️ DEBUG: No last swiped profile to undo');
+      return false;
+    }
+    
+    final profile = _lastSwipedProfile!;
+    print('🔄 DEBUG: Undoing last swipe - re-inserting ${profile.name} at index 0, direction: $_lastSwipeDirection');
+    
+    // Set rewind flag to trigger animation
+    isRewinding.value = true;
+    
+    // Re-insert at index 0 for smooth animation
+    profiles.insert(0, profile);
+    
+    // Reset indices
+    currentIndex.value = 0;
+    overlayIndex.value = 0;
+    
+    // Remove from seen/passed/liked sets so it can be swiped again
+    seenIds.remove(profile.id);
+    passedIds.remove(profile.id);
+    likedIds.remove(profile.id);
+    
+    // Force UI update - this will trigger CardSwiper to rebuild
+    update();
+    deckVersion.value++;
+    
+    // Reset rewind flag after animation completes
+    Future.delayed(Duration(milliseconds: 500), () {
+      isRewinding.value = false;
+      _lastSwipedProfile = null;
+      _lastSwipedIndex = null;
+      _lastSwipeDirection = null;
+    });
+    
+    print('✅ DEBUG: Profile ${profile.name} re-inserted at index 0. Total profiles: ${profiles.length}');
+    return true;
   }
 
   Future<void> _showMatchDialog(Profile profile, String matchId, String mode) async {
@@ -1163,8 +1394,8 @@ class DiscoverController extends GetxController {
                         ),
                       ),
                       SizedBox(height: 16.h),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           GestureDetector(
                             onTap: () {
@@ -1176,42 +1407,75 @@ class DiscoverController extends GetxController {
                               );
                             },
                             child: Container(
-                              padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 14.h),
+                              padding: EdgeInsets.symmetric(horizontal: 22.w, vertical: 14.h),
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(24.r),
                                 gradient: LinearGradient(
-                                  colors: currentMode.value == 'bff' 
+                                  colors: currentMode.value == 'bff'
                                       ? [theme.bffPrimaryColor, theme.bffSecondaryColor]
-                                      : [theme.lightPinkColor, theme.purpleColor]
+                                      : [theme.lightPinkColor, theme.purpleColor],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
                                 ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: currentMode.value == 'bff' 
-                                        ? theme.bffPrimaryColor.withValues(alpha: 0.4) 
-                                        : theme.lightPinkColor.withValues(alpha: 0.4), 
-                                    blurRadius: 14, 
-                                    offset: Offset(0, 6)
+                                    color: currentMode.value == 'bff'
+                                        ? theme.bffPrimaryColor.withValues(alpha: 0.4)
+                                        : theme.lightPinkColor.withValues(alpha: 0.4),
+                                    blurRadius: 14,
+                                    offset: Offset(0, 6),
                                   ),
                                 ],
                               ),
-                              child: Text('Send message', style: TextStyle(fontFamily: 'AppFont', color: Colors.white, fontWeight: FontWeight.w600)),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.local_fire_department,
+                                    color: Colors.white,
+                                    size: 18.sp,
+                                  ),
+                                  SizedBox(width: 8.w),
+                                  Flexible(
+                                    child: Text(
+                                      'Start Flame Chat (5:00)',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontFamily: 'AppFont',
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                          SizedBox(width: 12.w),
+                          SizedBox(height: 12.h),
                           GestureDetector(
                             onTap: () => Get.back(),
                             child: Container(
+                              alignment: Alignment.center,
                               padding: EdgeInsets.symmetric(horizontal: 18.w, vertical: 14.h),
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(24.r),
                                 color: theme.whiteColor.withValues(alpha: 0.06),
                                 border: Border.all(
-                                  color: currentMode.value == 'bff' 
+                                  color: currentMode.value == 'bff'
                                       ? theme.bffPrimaryColor.withValues(alpha: 0.35)
-                                      : theme.lightPinkColor.withValues(alpha: 0.35)
+                                      : theme.lightPinkColor.withValues(alpha: 0.35),
                                 ),
                               ),
-                              child: Text('Keep browsing', style: TextStyle(fontFamily: 'AppFont', color: theme.whiteColor, fontWeight: FontWeight.w600)),
+                              child: Text(
+                                'Keep browsing',
+                                style: TextStyle(
+                                  fontFamily: 'AppFont',
+                                  color: theme.whiteColor,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ),
                           ),
                         ],
@@ -1358,54 +1622,100 @@ class DiscoverController extends GetxController {
 
   // Show limit reached dialog
   void _showLimitReachedDialog(String error, String action) {
+    final themeController = Get.find<ThemeController>();
+    final bool isBffMode = currentMode.value == 'bff';
+    final Color accent = isBffMode
+        ? themeController.bffPrimaryColor
+        : themeController.getAccentColor();
+    final Color secondaryAccent = isBffMode
+        ? themeController.bffSecondaryColor
+        : themeController.getSecondaryColor();
+
+    Widget content;
+    if (action == 'swipe') {
+      content = SwipeLimitWidget(
+        onUpgrade: () {
+          Get.back();
+          Get.to(() => SubscriptionScreen());
+        },
+        onDismiss: () => Get.back(),
+      );
+    } else if (action == 'super_like') {
+      content = SuperLikeLimitWidget(
+        onUpgrade: () {
+          Get.back();
+          Get.to(() => SubscriptionScreen());
+        },
+        onBuyMore: () {
+          Get.back();
+          // TODO: implement super like purchase flow
+          Get.snackbar(
+            'Super Likes',
+            'Super like purchase coming soon!',
+            backgroundColor: Colors.amber,
+            colorText: Colors.white,
+          );
+        },
+        onDismiss: () => Get.back(),
+      );
+    } else {
+      content = UpgradePromptWidget(
+        title: 'Limit Reached',
+        message: error,
+        action: 'Upgrade Now',
+        limitType: 'swipe',
+        gradientColors: [
+          accent.withValues(alpha: 0.2),
+          secondaryAccent.withValues(alpha: 0.22),
+          themeController.blackColor.withValues(alpha: 0.85),
+        ],
+        onUpgrade: () {
+          Get.back();
+          Get.to(() => SubscriptionScreen());
+        },
+        onDismiss: () => Get.back(),
+      );
+    }
+
     Get.dialog(
       Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16.r),
-        ),
-        child: Container(
-          padding: EdgeInsets.all(20.w),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (action == 'swipe')
-                SwipeLimitWidget(
-                  onUpgrade: () {
-                    Get.back(); // Close dialog
-                    Get.to(() => SubscriptionScreen());
-                  },
-                  onDismiss: () => Get.back(),
-                )
-              else if (action == 'super_like')
-                SuperLikeLimitWidget(
-                  onUpgrade: () {
-                    Get.back(); // Close dialog
-                    Get.to(() => SubscriptionScreen());
-                  },
-                  onBuyMore: () {
-                    Get.back(); // Close dialog
-                    // TODO: Show super like purchase screen
-                    Get.snackbar(
-                      'Super Likes',
-                      'Super like purchase coming soon!',
-                      backgroundColor: Colors.amber,
-                      colorText: Colors.white,
-                    );
-                  },
-                  onDismiss: () => Get.back(),
-                )
-              else
-                UpgradePromptWidget(
-                  title: 'Limit Reached',
-                  message: error,
-                  action: 'Upgrade Now',
-                  onUpgrade: () {
-                    Get.back(); // Close dialog
-                    Get.to(() => SubscriptionScreen());
-                  },
-                  onDismiss: () => Get.back(),
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 24.h),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(22.r),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white.withOpacity(0.24),
+                    accent.withValues(alpha: 0.18),
+                    secondaryAccent.withValues(alpha: 0.16),
+                  ],
                 ),
-            ],
+                borderRadius: BorderRadius.circular(22.r),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.35),
+                  width: 1.2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: accent.withValues(alpha: 0.18),
+                    blurRadius: 26,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: SafeArea(
+                child: Padding(
+                  padding: EdgeInsets.all(20.w),
+                  child: content,
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -1429,6 +1739,7 @@ class Profile {
   final bool isSuperLiked;
   final bool isPremium;
   final String? gender;
+  final String? matchId;
 
   Profile({
     required this.id,
@@ -1445,6 +1756,7 @@ class Profile {
     this.isSuperLiked = false,
     this.isPremium = false,
     this.gender,
+    this.matchId,
   });
 }
 

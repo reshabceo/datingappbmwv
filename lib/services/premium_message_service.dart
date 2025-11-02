@@ -82,136 +82,210 @@ class PremiumMessageService {
     
     // If premium, show message input dialog
     final messageController = TextEditingController();
+    final themeController = Get.find<ThemeController>();
+    
+    // Detect current mode (dating/bff)
+    bool isBffMode = false;
+    if (Get.isRegistered<DiscoverController>()) {
+      try {
+        final d = Get.find<DiscoverController>();
+        isBffMode = (d.currentMode.value == 'bff');
+      } catch (_) {}
+    }
+
+    // Pick gradient colors based on mode
+    final List<Color> bgColors = isBffMode
+        ? [
+            themeController.bffPrimaryColor.withValues(alpha: 0.15),
+            themeController.bffSecondaryColor.withValues(alpha: 0.15),
+          ]
+        : [
+            themeController.getAccentColor().withValues(alpha: 0.15),
+            themeController.getSecondaryColor().withValues(alpha: 0.15),
+          ];
+    final Color borderColor = isBffMode
+        ? themeController.bffPrimaryColor
+        : themeController.getAccentColor();
+    final List<Color> ctaColors = isBffMode
+        ? [themeController.bffPrimaryColor, themeController.bffSecondaryColor]
+        : [themeController.getAccentColor(), themeController.getSecondaryColor()];
 
     Get.dialog(
       Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16.r),
-        ),
-        child: Container(
-          padding: EdgeInsets.all(20.w),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Header
-              Row(
-                children: [
-                  // Recipient photo
-                  CircleAvatar(
-                    radius: 20.r,
-                    backgroundImage: recipientPhoto.isNotEmpty
-                        ? NetworkImage(recipientPhoto)
-                        : null,
-                    child: recipientPhoto.isEmpty
-                        ? Icon(Icons.person, size: 20.r)
-                        : null,
-                  ),
-                  SizedBox(width: 12.w),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.symmetric(horizontal: 24.w),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: bgColors,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(22.r),
+              border: Border.all(
+                color: borderColor.withValues(alpha: 0.35),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: borderColor.withValues(alpha: 0.15),
+                  blurRadius: 20,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: SafeArea(
+              child: Padding(
+                padding: EdgeInsets.all(20.w),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Header
+                    Row(
                       children: [
-                        Text(
-                          'Send a message to $recipientName',
-                          style: TextStyle(
-                            fontSize: 16.sp,
-                            fontWeight: FontWeight.bold,
-                          ),
+                        // Recipient photo
+                        CircleAvatar(
+                          radius: 20.r,
+                          backgroundImage: recipientPhoto.isNotEmpty
+                              ? NetworkImage(recipientPhoto)
+                              : null,
+                          child: recipientPhoto.isEmpty
+                              ? Icon(Icons.person, size: 20.r, color: themeController.whiteColor)
+                              : null,
                         ),
-                        Text(
-                          'They\'ll see this before you match',
-                          style: TextStyle(
-                            fontSize: 12.sp,
-                            color: Colors.grey.shade600,
+                        SizedBox(width: 12.w),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Send a message to $recipientName',
+                                style: TextStyle(
+                                  fontSize: 16.sp,
+                                  fontWeight: FontWeight.bold,
+                                  color: themeController.whiteColor,
+                                ),
+                              ),
+                              Text(
+                                'They\'ll see this before you match',
+                                style: TextStyle(
+                                  fontSize: 12.sp,
+                                  color: themeController.whiteColor.withValues(alpha: 0.7),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ],
-              ),
-              
-              SizedBox(height: 16.h),
-              
-              // Message input
-              TextField(
-                controller: messageController,
-                maxLines: 3,
-                maxLength: 200,
-                decoration: InputDecoration(
-                  hintText: 'Type your message...',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8.r),
-                  ),
-                  counterText: '${messageController.text.length}/200',
-                ),
-              ),
-              
-              SizedBox(height: 16.h),
-              
-              // Premium check
-              if (!isPremium)
-                Container(
-                  padding: EdgeInsets.all(12.w),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.shade50,
-                    borderRadius: BorderRadius.circular(8.r),
-                    border: Border.all(color: Colors.amber.shade200),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.lock, color: Colors.amber.shade700, size: 16.sp),
-                      SizedBox(width: 8.w),
-                      Expanded(
-                        child: Text(
-                          'Premium feature - Upgrade to send messages before matching',
-                          style: TextStyle(
+                    
+                    SizedBox(height: 16.h),
+                    
+                    // Message input
+                    Container(
+                      decoration: BoxDecoration(
+                        color: themeController.whiteColor.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(12.r),
+                        border: Border.all(
+                          color: themeController.whiteColor.withValues(alpha: 0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: TextField(
+                        controller: messageController,
+                        maxLines: 3,
+                        maxLength: 200,
+                        style: TextStyle(
+                          color: Colors.black87,
+                          fontSize: 15.sp,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Type your message...',
+                          hintStyle: TextStyle(
+                            color: Colors.black54,
+                            fontSize: 15.sp,
+                          ),
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.all(12.w),
+                          filled: true,
+                          fillColor: Colors.transparent,
+                          counterStyle: TextStyle(
+                            color: Colors.black54,
                             fontSize: 12.sp,
-                            color: Colors.amber.shade700,
                           ),
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                    
+                    SizedBox(height: 20.h),
+                    
+                    // Action buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => Get.back(),
+                            child: Container(
+                              padding: EdgeInsets.symmetric(vertical: 12.h),
+                              decoration: BoxDecoration(
+                                color: themeController.whiteColor.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(20.r),
+                                border: Border.all(
+                                  color: themeController.whiteColor.withValues(alpha: 0.3),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Text(
+                                'Cancel',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: themeController.whiteColor,
+                                  fontSize: 15.sp,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 12.w),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: isPremium
+                                ? () => _sendMessage(recipientId, messageController.text)
+                                : () {
+                                  Get.back();
+                                  _showUpgradeDialog();
+                                },
+                            child: Container(
+                              padding: EdgeInsets.symmetric(vertical: 12.h),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(colors: ctaColors),
+                                borderRadius: BorderRadius.circular(20.r),
+                                border: Border.all(
+                                  color: borderColor.withValues(alpha: 0.5),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Text(
+                                isPremium ? 'Send Message' : 'Upgrade',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15.sp,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-              
-              SizedBox(height: 16.h),
-              
-              // Action buttons
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Get.back(),
-                      style: OutlinedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(vertical: 12.h),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8.r),
-                        ),
-                      ),
-                      child: Text('Cancel'),
-                    ),
-                  ),
-                  SizedBox(width: 12.w),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: isPremium
-                          ? () => _sendMessage(recipientId, messageController.text)
-                          : () => _showUpgradeDialog(),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: isPremium ? Colors.pink : Colors.grey,
-                        foregroundColor: Colors.white,
-                        padding: EdgeInsets.symmetric(vertical: 12.h),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8.r),
-                        ),
-                      ),
-                      child: Text(isPremium ? 'Send Message' : 'Upgrade'),
-                    ),
-                  ),
-                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -223,6 +297,15 @@ class PremiumMessageService {
   static Future<void> _sendMessage(String recipientId, String message) async {
     if (message.trim().isEmpty) {
       Get.snackbar('Error', 'Please enter a message');
+      return;
+    }
+
+    // Premium messages are ONLY for premium users
+    // The dialog already checks for premium status, but double-check here
+    final isPremium = await SupabaseService.isPremiumUser();
+    if (!isPremium) {
+      Get.back(); // Close dialog
+      _showUpgradeDialog();
       return;
     }
 
@@ -238,13 +321,32 @@ class PremiumMessageService {
       }
 
       Get.back(); // Close dialog
+      
+      // Show simplified toast message
       Get.snackbar(
-        'Message Sent! 💬',
-        'Your message was sent and will be revealed when they upgrade',
+        'Your message was sent',
+        '',
         backgroundColor: Colors.green,
         colorText: Colors.white,
-        duration: Duration(seconds: 3),
+        duration: Duration(seconds: 2),
+        margin: EdgeInsets.all(16.w),
       );
+      
+      // Swipe the card right (like) after sending message
+      if (Get.isRegistered<DiscoverController>()) {
+        try {
+          final discoverController = Get.find<DiscoverController>();
+          final currentProfile = discoverController.currentProfile;
+          
+          if (currentProfile != null && currentProfile.id == recipientId) {
+            // Trigger programmatic swipe right
+            // This will handle the backend swipe and UI animation
+            discoverController.triggerSwipeRight();
+          }
+        } catch (e) {
+          print('Error swiping card after message: $e');
+        }
+      }
     } catch (e) {
       Get.snackbar('Error', 'Failed to send message: $e');
     }

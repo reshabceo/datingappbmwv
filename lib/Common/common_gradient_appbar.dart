@@ -62,7 +62,7 @@ class GradientCommonAppBar extends StatelessWidget implements PreferredSizeWidge
             alignment: Alignment.centerLeft,
           ),
           actions: isActionWidget == true
-              ? actions ??
+              ? (actions ?? 
               [
                 // Add Dating/BFF toggle for discover page
                 _buildModeToggle(),
@@ -70,7 +70,7 @@ class GradientCommonAppBar extends StatelessWidget implements PreferredSizeWidge
                 // Replace settings gear with Filters square that opens bottom sheet via a global event
                 _FiltersSquare(),
                 widthBox(10),
-              ]
+              ])
               : [],
       );
   }
@@ -219,13 +219,33 @@ class _FiltersSquare extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeController themeController = Get.find<ThemeController>();
+    
+    // Only wrap in Obx if DiscoverController is registered
+    if (!Get.isRegistered<DiscoverController>()) {
+      return GestureDetector(
+        onTap: () {
+          _showFiltersSheet(context, themeController);
+        },
+        child: Container(
+          width: 35.h,
+          height: 35.h,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [themeController.lightPinkColor, themeController.purpleColor],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(Icons.tune, color: Colors.white, size: 18.sp),
+        ),
+      );
+    }
+    
     return Obx(() {
-      // Get the current mode from DiscoverController if available
-      bool isBFFMode = false;
-      if (Get.isRegistered<DiscoverController>()) {
-        final discoverController = Get.find<DiscoverController>();
-        isBFFMode = discoverController.currentMode.value == 'bff';
-      }
+      // Get the current mode from DiscoverController
+      final discoverController = Get.find<DiscoverController>();
+      final isBFFMode = discoverController.currentMode.value == 'bff';
       
       return GestureDetector(
         onTap: () {

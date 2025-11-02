@@ -15,6 +15,11 @@ class AudioMessageBubble extends StatefulWidget {
   final String? userImage;
   final String? otherUserImage;
   final bool isBffMatch;
+  final bool isSelected;
+  final bool isSelectionMode;
+  final bool isSelectable;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
 
   const AudioMessageBubble({
     Key? key,
@@ -23,6 +28,11 @@ class AudioMessageBubble extends StatefulWidget {
     this.userImage,
     this.otherUserImage,
     this.isBffMatch = false,
+    this.isSelected = false,
+    this.isSelectionMode = false,
+    this.isSelectable = false,
+    this.onTap,
+    this.onLongPress,
   }) : super(key: key);
 
   @override
@@ -127,7 +137,19 @@ class _AudioMessageBubbleState extends State<AudioMessageBubble>
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    if (widget.audioMessage.deletedForEveryone) {
+      return _buildDeletedPlaceholder();
+    }
+
+    final Color accentColor = widget.isBffMatch
+        ? themeController.bffPrimaryColor
+        : themeController.getAccentColor();
+
+    return GestureDetector(
+      onTap: widget.onTap,
+      onLongPress: widget.isSelectable ? widget.onLongPress : null,
+      behavior: HitTestBehavior.translucent,
+      child: Container(
       margin: EdgeInsets.symmetric(
         horizontal: 16.w,
         vertical: 4.h,
@@ -146,59 +168,76 @@ class _AudioMessageBubbleState extends State<AudioMessageBubble>
           
           // Audio message bubble
           Flexible(
-            child: Container(
-              constraints: BoxConstraints(
-                maxWidth: Get.width * 0.7,
-                minWidth: 200.w,
-              ),
-              padding: EdgeInsets.symmetric(
-                horizontal: 16.w,
-                vertical: 12.h,
-              ),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: widget.isMe
-                      ? (widget.isBffMatch
-                          ? [themeController.bffPrimaryColor, themeController.bffSecondaryColor]
-                          : [themeController.getAccentColor(), themeController.getSecondaryColor()])
-                      : [themeController.whiteColor.withOpacity(0.1), themeController.whiteColor.withOpacity(0.05)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+            child: () {
+              final bool showSelection = widget.isSelectionMode && widget.isSelected;
+              
+              final LinearGradient bubbleGradient = showSelection
+                  ? LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        accentColor.withOpacity(widget.isMe ? 0.85 : 0.6),
+                        accentColor.withOpacity(widget.isMe ? 0.65 : 0.48),
+                      ],
+                    )
+                  : LinearGradient(
+                      colors: widget.isMe
+                          ? (widget.isBffMatch
+                              ? [themeController.bffPrimaryColor, themeController.bffSecondaryColor]
+                              : [themeController.getAccentColor(), themeController.getSecondaryColor()])
+                          : [themeController.whiteColor.withOpacity(0.12), themeController.whiteColor.withOpacity(0.06)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    );
+
+              final Color borderColor = showSelection
+                  ? accentColor
+                  : themeController.whiteColor.withOpacity(widget.isMe ? 0.08 : 0.18);
+              
+              return Container(
+                constraints: BoxConstraints(
+                  maxWidth: Get.width * 0.7,
+                  minWidth: 200.w,
                 ),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(18.r),
-                  topRight: Radius.circular(18.r),
-                  bottomLeft: Radius.circular(widget.isMe ? 18.r : 4.r),
-                  bottomRight: Radius.circular(widget.isMe ? 4.r : 18.r),
+                padding: EdgeInsets.symmetric(
+                  horizontal: 16.w,
+                  vertical: 12.h,
                 ),
-                border: Border.all(
-                  color: widget.isMe
-                      ? Colors.transparent
-                      : themeController.whiteColor.withOpacity(0.2),
-                  width: 1.w,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: widget.isMe
-                        ? themeController.getAccentColor().withOpacity(0.3)
-                        : Colors.black.withOpacity(0.1),
-                    blurRadius: 8,
-                    offset: Offset(0, 2),
+                decoration: BoxDecoration(
+                  gradient: bubbleGradient,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(18.r),
+                    topRight: Radius.circular(18.r),
+                    bottomLeft: Radius.circular(widget.isMe ? 18.r : 4.r),
+                    bottomRight: Radius.circular(widget.isMe ? 4.r : 18.r),
                   ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Audio controls
-                  _buildAudioControls(),
-                  
-                  // Duration and timestamp
-                  SizedBox(height: 8.h),
-                  _buildDurationAndTimestamp(),
-                ],
-              ),
-            ),
+                  border: Border.all(
+                    color: borderColor,
+                    width: showSelection ? 2.w : 1.1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: (showSelection
+                              ? accentColor
+                              : widget.isMe
+                                  ? themeController.getAccentColor()
+                                  : Colors.black)
+                          .withOpacity(showSelection ? 0.35 : 0.14),
+                      blurRadius: showSelection ? 18 : 9,
+                      offset: Offset(0, showSelection ? 6 : 3),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildAudioControls(),
+                    SizedBox(height: 8.h),
+                    _buildDurationAndTimestamp(),
+                  ],
+                ),
+              );
+            }(),
           ),
           
           // Current user's avatar (only for sent messages)
@@ -207,6 +246,70 @@ class _AudioMessageBubbleState extends State<AudioMessageBubble>
             _buildAvatar(),
           ],
         ],
+      ),
+    ),
+    );
+  }
+
+  Widget _buildDeletedPlaceholder() {
+    final Color accentColor = widget.isBffMatch
+        ? themeController.bffPrimaryColor
+        : themeController.getAccentColor();
+
+    return GestureDetector(
+      onTap: widget.onTap,
+      onLongPress: widget.isSelectable ? widget.onLongPress : null,
+      behavior: HitTestBehavior.translucent,
+      child: Container(
+        margin: EdgeInsets.symmetric(
+          horizontal: 16.w,
+          vertical: 4.h,
+        ),
+        child: Row(
+          mainAxisAlignment: widget.isMe
+              ? MainAxisAlignment.end
+              : MainAxisAlignment.start,
+          children: [
+            if (!widget.isMe) ...[
+              _buildAvatar(),
+              widthBox(8),
+            ],
+            Flexible(
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+                decoration: BoxDecoration(
+                  color: themeController.greyColor.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20.r),
+                  border: Border.all(
+                    color: widget.isSelected ? accentColor : themeController.whiteColor.withOpacity(0.15),
+                    width: widget.isSelectionMode && widget.isSelected ? 2.w : 1.w,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.block,
+                      color: themeController.whiteColor.withOpacity(0.6),
+                      size: 16.sp,
+                    ),
+                    SizedBox(width: 8.w),
+                    TextConstant(
+                      title: 'This audio message was deleted',
+                      color: themeController.whiteColor.withOpacity(0.7),
+                      fontSize: 14,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (widget.isMe) ...[
+              widthBox(8),
+              _buildAvatar(),
+            ],
+          ],
+        ),
       ),
     );
   }

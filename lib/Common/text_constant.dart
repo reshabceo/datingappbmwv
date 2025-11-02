@@ -16,6 +16,7 @@ class TextConstant extends StatelessWidget {
     this.textDecoration,
     this.decorationColor,
     this.softWrap = false,
+    this.fontStyle,
   });
 
   final FontWeight? fontWeight;
@@ -29,6 +30,7 @@ class TextConstant extends StatelessWidget {
   final TextDecoration? textDecoration;
   final Color? decorationColor;
   final bool softWrap;
+  final FontStyle? fontStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -48,6 +50,7 @@ class TextConstant extends StatelessWidget {
         color: color ?? defaultColor,
         textDecoration: textDecoration,
         decorationColor: decorationColor,
+        fontStyle: fontStyle,
       ),
       maxLines: maxLines,
     );

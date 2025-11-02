@@ -399,17 +399,33 @@ class SupabaseService {
   }
 
   // Get profiles with super like status (for dating mode)
-  static Future<List<Map<String, dynamic>>> getProfilesWithSuperLikes() async {
+  static Future<List<Map<String, dynamic>>> getProfilesWithSuperLikes({
+    double? userLatitude,
+    double? userLongitude,
+    double? maxDistanceKm,
+  }) async {
     final uid = currentUser?.id;
     if (uid == null) return [];
     
     try {
       print('🔍 DEBUG: Calling get_profiles_with_super_likes for user: $uid');
-      final response = await client.rpc('get_profiles_with_super_likes', params: {
+      final params = {
         'p_user_id': uid,
         'p_limit': 20,
         'p_exclude_hours': 24,
-      });
+      };
+      
+      // Add location parameters if provided
+      if (userLatitude != null && userLongitude != null && maxDistanceKm != null && maxDistanceKm > 0) {
+        params['p_user_latitude'] = userLatitude;
+        params['p_user_longitude'] = userLongitude;
+        params['p_max_distance_km'] = maxDistanceKm;
+        print('📍 DEBUG: Location filtering enabled - Lat: $userLatitude, Lon: $userLongitude, Max: $maxDistanceKm km');
+      } else {
+        print('📍 DEBUG: Location filtering disabled - showing all profiles');
+      }
+      
+      final response = await client.rpc('get_profiles_with_super_likes', params: params);
       print('🔍 DEBUG: RPC response: $response');
       final result = (response as List).cast<Map<String, dynamic>>();
       print('🔍 DEBUG: Parsed result count: ${result.length}');
@@ -419,12 +435,13 @@ class SupabaseService {
       return result;
     } catch (e) {
       print('Error fetching profiles with super likes: $e');
-      // Try fallback to get_dating_profiles function
+      // Try fallback without location params (backward compatible)
       try {
-        print('🔍 DEBUG: Trying fallback to get_dating_profiles');
-        final response = await client.rpc('get_dating_profiles', params: {
+        print('🔍 DEBUG: Trying fallback without location params');
+        final response = await client.rpc('get_profiles_with_super_likes', params: {
           'p_user_id': uid,
           'p_limit': 20,
+          'p_exclude_hours': 24,
         });
         final result = (response as List).cast<Map<String, dynamic>>();
         print('🔍 DEBUG: Fallback result count: ${result.length}');
@@ -529,20 +546,129 @@ class SupabaseService {
     if (matchId.isEmpty) return null;
     final row = await client
         .from('matches')
-        .select('id,user_id_1,user_id_2,created_at,status')
+        .select('id,user_id_1,user_id_2,created_at,status,flame_started_at,flame_expires_at')
         .eq('id', matchId)
         .maybeSingle();
     return row;
+  }
+
+  static Map<String, dynamic> _normalizeRpcResponse(dynamic response) {
+    if (response == null) return {};
+    if (response is Map<String, dynamic>) {
+      return response;
+    }
+    if (response is List && response.isNotEmpty) {
+      final first = response.first;
+      if (first is Map<String, dynamic>) {
+        return first;
+      }
+    }
+    return {};
+  }
+
+  static Future<Map<String, dynamic>> startFlameChat(String matchId) async {
+    final userId = currentUser?.id;
+    if (userId == null || matchId.isEmpty) return {};
+    try {
+      final response = await client.rpc('start_flame_chat', params: {
+        'p_match_id': matchId,
+        'p_user_id': userId,
+      });
+      return Map<String, dynamic>.from(_normalizeRpcResponse(response));
+    } catch (e) {
+      print('Error starting flame chat: $e');
+      return {};
+    }
+  }
+
+  static Future<Map<String, dynamic>> getFlameStatus(String matchId) async {
+    final userId = currentUser?.id;
+    if (userId == null || matchId.isEmpty) return {};
+    try {
+      final response = await client.rpc('get_flame_status', params: {
+        'p_match_id': matchId,
+        'p_user_id': userId,
+      });
+      return Map<String, dynamic>.from(_normalizeRpcResponse(response));
+    } catch (e) {
+      print('Error fetching flame status: $e');
+      return {};
+    }
+  }
+
+  static Future<Map<String, dynamic>> getCurrentUserSummary() async {
+    final userId = currentUser?.id;
+    if (userId == null) {
+      return {'gender': '', 'is_premium': false};
+    }
+    try {
+      final response = await client
+          .from('profiles')
+          .select('gender,is_premium')
+          .eq('id', userId)
+          .maybeSingle();
+      if (response == null) {
+        return {'gender': '', 'is_premium': false};
+      }
+      return Map<String, dynamic>.from(response);
+    } catch (e) {
+      print('Error fetching user summary: $e');
+      return {'gender': '', 'is_premium': false};
+    }
   }
   
   // Messages
   static Future<List<Map<String, dynamic>>> getMessages(String matchId) async {
     final response = await client
         .from('messages')
-        .select('id,match_id,sender_id,content,created_at,story_id,is_story_reply,story_user_name,is_disappearing_photo,disappearing_photo_id')
+        .select('id,match_id,sender_id,content,created_at,story_id,is_story_reply,story_user_name,is_disappearing_photo,disappearing_photo_id,deleted_by,deleted_for_everyone,deleted_at')
         .eq('match_id', matchId)
         .order('created_at', ascending: true);
     return (response as List).cast<Map<String, dynamic>>();
+  }
+
+  static Future<void> deleteMessagesForMe({
+    required List<String> messageIds,
+    List<String> audioMessageIds = const [],
+  }) async {
+    if ((messageIds.isEmpty) && audioMessageIds.isEmpty) return;
+    final userId = currentUser?.id;
+    if (userId == null) {
+      throw Exception('User not authenticated');
+    }
+
+    try {
+      await client.rpc('delete_messages_for_me', params: {
+        'p_user_id': userId,
+        'p_message_ids': messageIds,
+        'p_audio_message_ids': audioMessageIds,
+      });
+    } catch (e) {
+      print('Error deleting messages for user: $e');
+      rethrow;
+    }
+  }
+
+  static Future<void> deleteMessagesForEveryone({
+    required List<String> messageIds,
+    List<String> audioMessageIds = const [],
+  }) async {
+    if ((messageIds.isEmpty) && audioMessageIds.isEmpty) return;
+    final userId = currentUser?.id;
+    if (userId == null) {
+      throw Exception('User not authenticated');
+    }
+
+    try {
+      await client.rpc('delete_messages_for_everyone', params: {
+        'p_user_id': userId,
+        'p_message_ids': messageIds,
+        'p_audio_message_ids': audioMessageIds,
+      });
+    } catch (e) {
+      print('Error deleting messages for everyone: $e');
+      rethrow;
+    }
   }
 
   static Future<List<Map<String, dynamic>>> getBffMessages(String matchId) async {
@@ -635,14 +761,27 @@ class SupabaseService {
     required String message,
   }) async {
     try {
+      print('📤 DEBUG: Sending premium message to $recipientId');
+      print('📤 DEBUG: Message content: ${message.substring(0, message.length > 50 ? 50 : message.length)}...');
+      
+      // Call RPC function - ensure parameters match function signature
       final response = await client.rpc('send_premium_message', params: {
         'p_recipient_id': recipientId,
         'p_message_content': message,
       });
+      
+      print('✅ DEBUG: Premium message sent successfully: $response');
       return response as Map<String, dynamic>;
     } catch (e) {
-      print('Error sending premium message: $e');
-      return {'error': e.toString()};
+      print('❌ Error sending premium message: $e');
+      // Return a more user-friendly error message
+      String errorMessage = e.toString();
+      if (errorMessage.contains('function') && errorMessage.contains('not found')) {
+        errorMessage = 'Premium messaging function not available. Please contact support.';
+      } else if (errorMessage.contains('Premium subscription required')) {
+        errorMessage = 'Premium subscription required to send messages before matching';
+      }
+      return {'error': errorMessage};
     }
   }
   
@@ -679,9 +818,11 @@ class SupabaseService {
     try {
       final response = await client
           .from('profiles')
-          .select('is_premium')
+          .select('is_premium, gender')
           .eq('id', currentUser?.id ?? '')
           .single();
+      final gender = (response['gender'] ?? '').toString();
+      if (gender.toLowerCase() == 'female') return true;
       return response['is_premium'] == true;
     } catch (e) {
       print('Error checking premium status: $e');
@@ -713,11 +854,16 @@ class SupabaseService {
     required String content,
     String? storyId,
     String? storyUserName,
+    bool bypassFreemium = false,
   }) async {
-    // Check if user can send message (freemium check)
-    final canSend = await canPerformAction('message');
-    if (!canSend) {
-      throw Exception('Daily message limit reached. Upgrade for unlimited messaging.');
+    if (!bypassFreemium) {
+      final premium = await isPremiumUser();
+      if (!premium) {
+        final canSend = await canPerformAction('message');
+        if (!canSend) {
+          throw Exception('Daily message limit reached. Upgrade for unlimited messaging.');
+        }
+      }
     }
     
     await client.from('messages').insert({
@@ -750,18 +896,21 @@ class SupabaseService {
     required String action,
     String mode = 'dating', // 'dating' or 'bff'
   }) async {
-    // Check freemium limits before swiping
-    final canSwipe = await canPerformAction('swipe');
-    if (!canSwipe) {
-      return {
-        'error': 'Daily swipe limit reached. Upgrade for unlimited swipes.',
-        'limit_reached': true,
-        'action': 'swipe'
-      };
+    // Premium users (including auto-premium females) bypass daily limit checks
+    final premiumNow = await isPremiumUser();
+    if (!premiumNow) {
+      final canSwipe = await canPerformAction('swipe');
+      if (!canSwipe) {
+        return {
+          'error': 'Daily swipe limit reached. Upgrade for unlimited swipes.',
+          'limit_reached': true,
+          'action': 'swipe'
+        };
+      }
     }
     
     // Check super like limit if action is super_like
-    if (action == 'super_like') {
+    if (action == 'super_like' && !premiumNow) {
       final canSuperLike = await canPerformAction('super_like');
       if (!canSuperLike) {
         return {

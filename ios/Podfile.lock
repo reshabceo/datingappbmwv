@@ -117,6 +117,8 @@ PODS:
   - flutter_callkit_incoming (0.0.1):
     - CryptoSwift
     - Flutter
+  - flutter_native_splash (2.4.3):
+    - Flutter
   - flutter_webrtc (0.12.6):
     - Flutter
     - WebRTC-SDK (= 125.6422.06)
@@ -242,6 +244,7 @@ DEPENDENCIES:
   - firebase_messaging (from `.symlinks/plugins/firebase_messaging/ios`)
   - Flutter (from `Flutter`)
   - flutter_callkit_incoming (from `.symlinks/plugins/flutter_callkit_incoming/ios`)
+  - flutter_native_splash (from `.symlinks/plugins/flutter_native_splash/ios`)
   - flutter_webrtc (from `.symlinks/plugins/flutter_webrtc/ios`)
   - geolocator_apple (from `.symlinks/plugins/geolocator_apple/darwin`)
   - google_mobile_ads (from `.symlinks/plugins/google_mobile_ads/ios`)
@@ -309,6 +312,8 @@ EXTERNAL SOURCES:
     :path: Flutter
   flutter_callkit_incoming:
     :path: ".symlinks/plugins/flutter_callkit_incoming/ios"
+  flutter_native_splash:
+    :path: ".symlinks/plugins/flutter_native_splash/ios"
   flutter_webrtc:
     :path: ".symlinks/plugins/flutter_webrtc/ios"
   geolocator_apple:
@@ -363,6 +368,7 @@ SPEC CHECKSUMS:
   FirebaseMessaging: 3b26e2cee503815e01c3701236b020aa9b576f09
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
   flutter_callkit_incoming: cb8138af67cda6dd981f7101a5d709003af21502
+  flutter_native_splash: c32d145d68aeda5502d5f543ee38c192065986cf
   flutter_webrtc: 57f32415b8744e806f9c2a96ccdb60c6a627ba33
   geolocator_apple: ab36aa0e8b7d7a2d7639b3b4e48308394e8cef5e
   Google-Mobile-Ads-SDK: 14f57f2dc33532a24db288897e26494640810407

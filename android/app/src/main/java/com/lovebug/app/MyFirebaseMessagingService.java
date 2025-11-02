@@ -58,10 +58,11 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
 
         Log.d(TAG, "Notification type: " + notificationType + ", isCall: " + isCallNotification);
 
-        // CRITICAL FIX: Check if app is in foreground for incoming calls
+        // CRITICAL FIX: For incoming calls, ALWAYS show push notification with action buttons
+        // This provides immediate response options even when app is open
         if (isCallNotification && isAppInForeground()) {
-            Log.d(TAG, "App is in foreground, letting Flutter handle call notification");
-            return; // Let Flutter's foreground handler show in-app dialog
+            Log.d(TAG, "App is in foreground, showing push notification with action buttons for immediate response");
+            // Continue to show notification - don't return early
         }
 
         // Get title and body from notification or data
@@ -132,6 +133,9 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
         String type = data.get("type");
         boolean isIncoming = "incoming_call".equals(type);
         String channelId = isIncoming ? CALL_CHANNEL_ID : DEFAULT_CHANNEL_ID;
+        
+        Log.d(TAG, "Notification type: " + type + ", isIncoming: " + isIncoming);
+        Log.d(TAG, "Data map: " + data.toString());
         Uri defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
 
         NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(this, channelId)
@@ -153,15 +157,18 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
         if (isIncoming) {
             Log.d(TAG, "Creating incoming call notification with actions");
             
-            // Accept action (Broadcast to receiver)
-            Intent acceptIntent = new Intent(this, CallActionReceiver.class);
-            acceptIntent.setAction("ACCEPT_CALL");
+            // Accept action (Launch activity directly to reliably foreground app from killed state)
+            Intent acceptIntent = new Intent(this, MainActivity.class);
+            acceptIntent.setAction("INCOMING_CALL");
+            acceptIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            acceptIntent.putExtra("action", "accept_call");
             acceptIntent.putExtra("call_id", data.get("call_id"));
             acceptIntent.putExtra("caller_id", data.get("caller_id"));
             acceptIntent.putExtra("match_id", data.get("match_id"));
             acceptIntent.putExtra("call_type", data.get("call_type"));
+            acceptIntent.putExtra("caller_name", data.get("caller_name"));
 
-            PendingIntent acceptPendingIntent = PendingIntent.getBroadcast(
+            PendingIntent acceptPendingIntent = PendingIntent.getActivity(
                 this,
                 1,
                 acceptIntent,

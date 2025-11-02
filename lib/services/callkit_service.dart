@@ -48,7 +48,9 @@ class CallKitService {
       ),
       ios: IOSParams(
         iconName: 'CallKitLogo',
-        handleType: '',
+        // Use a valid handle type to ensure CallKit renders correctly
+        // Valid values include 'generic', 'number', 'email'
+        handleType: 'generic',
         supportsVideo: true,
         maximumCallGroups: 2,
         maximumCallsPerCallGroup: 1,

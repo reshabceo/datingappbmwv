@@ -205,79 +205,82 @@ class BlurredActivityWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        // Blurred content
-        ClipRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 6.0, sigmaY: 6.0),
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: onTap,
+      child: Stack(
+        children: [
+          ClipRect(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 14.0, sigmaY: 14.0),
+              child: Opacity(
+                opacity: 0.1,
+                child: child,
+              ),
+            ),
+          ),
+          Positioned.fill(
             child: Container(
-              color: Colors.black.withOpacity(0.2),
-              child: child,
-            ),
-          ),
-        ),
-        
-        // Generic message overlay
-        Positioned.fill(
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withOpacity(0.6),
-                  Colors.black.withOpacity(0.8),
-                ],
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.65),
+                    Colors.black.withOpacity(0.85),
+                  ],
+                ),
               ),
-            ),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Activity icon
-                  Container(
-                    padding: EdgeInsets.all(12.w),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      _getActivityIcon(),
-                      size: 24.w,
-                      color: Colors.white,
-                    ),
+              child: Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 12.h),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: EdgeInsets.all(10.w),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.28),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          _getActivityIcon(),
+                          size: 18.w,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      SizedBox(height: 10.h),
+                      Text(
+                        _getGenericMessage(),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14.sp,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.2,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      SizedBox(height: 6.h),
+                      Text(
+                        'Upgrade to see who it is',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.82),
+                          fontSize: 11.sp,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
-                  
-                  SizedBox(height: 12.h),
-                  
-                  // Generic message
-                  Text(
-                    _getGenericMessage(),
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16.sp,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  
-                  SizedBox(height: 4.h),
-                  
-                  Text(
-                    'Upgrade to see who it is',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.8),
-                      fontSize: 12.sp,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
+                ),
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -301,7 +304,7 @@ class BlurredActivityWidget extends StatelessWidget {
       case 'like':
         return 'Someone liked your profile';
       case 'super_like':
-        return 'Someone super liked you!';
+        return 'Someone liked your profile';
       case 'message':
         return 'Someone sent you a message';
       case 'match':

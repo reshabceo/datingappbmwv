@@ -42,9 +42,12 @@ public class CallActionReceiver extends BroadcastReceiver {
 
             // Launch app to handle the call
             Intent launchIntent = new Intent(context, MainActivity.class);
-            launchIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            launchIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
             launchIntent.putExtra("action", "accept_call");
             launchIntent.putExtra("call_id", callId);
+            launchIntent.putExtra("caller_id", callerId);
+            launchIntent.putExtra("match_id", matchId);
+            launchIntent.putExtra("call_type", callType);
             context.startActivity(launchIntent);
 
         } else if ("DECLINE_CALL".equals(action)) {

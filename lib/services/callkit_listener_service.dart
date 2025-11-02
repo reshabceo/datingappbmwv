@@ -242,7 +242,7 @@ class CallKitListenerService {
           .from('call_sessions')
           .update({
             'state': 'declined',
-            'ended_at': DateTime.now().toIso8601String(),
+                'ended_at': DateTime.now().toIso8601String() + '+00:00',
           })
           .eq('id', callId);
 
@@ -286,7 +286,7 @@ class CallKitListenerService {
           .from('call_sessions')
           .update({
             'state': 'ended',
-            'ended_at': DateTime.now().toIso8601String(),
+                'ended_at': DateTime.now().toIso8601String() + '+00:00',
           })
           .eq('id', callId);
 
@@ -335,7 +335,7 @@ class CallKitListenerService {
           .from('call_sessions')
           .update({
             'state': 'timeout',
-            'ended_at': DateTime.now().toIso8601String(),
+                'ended_at': DateTime.now().toIso8601String() + '+00:00',
           })
           .eq('id', callId);
       

@@ -112,6 +112,10 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
 
+  # Generate platform splash screens and launcher icons
+  flutter_native_splash: ^2.4.1
+  flutter_launcher_icons: ^0.13.1
+
 dependency_overrides:
   # Force a compatible Linux implementation to satisfy new platform interface
   record_linux: ^1.2.1
@@ -168,3 +172,20 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# Launcher icon configuration
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/Untitled design.png"
+
+# Native splash screen configuration (static image, no animation)
+flutter_native_splash:
+  android: true
+  ios: true
+  web: false
+  color: "#000000"
+  image: "assets/images/Untitled design (3).png"
+  android_12:
+    image: "assets/images/Untitled design (3).png"
+    color: "#000000"

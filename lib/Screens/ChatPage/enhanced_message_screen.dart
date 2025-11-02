@@ -31,6 +31,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
+import 'package:lovebug/Widgets/upgrade_prompt_widget.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'dart:typed_data';
 
@@ -57,7 +58,7 @@ class EnhancedMessageScreen extends StatefulWidget {
   State<EnhancedMessageScreen> createState() => _EnhancedMessageScreenState();
 }
 
-class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
+class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> with WidgetsBindingObserver {
   final ThemeController themeController = Get.find<ThemeController>();
   String? otherUserZodiac;
   bool isLoadingZodiac = true;
@@ -80,6 +81,7 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     print('🔄 DEBUG: EnhancedMessageScreen initState - loading current user profile');
     print('🔄 DEBUG: EnhancedMessageScreen initState - widget.userImage: ${widget.userImage}');
     print('🔄 DEBUG: EnhancedMessageScreen initState - widget.userName: ${widget.userName}');
@@ -91,12 +93,32 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // Reload profile when dependencies change
-    if (currentUserImage == null) {
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // Reload profile when app comes back to foreground
+    if (state == AppLifecycleState.resumed) {
       _loadCurrentUserProfile();
     }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Always reload profile when dependencies change to ensure fresh data
+    _loadCurrentUserProfile();
+  }
+
+  @override
+  void didUpdateWidget(EnhancedMessageScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Reload profile when widget updates (e.g., user returned from profile edit)
+    _loadCurrentUserProfile();
   }
 
   Future<void> _loadCurrentUserProfile() async {
@@ -105,22 +127,45 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
       final currentUser = SupabaseService.currentUser;
       print('🔄 DEBUG: Loading current user profile for: ${currentUser?.id}');
       if (currentUser != null) {
-        final profile = await SupabaseService.getProfile(currentUser.id);
+        // Force fresh fetch by bypassing cache
+        final profile = await SupabaseService.client
+            .from('profiles')
+            .select()
+            .eq('id', currentUser.id)
+            .maybeSingle();
         print('🔄 DEBUG: Profile loaded: $profile');
         if (profile != null && mounted) {
           setState(() {
-            // Get the first photo from the user's profile
+            // Prioritize image_urls over photos (image_urls is the source of truth)
             final photos = <String>[];
-            if (profile['photos'] != null) {
-              photos.addAll(List<String>.from(profile['photos']));
-            }
+            
+            // First check image_urls (current photos)
             if (profile['image_urls'] != null) {
-              photos.addAll(List<String>.from(profile['image_urls']));
+              final imageUrls = List<String>.from(profile['image_urls']);
+              photos.addAll(imageUrls.where((url) => 
+                url.isNotEmpty && 
+                (url.startsWith('http://') || url.startsWith('https://'))
+              ));
             }
-            print('🔄 DEBUG: Found photos: $photos');
-            currentUserImage = photos.isNotEmpty ? photos.first : null;
-            print('🔄 DEBUG: Set currentUserImage to: $currentUserImage');
-            print('🔄 DEBUG: currentUserImage length: ${currentUserImage?.length ?? 0}');
+            
+            // Only use photos field if image_urls is empty/null
+            if (photos.isEmpty && profile['photos'] != null) {
+              final photoList = List<String>.from(profile['photos']);
+              photos.addAll(photoList.where((p) => 
+                p.isNotEmpty && 
+                (p.startsWith('http://') || p.startsWith('https://'))
+              ));
+            }
+            
+            // Remove duplicates
+            final validPhotos = photos.toSet().toList();
+            print('🔄 DEBUG: Found photos from image_urls: ${profile['image_urls']}');
+            print('🔄 DEBUG: Found photos from photos: ${profile['photos']}');
+            print('🔄 DEBUG: Valid photos after filtering: $validPhotos');
+            final newImage = validPhotos.isNotEmpty ? validPhotos.first : null;
+            // Always update to force refresh
+            currentUserImage = newImage;
+            print('🔄 DEBUG: Updated currentUserImage to: $currentUserImage');
             currentUserZodiac = (profile['zodiac_sign'] ?? '').toString();
           });
         }
@@ -167,7 +212,7 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
     }
   }
 
-  Profile _mapToProfile(Map<String, dynamic> profileData) {
+  Profile _mapToProfile(Map<String, dynamic> profileData, {String? matchId}) {
     final photos = <String>[];
     if (profileData['photos'] != null) {
       photos.addAll(List<String>.from(profileData['photos']));
@@ -198,6 +243,240 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
       hobbies: hobbies,
       isVerified: (profileData['is_verified'] ?? false) as bool,
       isActiveNow: (profileData['is_active'] ?? false) as bool,
+      matchId: matchId,
+    );
+  }
+
+  Widget _buildDefaultAppBar() {
+    return Container(
+      decoration: BoxDecoration(color: themeController.blackColor),
+      child: AppBar(
+        backgroundColor: themeController.transparentColor,
+        elevation: 0,
+        iconTheme: IconThemeData(color: themeController.whiteColor),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: Get.back,
+        ),
+        centerTitle: true,
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextConstant(
+              title: widget.userName ?? '',
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+              color: themeController.whiteColor,
+            ),
+            TextConstant(
+              title: 'online'.tr,
+              fontWeight: FontWeight.w600,
+              color: themeController.greenColor,
+              fontSize: 11,
+            ),
+          ],
+        ),
+        actions: [
+          _buildAstroActionButton(),
+          GestureDetector(
+            onTap: () => _showChatOptions(),
+            child: Container(
+              width: 35.h,
+              height: 35.h,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: widget.isBffMatch
+                      ? [themeController.bffPrimaryColor, themeController.bffSecondaryColor]
+                      : [themeController.getAccentColor(), themeController.getSecondaryColor()],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Icon(
+                  Icons.more_vert,
+                  color: Colors.white,
+                  size: 20.sp,
+                ),
+              ),
+            ),
+          ),
+          widthBox(12),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSelectionAppBar(MessageController controller) {
+    final selectedCount = controller.selectedMessageKeys.length;
+    final bool canDeleteAll = controller.canDeleteForEveryone.value;
+
+    return Container(
+      decoration: BoxDecoration(color: themeController.blackColor),
+      child: AppBar(
+        backgroundColor: themeController.transparentColor,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: controller.clearSelection,
+        ),
+        title: TextConstant(
+          title: '$selectedCount selected',
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: themeController.whiteColor,
+        ),
+        actions: [
+          IconButton(
+            icon: Icon(canDeleteAll ? Icons.delete_forever : Icons.delete_outline),
+            color: themeController.whiteColor,
+            onPressed: controller.selectedMessageKeys.isEmpty
+                ? null
+                : () => _showDeleteOptions(controller),
+          ),
+          widthBox(8),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteOptions(MessageController controller) {
+    final bool canDeleteAll = controller.canDeleteForEveryone.value;
+
+    Get.bottomSheet(
+      ClipRRect(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22.r)),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Container(
+            margin: EdgeInsets.only(bottom: MediaQuery.of(Get.context!).viewInsets.bottom),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white.withOpacity(0.25),
+                  themeController.getAccentColor().withValues(alpha: 0.18),
+                  themeController.getSecondaryColor().withValues(alpha: 0.16),
+                ],
+              ),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(22.r)),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.3),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: themeController.getAccentColor().withValues(alpha: 0.18),
+                  blurRadius: 22,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+            ),
+            child: SafeArea(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 40.w,
+                      height: 4.h,
+                      decoration: BoxDecoration(
+                        color: themeController.whiteColor.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(2.r),
+                      ),
+                    ),
+                    heightBox(20.h.toInt()),
+                    _buildDeleteOption(
+                      icon: Icons.delete_outline,
+                      title: 'Delete for me',
+                      onTap: () async {
+                        Get.back();
+                        await controller.deleteSelectedMessages(forEveryone: false);
+                      },
+                    ),
+                    if (canDeleteAll)
+                      _buildDeleteOption(
+                        icon: Icons.delete_forever,
+                        title: 'Delete for everyone',
+                        isDestructive: true,
+                        onTap: () async {
+                          Get.back();
+                          await controller.deleteSelectedMessages(forEveryone: true);
+                        },
+                      ),
+                    heightBox(8),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+    );
+  }
+
+  Widget _buildDeleteOption({
+    required IconData icon,
+    required String title,
+    required Future<void> Function() onTap,
+    bool isDestructive = false,
+  }) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 8.h),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () async => await onTap(),
+          borderRadius: BorderRadius.circular(12.r),
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+            decoration: BoxDecoration(
+              color: isDestructive
+                  ? Colors.red.withValues(alpha: 0.1)
+                  : themeController.whiteColor.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(12.r),
+              border: Border.all(
+                color: isDestructive
+                    ? Colors.red.withValues(alpha: 0.3)
+                    : themeController.getAccentColor().withValues(alpha: 0.2),
+                width: 1.w,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  color: isDestructive ? Colors.red : themeController.getAccentColor(),
+                  size: 20.sp,
+                ),
+                SizedBox(width: 12.w),
+                Expanded(
+                  child: TextConstant(
+                    title: title,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: isDestructive
+                        ? Colors.red
+                        : themeController.whiteColor,
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  color: isDestructive
+                      ? Colors.red.withValues(alpha: 0.5)
+                      : themeController.whiteColor.withValues(alpha: 0.5),
+                  size: 14.sp,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -223,7 +502,7 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
           final profileData = await SupabaseService.getProfile(otherUserId);
           if (profileData != null) {
             // Convert Map to Profile object
-            final profile = _mapToProfile(profileData);
+            final profile = _mapToProfile(profileData, matchId: widget.matchId);
             // Navigate to profile detail screen (this is a matched profile)
             Get.to(() => ProfileDetailScreen(profile: profile, isMatched: true));
           } else {
@@ -585,8 +864,21 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
                       _buildMenuOption(
                         icon: Icons.videocam,
                         title: 'Video Call',
-                        onTap: () {
+                        onTap: () async {
                           Get.back();
+                          final isPremium = await SupabaseService.isPremiumUser();
+                          if (!isPremium) {
+                            _showFrostedDialog(
+                              UpgradePromptWidget(
+                                title: 'Premium Feature',
+                                message: 'Video call is a premium feature. Upgrade to unlock it.',
+                                action: 'Upgrade Now',
+                                limitType: 'message',
+                                onDismiss: () => Get.back(),
+                              ),
+                            );
+                            return;
+                          }
                           _startVideoCall();
                         },
                       ),
@@ -594,8 +886,21 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
                       _buildMenuOption(
                         icon: Icons.call,
                         title: 'Audio Call',
-                        onTap: () {
+                        onTap: () async {
                           Get.back();
+                          final isPremium = await SupabaseService.isPremiumUser();
+                          if (!isPremium) {
+                            _showFrostedDialog(
+                              UpgradePromptWidget(
+                                title: 'Premium Feature',
+                                message: 'Audio call is a premium feature. Upgrade to unlock it.',
+                                action: 'Upgrade Now',
+                                limitType: 'message',
+                                onDismiss: () => Get.back(),
+                              ),
+                            );
+                            return;
+                          }
                           _startAudioCall();
                         },
                       ),
@@ -713,78 +1018,119 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
     );
   }
 
-  void _showClearChatDialog() {
+  void _showFrostedDialog(Widget child, {bool barrierDismissible = true}) {
     Get.dialog(
-      AlertDialog(
-        backgroundColor: themeController.blackColor,
-        title: TextConstant(
+      Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 24.h),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(26.r),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: child,
+          ),
+        ),
+      ),
+      barrierDismissible: barrierDismissible,
+      barrierColor: Colors.black.withOpacity(0.6),
+    );
+  }
+
+  void _showClearChatDialog() {
+    _showFrostedDialog(
+      Container(
+        decoration: BoxDecoration(
+          color: themeController.blackColor.withOpacity(0.85),
+          borderRadius: BorderRadius.circular(22.r),
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(20.w),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextConstant(
           title: 'Clear Chat',
           fontSize: 18,
           fontWeight: FontWeight.bold,
           color: themeController.whiteColor,
         ),
-        content: TextConstant(
+              SizedBox(height: 12.h),
+              TextConstant(
           title: 'Are you sure you want to clear all messages in this chat? This action cannot be undone.',
           fontSize: 14,
           color: themeController.whiteColor.withValues(alpha: 0.8),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 20.h),
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => Get.back(),
+                      child: Container(
+                        padding: EdgeInsets.symmetric(vertical: 12.h),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(18.r),
+                        ),
             child: TextConstant(
               title: 'Cancel',
-              color: themeController.whiteColor.withValues(alpha: 0.7),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
+                          color: themeController.whiteColor,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 12.w),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
               Get.back();
               Get.snackbar('Success', 'Chat cleared successfully');
             },
+                      child: Container(
+                        padding: EdgeInsets.symmetric(vertical: 12.h),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Colors.redAccent, Colors.pink],
+                          ),
+                          borderRadius: BorderRadius.circular(18.r),
+                        ),
             child: TextConstant(
               title: 'Clear',
-              color: Colors.red,
+                          color: Colors.white,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
             ),
           ),
+                ],
+              )
         ],
+          ),
+        ),
       ),
     );
   }
 
   void _showUnmatchUserDialog() {
-    Get.dialog(
-      AlertDialog(
-        backgroundColor: themeController.blackColor,
-        title: TextConstant(
+    _showFrostedDialog(
+      UpgradePromptWidget(
           title: 'Unmatch User',
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          color: themeController.whiteColor,
-        ),
-        content: TextConstant(
-          title: 'Are you sure you want to unmatch with this user? You will no longer be able to message each other.',
-          fontSize: 14,
-          color: themeController.whiteColor.withValues(alpha: 0.8),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(),
-            child: TextConstant(
-              title: 'Cancel',
-              color: themeController.whiteColor.withValues(alpha: 0.7),
-            ),
-          ),
-          TextButton(
-            onPressed: () async {
+        message: 'Are you sure you want to unmatch with this user? You will no longer be able to message each other.',
+        action: 'Unmatch',
+        dismissLabel: 'Cancel',
+        icon: Icons.person_remove,
+        gradientColors: [
+          Colors.red.withOpacity(0.2),
+          Colors.deepPurple.withOpacity(0.2),
+          Colors.black.withOpacity(0.85),
+        ],
+        onDismiss: () => Get.back(),
+        onUpgrade: () async {
               Get.back();
               await _unmatchUser();
             },
-            child: TextConstant(
-              title: 'Unmatch',
-              color: Colors.red,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -945,68 +1291,22 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
         Get.put(MessageController(), tag: 'msg_${widget.matchId}')
           ..ensureInitialized(widget.matchId, isBffMatch: widget.isBffMatch);
 
-    return Scaffold(
+    return WillPopScope(
+      onWillPop: () async {
+        if (controller.isSelectionMode.value) {
+          controller.clearSelection();
+          return false;
+        }
+        return true;
+      },
+      child: Scaffold(
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(kToolbarHeight),
-        child: Container(
-          decoration: BoxDecoration(color: themeController.blackColor),
-          child: AppBar(
-            backgroundColor: themeController.transparentColor,
-            elevation: 0,
-            iconTheme: IconThemeData(color: themeController.whiteColor),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: Get.back,
-            ),
-            centerTitle: true,
-            title: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextConstant(
-                  title: widget.userName ?? '',
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                  color: themeController.whiteColor,
-                ),
-                TextConstant(
-                  title: 'online'.tr,
-                  fontWeight: FontWeight.w600,
-                  color: themeController.greenColor,
-                  fontSize: 11,
-                ),
-              ],
-            ),
-            actions: [
-              // Astro Compatibility Button - Always show
-              _buildAstroActionButton(),
-              GestureDetector(
-                onTap: () => _showChatOptions(),
-                child: Container(
-                  width: 35.h,
-                  height: 35.h,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: widget.isBffMatch 
-                          ? [themeController.bffPrimaryColor, themeController.bffSecondaryColor]
-                          : [themeController.getAccentColor(), themeController.getSecondaryColor()],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Icon(
-                      Icons.more_vert,
-                      color: Colors.white,
-                      size: 20.sp,
-                    ),
-                  ),
-                ),
-              ),
-              widthBox(12),
-            ],
-          ),
-        ),
+          child: Obx(() {
+            return controller.isSelectionMode.value
+                ? _buildSelectionAppBar(controller)
+                : _buildDefaultAppBar();
+          }),
       ),
       body: Container(
         width: Get.width,
@@ -1024,14 +1324,17 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
         ),
         child: Column(
           children: [
-            // Messages area - Show astro (optional) AND normal chat content
+              _buildFlameBanner(controller),
             Expanded(
               child: Obx(() {
-                // Determine visibility and content states
-                final showAstro = astroVisible && !isLoadingZodiac && otherUserZodiac != null && otherUserZodiac != 'unknown';
-                final hasAnyMessages = controller.messages.isNotEmpty || controller.audioMessages.isNotEmpty;
+                  final showAstro =
+                      astroVisible &&
+                      !isLoadingZodiac &&
+                      otherUserZodiac != null &&
+                      otherUserZodiac != 'unknown';
+                  final hasAnyMessages =
+                      controller.messages.isNotEmpty || controller.audioMessages.isNotEmpty;
 
-                // Normal chat content (icebreaker optional)
                 if (!hasAnyMessages) {
                   return ListView(
                     padding: EdgeInsets.zero,
@@ -1086,7 +1389,6 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
                             ),
                           ),
                         ),
-                      // Conversation starters (optional; astro can be shown above)
                       ImprovedIceBreakerWidget(
                         matchId: widget.matchId,
                         otherUserName: widget.userName ?? '',
@@ -1094,8 +1396,8 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
                       ),
                     ],
                   );
-            } else {
-              // When there are messages, show starters above the messages
+                  }
+
               return Column(
                 children: [
                   if (showAstro)
@@ -1106,49 +1408,69 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
                       visible: true,
                       autoGenerateIfMissing: false,
                     ),
-                  // Conversation starters (always show when astro is NOT visible)
-                  ImprovedIceBreakerWidget(
-                    matchId: widget.matchId,
-                    otherUserName: widget.userName ?? '',
-                    currentUserZodiac: currentUserZodiac,
-                  ),
-                  // Messages list
                   Expanded(
-                    child:                     Obx(() {
-                      print('🔊 DEBUG: Obx rebuilding - allSortedMessages count: ${controller.allSortedMessages.length}');
-                      
-                      // Debug: Print the actual order being displayed
+                        child: Obx(() {
+                          // Access selectedMessageKeys to make Obx reactive to selection changes
+                          final _ = controller.selectedMessageKeys.length;
+                          
+                          print(
+                              '🔊 DEBUG: Obx rebuilding - allSortedMessages count: ${controller.allSortedMessages.length}');
                       print('🔍 DEBUG: UI Display Order:');
                       for (int i = 0; i < controller.allSortedMessages.length; i++) {
-                        final msg = controller.allSortedMessages[i];
-                        if (msg is Message) {
-                          print('  $i: TEXT "${msg.text}" at ${msg.timestamp}');
-                        } else if (msg is AudioMessage) {
-                          print('  $i: AUDIO at ${msg.createdAt}');
-                        }
-                      }
+                            final item = controller.allSortedMessages[i];
+                            if (item is Message) {
+                              print('  $i: TEXT "${item.text}" at ${item.timestamp}');
+                            } else if (item is AudioMessage) {
+                              print('  $i: AUDIO at ${item.createdAt}');
+                            }
+                          }
+
+                          final isSelectionMode = controller.isSelectionMode.value;
                       
                       return ListView.builder(
                         controller: controller.scrollController,
                         itemCount: controller.allSortedMessages.length,
                         itemBuilder: (context, index) {
-                          final message = controller.allSortedMessages[index];
+                              final item = controller.allSortedMessages[index];
                           
-                          if (message is Message) {
+                              final bool isSelectable = controller.isItemSelectable(item);
+                              final bool isSelected = controller.isItemSelected(item);
+
+                              if (item is Message) {
                             return EnhancedChatBubble(
-                              message: message,
+                                  message: item,
                               userName: widget.userName ?? '',
                               isBffMatch: widget.isBffMatch,
                               userImage: currentUserImage,
                               otherUserImage: widget.userImage,
-                            );
-                          } else if (message is AudioMessage) {
+                                  isSelectionMode: isSelectionMode,
+                                  isSelectable: isSelectable,
+                                  isSelected: isSelected,
+                                  onTap: controller.isSelectionMode.value && isSelectable
+                                      ? () => controller.toggleSelectionForItem(item)
+                                      : null,
+                                  onLongPress: isSelectable
+                                      ? () => controller.startSelectionForItem(item)
+                                      : null,
+                                );
+                              } else if (item is AudioMessage) {
+                                final bool isMe =
+                                    item.senderId == (SupabaseService.currentUser?.id ?? '');
                             return AudioMessageBubble(
-                              audioMessage: message,
-                              isMe: message.senderId == (SupabaseService.currentUser?.id ?? ''),
+                                  audioMessage: item,
+                                  isMe: isMe,
                               userImage: currentUserImage,
                               otherUserImage: widget.userImage,
                               isBffMatch: widget.isBffMatch,
+                                  isSelectionMode: isSelectionMode,
+                                  isSelectable: isSelectable,
+                                  isSelected: isSelected,
+                                  onTap: controller.isSelectionMode.value && isSelectable
+                                      ? () => controller.toggleSelectionForItem(item)
+                                      : null,
+                                  onLongPress: isSelectable
+                                      ? () => controller.startSelectionForItem(item)
+                                      : null,
                             );
                           }
                           
@@ -1159,16 +1481,177 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
                   ),
                 ],
               );
-            }
               }),
             ),
-            
-            // Pending audio bar (shown after release, before send)
-            if (_pendingAudioPath != null)
-              _buildPendingAudioBar(),
-            
-            // Input field
-            _buildChatInputField(controller),
+              if (_pendingAudioPath != null) _buildPendingAudioBar(),
+              _buildChatInputField(controller),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFlameBanner(MessageController controller) {
+    return Obx(() {
+      if (!controller.shouldShowFlameBanner) {
+        return SizedBox.shrink();
+      }
+
+      final bool isActive = controller.isFlameActive.value;
+      final bool shouldUpgrade = controller.shouldBlockPostFlameMessaging;
+      final bool isBff = controller.isBffMode;
+
+      final Color primaryColor = isBff
+          ? themeController.bffPrimaryColor
+          : themeController.getAccentColor();
+      final Color secondaryColor = isBff
+          ? themeController.bffSecondaryColor
+          : themeController.getSecondaryColor();
+
+      final IconData icon = isActive
+          ? Icons.local_fire_department
+          : (shouldUpgrade ? Icons.lock_clock : Icons.check_circle_outline);
+
+      final String headline = isActive
+          ? 'Flame Chat is live'
+          : 'Flame Chat ended';
+
+      final String detail = isActive
+          ? '${controller.formattedFlameCountdown} remaining'
+          : (shouldUpgrade
+              ? 'Upgrade to keep the chat going without waiting.'
+              : 'You can keep chatting freely.');
+
+      return Container(
+        margin: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 8.h),
+        padding: EdgeInsets.symmetric(horizontal: 18.w, vertical: 18.h),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [primaryColor, secondaryColor],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20.r),
+          boxShadow: [
+            BoxShadow(
+              color: primaryColor.withValues(alpha: 0.28),
+              blurRadius: 20,
+              offset: Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  icon,
+                  color: Colors.white,
+                  size: 24.sp,
+                ),
+                widthBox(12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextConstant(
+                        title: headline,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                      SizedBox(height: 6.h),
+                      TextConstant(
+                        title: detail,
+                        fontSize: 13,
+                        color: Colors.white.withValues(alpha: 0.85),
+                        softWrap: true,
+                        maxLines: null,
+                      ),
+                      if (isActive)
+                        Padding(
+                          padding: EdgeInsets.only(top: 4.h),
+                          child: TextConstant(
+                            title: 'Make the most of this window—messages are unrestricted.',
+                            fontSize: 12,
+                            color: Colors.white.withValues(alpha: 0.75),
+                            softWrap: true,
+                            maxLines: null,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (!isActive) ...[
+              SizedBox(height: 14.h),
+              if (shouldUpgrade && controller.formattedNextMessageTime.isNotEmpty)
+                Padding(
+                  padding: EdgeInsets.only(bottom: 12.h),
+                  child: TextConstant(
+                    title: 'Next message available ${controller.formattedNextMessageTime}.',
+                    fontSize: 12,
+                    color: Colors.white.withValues(alpha: 0.8),
+                    softWrap: true,
+                    maxLines: null,
+                  ),
+                ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: _buildFlameActionButton(
+                  label: 'Continue Chat',
+                  primary: primaryColor,
+                  secondary: secondaryColor,
+                  onTap: controller.handleContinueChat,
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+    });
+  }
+
+  Widget _buildFlameActionButton({
+    required String label,
+    required Color primary,
+    required Color secondary,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 11.h),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [primary, secondary],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(22.r),
+          boxShadow: [
+            BoxShadow(
+              color: primary.withValues(alpha: 0.3),
+              blurRadius: 14,
+              offset: Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextConstant(
+              title: label,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+            SizedBox(width: 6.w),
+            Icon(Icons.arrow_forward, color: Colors.white, size: 16.sp),
           ],
         ),
       ),
@@ -1200,7 +1683,26 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             GestureDetector(
-              onTap: () => _showCameraGalleryPicker(controller),
+              onTap: () async {
+                // Bypass premium check during active flame chat
+                final isFlameActive = controller.isFlameActive.value;
+                if (!isFlameActive) {
+                  final isPremium = await SupabaseService.isPremiumUser();
+                  if (!isPremium) {
+                    _showFrostedDialog(
+                      UpgradePromptWidget(
+                        title: 'Premium Feature',
+                        message: 'Sending images is a premium feature. Upgrade to unlock it.',
+                        action: 'Upgrade Now',
+                        limitType: 'message',
+                        onDismiss: () => Get.back(),
+                      ),
+                    );
+                    return;
+                  }
+                }
+                _showCameraGalleryPicker(controller);
+              },
               child: Container(
                 width: 35.h,
                 height: 35.h,
@@ -1229,15 +1731,20 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
                   minHeight: 40.h,
                   maxHeight: 200.h,
                 ),
-                child: TextField(
+                child: Obx(() {
+                  final bool inputEnabled = controller.isFlameActive.value || !controller.shouldBlockPostFlameMessaging;
+                  return TextField(
                   controller: controller.textController,
+                    enabled: inputEnabled,
                   maxLines: null,
                   style: TextStyle(
                     color: themeController.whiteColor,
                     fontSize: 14.sp,
                   ),
                   decoration: InputDecoration(
-                    hintText: 'Type a message...',
+                      hintText: inputEnabled
+                          ? 'Type a message...'
+                          : 'Continue chat to keep messaging',
                     hintStyle: TextStyle(
                       color: themeController.whiteColor.withOpacity(0.6),
                       fontSize: 14.sp,
@@ -1258,6 +1765,13 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
                         width: 1.w,
                       ),
                     ),
+                      disabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(20.r),
+                        borderSide: BorderSide(
+                          color: themeController.whiteColor.withOpacity(0.15),
+                          width: 1.w,
+                        ),
+                      ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(20.r),
                       borderSide: BorderSide(
@@ -1293,7 +1807,8 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
                       controller.sendMessage(widget.matchId, text.trim());
                     }
                   },
-                ),
+                  );
+                }),
               ),
             ),
             widthBox(6),
@@ -1303,9 +1818,26 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
               onTap: () async {
                 if (_isRecordingAudio) {
                   await _stopAudioRecordingAndPreparePending();
-                } else {
-                  await _startAudioRecording();
+                  return;
                 }
+                // Bypass premium check during active flame chat
+                final isFlameActive = controller.isFlameActive.value;
+                if (!isFlameActive) {
+                  final isPremium = await SupabaseService.isPremiumUser();
+                  if (!isPremium) {
+                    _showFrostedDialog(
+                      UpgradePromptWidget(
+                        title: 'Premium Feature',
+                        message: 'Sending audio notes is a premium feature. Upgrade to unlock it.',
+                        action: 'Upgrade Now',
+                        limitType: 'message',
+                        onDismiss: () => Get.back(),
+                      ),
+                    );
+                    return;
+                  }
+                }
+                await _startAudioRecording();
               },
               child: Container(
                 width: 35.h,
@@ -1777,6 +2309,10 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
 
   Future<void> _sendAudioMessage(String audioPath, int duration, int fileSize) async {
     try {
+      final controller = Get.find<MessageController>(tag: 'msg_${widget.matchId}');
+      if (!await controller.ensureMessagingAllowed()) {
+        return;
+      }
       // Upload audio file to Supabase Storage
       final audioUrl = await _uploadAudioFile(audioPath);
       if (audioUrl == null) {
@@ -1800,7 +2336,6 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> {
       await _saveAudioMessage(audioMessage);
 
       // Add to message list
-      final controller = Get.find<MessageController>(tag: 'msg_${widget.matchId}');
       controller.addAudioMessage(audioMessage);
 
       setState(() {

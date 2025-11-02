@@ -10,6 +10,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
 import 'package:get/get.dart';
+import 'package:lovebug/Widgets/upgrade_prompt_widget.dart';
+import 'package:lovebug/widgets/super_like_purchase_dialog.dart';
+import 'package:lovebug/services/supabase_service.dart';
 import 'package:animations/animations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:math' as math;
@@ -19,12 +22,28 @@ import 'package:lovebug/services/premium_message_service.dart';
 import 'package:lovebug/Screens/SubscriptionPage/ui_subscription_screen.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-class DiscoverScreen extends StatelessWidget {
+class DiscoverScreen extends StatefulWidget {
   DiscoverScreen({super.key});
 
+  @override
+  State<DiscoverScreen> createState() => _DiscoverScreenState();
+}
+
+class _DiscoverScreenState extends State<DiscoverScreen> {
   final DiscoverController controller = Get.put(DiscoverController());
   final ThemeController themeController = Get.find<ThemeController>();
   final CardSwiperController _swiperController = CardSwiperController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Set callback for programmatic swipe right (for premium messages)
+    controller.setSwipeRightCallback(() {
+      if (controller.currentProfile != null) {
+        _swiperController.swipe(CardSwiperDirection.right);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -125,6 +144,9 @@ class DiscoverScreen extends StatelessWidget {
       ),
     );
   }
+
+  // Track whether we've shown the upgrade prompt once during this session
+  static bool _superLikeUpgradeShown = false;
 
   Widget _chip({required String label, required VoidCallback onTap}) {
     return GestureDetector(
@@ -257,7 +279,44 @@ class DiscoverScreen extends StatelessWidget {
         ),
       ),
       GestureDetector(
-        onTap: () => _swiperController.swipe(CardSwiperDirection.top),
+        onTap: () async {
+          // Determine premium and remaining daily super likes
+          final isPremium = await SupabaseService.isPremiumUser();
+          if (isPremium) {
+            // Premium: proceed with super like instantly
+            _swiperController.swipe(CardSwiperDirection.top);
+            return;
+          }
+          final usage = await SupabaseService.getDailyUsage();
+          final used = usage['super_likes_used'] ?? 0;
+          final remaining = (1 - used).clamp(0, 1);
+          if (remaining > 0) {
+            // Allow first daily super like and visually update badge to 0
+            _swiperController.swipe(CardSwiperDirection.top);
+            return;
+          }
+          // Out of daily super likes for free user:
+          // First show upgrade prompt once; subsequent taps show purchase dialog
+          if (!_superLikeUpgradeShown) {
+            _superLikeUpgradeShown = true;
+            Get.dialog(
+              Dialog(
+                backgroundColor: Colors.transparent,
+                insetPadding: EdgeInsets.symmetric(horizontal: 24.w),
+                child: UpgradePromptWidget(
+                  title: 'Premium Feature',
+                  message: 'You\'ve used your free super like. Upgrade to unlock unlimited super likes.',
+                  action: 'Upgrade Now',
+                  limitType: 'super_like',
+                ),
+              ),
+              barrierDismissible: true,
+            );
+            return;
+          }
+          // After upgrade prompt is shown once, open purchase dialog
+          Get.dialog(SuperLikePurchaseDialog(), barrierDismissible: true);
+        },
         child: Container(
           width: 60.w,
           height: 60.w,
@@ -271,7 +330,42 @@ class DiscoverScreen extends StatelessWidget {
               ),
             ],
           ),
-          child: Icon(Icons.star_rounded, color: Colors.white, size: 28.sp),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Icon(Icons.star_rounded, color: Colors.white, size: 28.sp),
+              Positioned(
+                top: 6.h,
+                right: 8.w,
+                child: FutureBuilder<Map<String, int>>(
+                  future: SupabaseService.getDailyUsage(),
+                  builder: (context, snapshot) {
+                    int remaining = 1;
+                    if (snapshot.hasData) {
+                      final used = snapshot.data!['super_likes_used'] ?? 0;
+                      remaining = (1 - used).clamp(0, 1);
+                    }
+                    return AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 250),
+                      transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+                      child: Container(
+                        key: ValueKey<int>(remaining),
+                        padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.6),
+                          borderRadius: BorderRadius.circular(10.r),
+                        ),
+                        child: Text(
+                          '$remaining',
+                          style: TextStyle(color: Colors.white, fontSize: 10.sp, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
       GestureDetector(
@@ -351,10 +445,30 @@ class DiscoverScreen extends StatelessWidget {
         }
         RewindService.showRewindDialog(
           onRewind: () async {
+            print('🔄 DEBUG: Rewind button tapped');
+            
+            // First, delete the swipe from the database
             final result = await RewindService.performRewind();
+            print('🔄 DEBUG: Rewind result: $result');
+            
             if (result['success'] == true) {
-              controller.reloadWithFilters();
+              print('✅ DEBUG: Swipe deleted from database, undoing swipe animation...');
+              
+              // Undo the swipe animation - re-insert the profile at index 0
+              final undone = controller.undoLastSwipe();
+              
+              if (undone) {
+                print('✅ DEBUG: Profile re-inserted at index 0 - smooth animation!');
+                Get.snackbar('Rewind', 'Profile restored!', duration: Duration(seconds: 1));
+              } else {
+                print('⚠️ DEBUG: Could not undo swipe - no last swiped profile found');
+                // Fallback: reload profiles if undo fails
+                await Future.delayed(Duration(milliseconds: 500));
+                await controller.reloadWithFilters();
+                print('✅ DEBUG: Profiles reloaded after rewind (fallback)');
+              }
             } else {
+              print('❌ DEBUG: Rewind failed: ${result['error']}');
               Get.snackbar('Rewind', result['error']?.toString() ?? 'Failed');
             }
           },
@@ -1205,9 +1319,21 @@ class DiscoverScreen extends StatelessWidget {
         ),
         // Rewind button for premium users
         DiscoverRewindButton(
-          onRewindSuccess: () {
-            // Reload profiles after successful rewind
-            controller.reloadWithFilters();
+          onRewindSuccess: () async {
+            print('🔄 DEBUG: Rewind success callback - undoing swipe...');
+            
+            // Undo the swipe animation - re-insert the profile at index 0
+            final undone = controller.undoLastSwipe();
+            
+            if (undone) {
+              print('✅ DEBUG: Profile re-inserted at index 0 - smooth animation!');
+            } else {
+              print('⚠️ DEBUG: Could not undo swipe - no last swiped profile found');
+              // Fallback: reload profiles if undo fails
+              await Future.delayed(Duration(milliseconds: 500));
+              await controller.reloadWithFilters();
+              print('✅ DEBUG: Profiles reloaded after rewind (fallback)');
+            }
           },
         ),
 
@@ -1250,7 +1376,7 @@ class DiscoverScreen extends StatelessWidget {
               right: true,
               up: true,
             ),
-            onSwipe: (previousIndex, currentIndex, direction) {
+            onSwipe: (previousIndex, currentIndex, direction) async {
               if (kDebugMode) {
                 print('🔍 DEBUG: onSwipe called - previousIndex=$previousIndex, currentIndex=$currentIndex, direction=$direction');
               }
@@ -1264,12 +1390,20 @@ class DiscoverScreen extends StatelessWidget {
                   print('🔍 DEBUG: Swiping profile - ID=${profile.id}, Name="${profile.name}", Age=${profile.age}');
                 }
 
+                bool allowed = false;
                 if (direction == CardSwiperDirection.left) {
-                  controller.onSwipeLeft(profile);
+                  allowed = await controller.onSwipeLeft(profile);
                 } else if (direction == CardSwiperDirection.right) {
-                  controller.onSwipeRight(profile);
+                  allowed = await controller.onSwipeRight(profile);
                 } else if (direction == CardSwiperDirection.top) {
-                  controller.onSuperLike(profile);
+                  allowed = await controller.onSuperLike(profile);
+                }
+
+                if (!allowed) {
+                  if (kDebugMode) {
+                    print('⛔ Swipe blocked for profile ID=${profile.id}, action=$direction');
+                  }
+                  return false;
                 }
               } else {
                 if (kDebugMode) {
@@ -1290,8 +1424,9 @@ class DiscoverScreen extends StatelessWidget {
                   }
                 }
                 // Finalize deck change after animation to keep UI/data in sync
+                // Pass direction for rewind animation
                 if (previousIndex != null) {
-                  controller.finalizeSwipeAtIndex(previousIndex);
+                  controller.finalizeSwipeAtIndex(previousIndex, direction: direction);
                 }
               });
               return true;
@@ -1390,23 +1525,81 @@ class DiscoverScreen extends StatelessWidget {
               // 🔧 FIX: Apply progressive transforms for smooth card stack animation
               Widget transformed = card;
               
+              // Check if this is a rewinding card (first card during rewind animation)
+              // Use Obx to react to isRewinding changes
+              if (isTopCard && controller.isRewinding.value && controller.lastSwipeDirection != null) {
+                final direction = controller.lastSwipeDirection!;
+                
+                // Calculate starting offset based on swipe direction
+                double startOffsetX = 0.0;
+                double startOffsetY = 0.0;
+                double startAngle = 0.0;
+                
+                switch (direction) {
+                  case CardSwiperDirection.left:
+                    startOffsetX = -Get.width;
+                    startAngle = -15 * math.pi / 180;
+                    break;
+                  case CardSwiperDirection.right:
+                    startOffsetX = Get.width;
+                    startAngle = 15 * math.pi / 180;
+                    break;
+                  case CardSwiperDirection.top:
+                    startOffsetY = -Get.height;
+                    break;
+                  default:
+                    break;
+                }
+                
+                // Animate card sliding back from the direction it was swiped
+                transformed = TweenAnimationBuilder<double>(
+                  duration: Duration(milliseconds: 400),
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  curve: Curves.easeOut,
+                  builder: (context, animValue, child) {
+                    // Interpolate from start position to center
+                    final animOffsetX = startOffsetX * (1 - animValue);
+                    final animOffsetY = startOffsetY * (1 - animValue);
+                    final animAngle = startAngle * (1 - animValue);
+                    
+                    // Apply reverse animation transforms
+                    Widget animCard = Transform.rotate(
+                      angle: animAngle,
+                      child: Transform.translate(
+                        offset: Offset(animOffsetX, animOffsetY),
+                        child: child!,
+                      ),
+                    );
+                    
+                    return animCard;
+                  },
+                  child: transformed,
+                );
+              }
+              
+              final isRewindingCard = isTopCard && controller.isRewinding.value && controller.lastSwipeDirection != null;
+              
               // Scale transform with smooth progression
               transformed = Transform.scale(
                 scale: scale,
                 child: transformed,
               );
               
-              // Rotation transform with enhanced angle
-              transformed = Transform.rotate(
-                angle: finalAngle,
-                child: transformed,
-              );
+              // Rotation transform with enhanced angle (only if not rewinding)
+              if (!isRewindingCard) {
+                transformed = Transform.rotate(
+                  angle: finalAngle,
+                  child: transformed,
+                );
+              }
               
-              // Translation transform with improved positioning
-              transformed = Transform.translate(
-                offset: Offset(dx, dy),
-                child: transformed,
-              );
+              // Translation transform with improved positioning (only if not rewinding)
+              if (!isRewindingCard) {
+                transformed = Transform.translate(
+                  offset: Offset(dx, dy),
+                  child: transformed,
+                );
+              }
               
               return transformed;
             },

@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -82,8 +83,11 @@ class _VideoCallScreenState extends State<VideoCallScreen>
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive ||
         state == AppLifecycleState.detached) {
-      // End call if app backgrounds or is about to terminate
-      webrtcService.endCall();
+      // iOS: DO NOT auto-end call on inactivity; CallKit/OS manages call UI
+      // Android: allow auto-end to avoid dangling call UIs
+      if (Platform.isAndroid) {
+        webrtcService.endCall();
+      }
     }
   }
 

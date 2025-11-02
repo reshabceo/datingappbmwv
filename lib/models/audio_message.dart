@@ -8,6 +8,9 @@ class AudioMessage {
   final DateTime createdAt;
   final bool isRead;
   final String? localFilePath; // For local playback
+  final bool deletedForEveryone;
+  final List<String> deletedBy;
+  final DateTime? deletedAt;
 
   AudioMessage({
     required this.id,
@@ -19,7 +22,11 @@ class AudioMessage {
     required this.createdAt,
     this.isRead = false,
     this.localFilePath,
-  });
+    bool? deletedForEveryone,
+    List<String>? deletedBy,
+    this.deletedAt,
+  })  : deletedForEveryone = deletedForEveryone ?? false,
+        deletedBy = List.unmodifiable(deletedBy ?? const []);
 
   // Convert to Map for database storage
   Map<String, dynamic> toMap() {
@@ -33,8 +40,13 @@ class AudioMessage {
       // Persist UTC so Postgres timestamptz stores the correct instant
       'created_at': createdAt.toUtc().toIso8601String(),
       'is_read': isRead,
+      'deleted_for_everyone': deletedForEveryone,
+      'deleted_by': deletedBy,
+      'deleted_at': deletedAt?.toUtc().toIso8601String(),
     };
   }
+
+  bool get isDeletedForEveryone => deletedForEveryone;
 
   // Create from Map (database response)
   factory AudioMessage.fromMap(Map<String, dynamic> map) {
@@ -42,6 +54,11 @@ class AudioMessage {
     final utcTimestamp = DateTime.parse(map['created_at'] ?? DateTime.now().toUtc().toIso8601String());
     final localTimestamp = utcTimestamp.toLocal(); // Convert UTC to local timezone
     
+    final deletedByRaw = map['deleted_by'];
+    final deletedByList = deletedByRaw is List
+        ? deletedByRaw.map((e) => e.toString()).toList()
+        : <String>[];
+
     return AudioMessage(
       id: map['id'] ?? '',
       matchId: map['match_id'] ?? '',
@@ -51,6 +68,11 @@ class AudioMessage {
       fileSize: map['file_size'] ?? 0,
       createdAt: localTimestamp, // Now in local timezone
       isRead: map['is_read'] ?? false,
+      deletedForEveryone: (map['deleted_for_everyone'] ?? false) as bool,
+      deletedBy: deletedByList,
+      deletedAt: map['deleted_at'] != null
+          ? DateTime.tryParse(map['deleted_at'].toString())?.toLocal()
+          : null,
     );
   }
 
@@ -65,6 +87,9 @@ class AudioMessage {
     DateTime? createdAt,
     bool? isRead,
     String? localFilePath,
+    bool? deletedForEveryone,
+    List<String>? deletedBy,
+    DateTime? deletedAt,
   }) {
     return AudioMessage(
       id: id ?? this.id,
@@ -76,6 +101,9 @@ class AudioMessage {
       createdAt: createdAt ?? this.createdAt,
       isRead: isRead ?? this.isRead,
       localFilePath: localFilePath ?? this.localFilePath,
+      deletedForEveryone: deletedForEveryone ?? this.deletedForEveryone,
+      deletedBy: deletedBy ?? List<String>.from(this.deletedBy),
+      deletedAt: deletedAt ?? this.deletedAt,
     );
   }
 

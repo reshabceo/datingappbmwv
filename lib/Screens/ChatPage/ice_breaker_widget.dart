@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:lovebug/services/supabase_service.dart';
+import 'package:lovebug/Screens/ChatPage/controller_message_screen.dart';
 import 'package:lovebug/ThemeController/theme_controller.dart';
 
 class IceBreakerWidget extends StatefulWidget {
@@ -333,20 +334,24 @@ class _IceBreakerWidgetState extends State<IceBreakerWidget> {
     if (currentUserId == null) return;
     
     try {
-      // Send the ice breaker as a message
-      await SupabaseService.sendMessage(
-        matchId: widget.matchId,
-        content: question,
-      );
-      
-      // Mark ice breaker as used
-      await SupabaseService.client
-          .from('ice_breaker_usage')
-          .insert({
-        'match_id': widget.matchId,
-        'ice_breaker_text': question,
-        'used_by_user_id': currentUserId,
-      });
+      final controller = Get.find<MessageController>(tag: 'msg_${widget.matchId}');
+      if (!await controller.ensureMessagingAllowed()) {
+        return;
+      }
+
+      await controller.sendMessage(widget.matchId, question);
+
+      try {
+        await SupabaseService.client
+            .from('ice_breaker_usage')
+            .insert({
+          'match_id': widget.matchId,
+          'ice_breaker_text': question,
+          'used_by_user_id': currentUserId,
+        });
+      } catch (e) {
+        print('⚠️ Icebreaker mark failed: $e');
+      }
       
       // Hide the ice breakers
       setState(() {

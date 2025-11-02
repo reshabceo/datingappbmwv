@@ -10,12 +10,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:lovebug/ThemeController/theme_controller.dart';
 import 'supabase_service.dart';
+import 'notification_service.dart';
 import 'webrtc_service.dart';
 import '../models/call_models.dart';
 import 'package:lovebug/screens/call_screens/video_call_screen.dart';
 import 'package:lovebug/screens/call_screens/audio_call_screen.dart';
 import 'package:lovebug/services/callkit_service.dart';
 import 'package:lovebug/services/app_state_service.dart';
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 
 /// Service to listen for incoming calls in real-time
 /// This is especially important for web where push notifications don't work
@@ -25,6 +27,8 @@ class CallListenerService {
   static Timer? _pollingTimer;
   static bool _isInitialized = false;
   static final Set<String> _processedCallIds = <String>{};
+  // Track when CallKit UI was presented for a call to avoid early auto-dismiss
+  static final Map<String, DateTime> _callkitShownAt = <String, DateTime>{};
   // When the app is opened from an incoming_call notification body tap on Android,
   // suppress the in-app invite once to avoid confusion and auto-join vibes.
   static bool _suppressNextInvite = false;
@@ -112,10 +116,25 @@ class CallListenerService {
       print('📞 Call data: $callData');
       
       final callId = callData['id'] as String;
+      // If CallKit already displayed for this call, do not reprocess
+      if (_callkitShownAt.containsKey(callId)) {
+        print('🚫 LISTENER: CallKit already active for $callId, ignoring duplicate');
+        return;
+      }
+      // Suppress if recently declined or otherwise suppressed
+      if (NotificationService.isCallSuppressed(callId)) {
+        print('🚫 LISTENER: Suppressed in-app invite for $callId');
+        return;
+      }
       final callerId = callData['caller_id'] as String;
       final matchId = callData['match_id'] as String;
       final callType = callData['call_type'] as String; // FIXED: Use 'call_type' not 'type'
       final callState = callData['state'] as String;
+      final createdAtStr = (callData['created_at'] ?? callData['started_at'])?.toString();
+      DateTime? createdAt;
+      if (createdAtStr != null) {
+        try { createdAt = DateTime.parse(createdAtStr); } catch (_) {}
+      }
 
       // De-dupe: ignore already processed call rows with 5s window
       if (_processedCallIds.contains(callId)) {
@@ -135,6 +154,13 @@ class CallListenerService {
       // Only show incoming call if state is 'initial' or 'ringing'
       if (callState != 'initial' && callState != 'ringing') {
         print('📞 Ignoring call with state: $callState');
+        return;
+      }
+
+      // Grace window: avoid racing the incoming push/CallKit. If the call was just created (<3s),
+      // allow the push/CallKit path to present first, and skip this realtime iteration.
+      if (createdAt != null && DateTime.now().difference(createdAt) < const Duration(seconds: 3)) {
+        print('⏳ LISTENER: Grace-window skip for freshly created call $callId');
         return;
       }
 
@@ -172,6 +198,29 @@ class CallListenerService {
   }
 
   static final Map<String, DateTime> _processedCallTimestamps = {};
+  /// Public helper: show in-app invite or CallKit immediately
+  static Future<void> showIncomingInvite({
+    required String callId,
+    required String callerId,
+    required String callerName,
+    required String matchId,
+    required String callType,
+  }) async {
+    try {
+      final callerProfile = await _getCallerProfile(callerId);
+      final callerImage = _getCallerImageUrl(callerProfile);
+      _showIncomingCallDialog(
+        callId: callId,
+        callerId: callerId,
+        callerName: callerName,
+        callerImage: callerImage,
+        matchId: matchId,
+        callType: callType,
+      );
+    } catch (e) {
+      print('❌ Error showing incoming invite from open action: $e');
+    }
+  }
 
   /// Get caller profile information
   static Future<Map<String, dynamic>?> _getCallerProfile(String callerId) async {
@@ -241,6 +290,36 @@ class CallListenerService {
       await CallKitService.showIncomingCall(payload: payload);
       
       print('✅ CallKit incoming call shown successfully');
+      // Track show time to ignore spurious immediate cancels
+      _callkitShownAt[callId] = DateTime.now();
+
+      // SAFETY: Re-check if CallKit actually presented; if not, retry once or twice
+      Future.delayed(const Duration(milliseconds: 700), () async {
+        try {
+          final active = await FlutterCallkitIncoming.activeCalls();
+          final isActive = (active ?? []).any((c) => (c['id']?.toString() ?? '') == callId);
+          if (!isActive) {
+            print('⚠️ CallKit not active after 700ms, retrying show for $callId');
+            await CallKitService.showIncomingCall(payload: payload);
+            _callkitShownAt[callId] = DateTime.now();
+          }
+        } catch (e) {
+          print('⚠️ Error checking/retrying CallKit: $e');
+        }
+      });
+      Future.delayed(const Duration(seconds: 2), () async {
+        try {
+          final active = await FlutterCallkitIncoming.activeCalls();
+          final isActive = (active ?? []).any((c) => (c['id']?.toString() ?? '') == callId);
+          if (!isActive) {
+            print('⚠️ CallKit still not active after 2s, final retry for $callId');
+            await CallKitService.showIncomingCall(payload: payload);
+            _callkitShownAt[callId] = DateTime.now();
+          }
+        } catch (e) {
+          print('⚠️ Error in final CallKit retry: $e');
+        }
+      });
     } catch (e) {
       print('❌ Error showing CallKit incoming call: $e');
       // Fallback to in-app dialog if CallKit fails
@@ -252,6 +331,45 @@ class CallListenerService {
         matchId: matchId,
         callType: callType,
       );
+      return;
+    }
+
+    // Subscribe to call_sessions state to auto-dismiss CallKit when remote declines/cancels/times out
+    try {
+      final callkitChannel = SupabaseService.client.channel('callkit_invite_$callId');
+      callkitChannel.onPostgresChanges(
+        event: PostgresChangeEvent.update,
+        schema: 'public',
+        table: 'call_sessions',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'id',
+          value: callId,
+        ),
+        callback: (payload) async {
+          final newState = (payload.newRecord['state'] ?? '').toString();
+          print('📞 CallKit listener: call state updated: $newState');
+          // iOS guard: avoid dismissing immediately if cancel arrives too fast
+          final shownAt = _callkitShownAt[callId];
+          final millisSinceShow = shownAt == null ? null : DateTime.now().difference(shownAt).inMilliseconds;
+          final isVeryEarly = millisSinceShow != null && millisSinceShow < 1500; // 1.5s guard
+          if ((newState == 'canceled' || newState == 'ended' || newState == 'declined' || newState == 'timeout' || newState == 'failed') && !isVeryEarly) {
+            try {
+              // End any ringing UI on iOS immediately
+              await CallKitService.endAllCalls();
+              print('✅ CallKit ended due to remote state=$newState');
+            } catch (e) {
+              print('⚠️ Error ending CallKit: $e');
+            }
+            try { callkitChannel.unsubscribe(); } catch (_) {}
+            _callkitShownAt.remove(callId);
+          } else if (isVeryEarly) {
+            print('⏳ Ignoring early $newState within ${millisSinceShow}ms of showing CallKit');
+          }
+        },
+      ).subscribe();
+    } catch (e) {
+      print('❌ Failed to subscribe CallKit state updates: $e');
     }
   }
 
@@ -760,6 +878,9 @@ class CallListenerService {
   static Future<void> _declineCall(String callId) async {
     try {
       print('📞 Declining call: $callId');
+      // Immediately suppress repeats locally
+      NotificationService.suppressCallId(callId);
+      _dismissInAppInviteIfOpen();
       
       // Get call session info for server-side clearing
       final callSession = await SupabaseService.client
@@ -782,14 +903,14 @@ class CallListenerService {
         }
       }
       
-      // Update call session state to a valid terminal value
-      await SupabaseService.client
-          .from('call_sessions')
-          .update({
-            'state': 'declined',
-            'ended_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', callId);
+          // Update call session state to a valid terminal value
+          await SupabaseService.client
+              .from('call_sessions')
+              .update({
+                'state': 'declined',
+                'ended_at': DateTime.now().toUtc().toIso8601String(),
+              })
+              .eq('id', callId);
       
       // CRITICAL FIX: Clear notifications using server-side clearing
       
@@ -896,9 +1017,22 @@ class CallListenerService {
             .limit(5); // Limit to 5 most recent calls
         
         if (response.isNotEmpty) {
-          print('📞 Polling detected ${response.length} missed call(s)');
+          print('📞 Polling detected ${response.length} incoming call candidate(s)');
           for (final callData in response) {
-            print('📞 Processing missed call: ${callData['id']}');
+            final callId = (callData['id'] ?? '').toString();
+            if (_callkitShownAt.containsKey(callId)) {
+              print('🚫 POLLING: CallKit already active for $callId, skipping');
+              continue;
+            }
+            // Respect a 3s grace window since created_at
+            try {
+              final createdAt = DateTime.parse((callData['created_at'] ?? callData['started_at']).toString());
+              if (DateTime.now().difference(createdAt) < const Duration(seconds: 3)) {
+                print('⏳ POLLING: Grace-window skip for $callId');
+                continue;
+              }
+            } catch (_) {}
+            print('📞 Processing incoming call via polling: $callId');
             _handleIncomingCall(callData);
           }
         }

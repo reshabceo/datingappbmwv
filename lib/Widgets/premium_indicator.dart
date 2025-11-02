@@ -36,16 +36,20 @@ class _PremiumIndicatorState extends State<PremiumIndicator> {
   Future<void> _checkPremiumStatus() async {
     try {
       final isPremium = await SupabaseService.isPremiumUser();
-      setState(() {
-        _isPremium = isPremium;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isPremium = isPremium;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       print('Error checking premium status: $e');
-      setState(() {
-        _isPremium = false;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isPremium = false;
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -188,16 +192,20 @@ class _PremiumBadgeState extends State<PremiumBadge> {
   Future<void> _checkPremiumStatus() async {
     try {
       final isPremium = await SupabaseService.isPremiumUser();
-      setState(() {
-        _isPremium = isPremium;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isPremium = isPremium;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       print('Error checking premium status: $e');
-      setState(() {
-        _isPremium = false;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isPremium = false;
+          _isLoading = false;
+        });
+      }
     }
   }
 

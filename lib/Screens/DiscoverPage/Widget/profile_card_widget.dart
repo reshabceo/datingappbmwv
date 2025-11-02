@@ -4,7 +4,6 @@ import 'package:lovebug/Screens/DiscoverPage/profile_detail_screen.dart';
 import 'package:lovebug/Screens/DiscoverPage/Widget/image_gallery_widget.dart';
 import 'package:lovebug/ThemeController/theme_controller.dart';
 import 'package:lovebug/widgets/premium_message_button.dart';
-import 'package:lovebug/widgets/premium_indicator.dart';
 import 'package:lovebug/services/supabase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -29,6 +28,7 @@ class _ProfileCardState extends State<ProfileCard>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _glowAnim;
+  bool _isCurrentUserPremium = false;
 
   @override
   void initState() {
@@ -44,6 +44,20 @@ class _ProfileCardState extends State<ProfileCard>
     );
 
     _startAnimationIfNeeded();
+    _checkPremiumStatus();
+  }
+
+  Future<void> _checkPremiumStatus() async {
+    try {
+      final isPremium = await SupabaseService.isPremiumUser();
+      if (mounted) {
+        setState(() {
+          _isCurrentUserPremium = isPremium;
+        });
+      }
+    } catch (e) {
+      print('Error checking premium status: $e');
+    }
   }
 
   void _startAnimationIfNeeded() {
@@ -183,7 +197,9 @@ class _ProfileCardState extends State<ProfileCard>
                       _buildBottomSection(),
                     ],
                   ),
-                  if (widget.profile.isSuperLiked)
+                  // Superlike badge - only show to premium users
+                  // Blue outline/glow is already shown to everyone via border/boxShadow above
+                  if (widget.profile.isSuperLiked && _isCurrentUserPremium)
                     Positioned(
                       top: 20.h,
                       right: 20.w,
@@ -234,16 +250,7 @@ class _ProfileCardState extends State<ProfileCard>
                         : '',
                   ),
                   
-                  // Premium indicator for premium users
-                  if (widget.profile.isPremium ?? false)
-                    Positioned(
-                      top: 20.h,
-                      left: 20.w,
-                      child: PremiumBadge(
-                        size: 10.sp,
-                        showText: true,
-                      ),
-                    ),
+                  
                 ],
               ),
             ),

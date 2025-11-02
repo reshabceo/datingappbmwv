@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
@@ -5,6 +6,8 @@ import '../services/supabase_service.dart';
 import '../services/in_app_purchase_service.dart';
 import '../widgets/super_like_purchase_button.dart';
 import '../Screens/SubscriptionPage/ui_subscription_screen.dart';
+import '../ThemeController/theme_controller.dart';
+import '../Screens/DiscoverPage/controller_discover_screen.dart';
 
 class UpgradePromptWidget extends StatelessWidget {
   final String title;
@@ -13,6 +16,10 @@ class UpgradePromptWidget extends StatelessWidget {
   final String? limitType; // 'swipe', 'super_like', 'message'
   final VoidCallback? onUpgrade;
   final VoidCallback? onDismiss;
+  final IconData? icon;
+  final List<Color>? gradientColors;
+  final String? dismissLabel;
+  final Color? accentColor;
 
   const UpgradePromptWidget({
     Key? key,
@@ -22,158 +29,163 @@ class UpgradePromptWidget extends StatelessWidget {
     this.limitType,
     this.onUpgrade,
     this.onDismiss,
+    this.icon,
+    this.gradientColors,
+    this.dismissLabel,
+    this.accentColor,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: EdgeInsets.all(16.w),
-      padding: EdgeInsets.all(20.w),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.pink.withValues(alpha: 0.15),
-            Colors.purple.withValues(alpha: 0.2),
-            Colors.black.withValues(alpha: 0.85),
+    final themeController = Get.find<ThemeController>();
+    
+    // Detect current mode (dating/bff) - EXACT copy from rewind dialog
+    bool isBffMode = false;
+    if (Get.isRegistered<DiscoverController>()) {
+      try {
+        final d = Get.find<DiscoverController>();
+        isBffMode = (d.currentMode.value == 'bff');
+      } catch (_) {}
+    }
+
+    // Pick gradient colors based on mode - EXACT copy from rewind dialog
+    final List<Color> bgColors = isBffMode
+        ? [
+            themeController.bffPrimaryColor.withValues(alpha: 0.15),
+            themeController.bffSecondaryColor.withValues(alpha: 0.15),
+          ]
+        : [
+            themeController.getAccentColor().withValues(alpha: 0.15),
+            themeController.getSecondaryColor().withValues(alpha: 0.15),
+          ];
+    final Color borderColor = isBffMode
+        ? themeController.bffPrimaryColor
+        : themeController.getAccentColor();
+    final List<Color> ctaColors = isBffMode
+        ? [themeController.bffPrimaryColor, themeController.bffSecondaryColor]
+        : [themeController.getAccentColor(), themeController.getSecondaryColor()];
+
+    return BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: bgColors,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(22.r),
+          border: Border.all(
+            color: borderColor.withValues(alpha: 0.35),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: borderColor.withValues(alpha: 0.15),
+              blurRadius: 20,
+              spreadRadius: 2,
+            ),
           ],
-          stops: const [0.0, 0.3, 1.0],
         ),
-        borderRadius: BorderRadius.circular(22.r),
-        border: Border.all(
-          color: Colors.pink.withValues(alpha: 0.35),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.pink.withValues(alpha: 0.15),
-            blurRadius: 20,
-            spreadRadius: 2,
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Icon
-          Container(
-            padding: EdgeInsets.all(12.w),
-            decoration: BoxDecoration(
-              color: Colors.pink.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              _getIcon(),
-              size: 24.w,
-              color: Colors.pink,
-            ),
-          ),
-          
-          SizedBox(height: 16.h),
-          
-          // Title
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 22.sp,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          
-          SizedBox(height: 16.h),
-          
-          // Message
-          Text(
-            message,
-            style: TextStyle(
-              fontSize: 15.sp,
-              color: Colors.white.withValues(alpha: 0.8),
-              height: 1.4,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          
-          SizedBox(height: 20.h),
-          
-          // Action buttons
-          Row(
-            children: [
-              // Dismiss button
-              if (onDismiss != null)
-                Expanded(
-                  child: GestureDetector(
-                    onTap: onDismiss,
-                    child: Container(
-                      padding: EdgeInsets.symmetric(vertical: 12.h),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(20.r),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.3),
-                          width: 1.5,
-                        ),
-                      ),
-                      child: Text(
-                        'Maybe Later',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 15.sp,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
+        child: SafeArea(
+          child: Padding(
+            padding: EdgeInsets.all(20.w),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: themeController.whiteColor,
+                    fontSize: 22.sp,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: 16.h),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: themeController.whiteColor.withValues(alpha: 0.8),
+                    fontSize: 15.sp,
+                    height: 1.4,
                   ),
                 ),
-              
-              if (onDismiss != null) SizedBox(width: 12.w),
-              
-              // Upgrade button
-              Expanded(
-                flex: onDismiss != null ? 2 : 1,
-                child: GestureDetector(
-                  onTap: () {
-                    if (onUpgrade != null) {
-                      onUpgrade!();
-                    } else {
-                      Get.to(() => SubscriptionScreen());
-                    }
-                  },
-                  child: Container(
-                    padding: EdgeInsets.symmetric(vertical: 12.h),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Colors.pink, Colors.purple],
+                SizedBox(height: 24.h),
+                Row(
+                  children: [
+                    if (onDismiss != null) ...[
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: onDismiss,
+                          child: Container(
+                            padding: EdgeInsets.symmetric(vertical: 12.h),
+                            decoration: BoxDecoration(
+                              color: themeController.whiteColor.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(20.r),
+                              border: Border.all(
+                                color: themeController.whiteColor.withValues(alpha: 0.3),
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Text(
+                              dismissLabel ?? 'Maybe Later',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: themeController.whiteColor,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
-                      borderRadius: BorderRadius.circular(20.r),
-                      border: Border.all(
-                        color: Colors.pink.withValues(alpha: 0.5),
-                        width: 1.5,
+                      SizedBox(width: 12.w),
+                    ],
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          if (onUpgrade != null) {
+                            onUpgrade!();
+                          } else {
+                            Get.to(() => SubscriptionScreen());
+                          }
+                        },
+                        child: Container(
+                          padding: EdgeInsets.symmetric(vertical: 12.h),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(colors: ctaColors),
+                            borderRadius: BorderRadius.circular(20.r),
+                            border: Border.all(
+                              color: borderColor.withValues(alpha: 0.5),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Text(
+                            action,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                    child: Text(
-                      action,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 15.sp,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
+                  ],
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ],
+        ),
       ),
     );
   }
 
   IconData _getIcon() {
+    if (icon != null) return icon!;
     switch (limitType) {
       case 'swipe':
         return Icons.swipe;

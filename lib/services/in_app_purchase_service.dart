@@ -14,9 +14,11 @@ class InAppPurchaseService {
   // Product IDs for different purchases
   // These must match exactly with your Google Play Console and App Store Connect
   static const Map<String, String> productIds = {
-    'super_like_5': 'super_like_5_pack',
-    'super_like_10': 'super_like_10_pack', 
-    'super_like_20': 'super_like_20_pack',
+    // Use the PRODUCT ID (SKU) defined in Play Console. Purchase option IDs
+    // can be hyphenated but are NOT used by the billing plugin.
+    'super_like_3': 'super_like_3_pack',
+    'super_like_15': 'super_like_15_pack', 
+    'super_like_30': 'super_like_30_pack',
     'premium_1_month': 'premium_monthly',
     'premium_3_months': 'premium_quarterly',
     'premium_6_months': 'premium_semiannual',
@@ -24,41 +26,41 @@ class InAppPurchaseService {
 
   // Pricing for different products
   static const Map<String, Map<String, dynamic>> productPricing = {
-    'super_like_5': {
-      'price': 99.0,
-      'currency': 'INR',
-      'title': '5 Super Likes',
-      'description': 'Get 5 super likes to stand out!',
-    },
-    'super_like_10': {
-      'price': 179.0,
-      'currency': 'INR', 
-      'title': '10 Super Likes',
-      'description': 'Get 10 super likes - best value!',
-    },
-    'super_like_20': {
+    'super_like_3': {
       'price': 299.0,
       'currency': 'INR',
-      'title': '20 Super Likes', 
-      'description': 'Get 20 super likes - maximum impact!',
+      'title': '3 Super Likes',
+      'description': 'You’re 3x more likely to match!',
+    },
+    'super_like_15': {
+      'price': 3399.0, // 226 each x 15 ≈ 3390 (rounded)
+      'currency': 'INR', 
+      'title': '15 Super Likes',
+      'description': 'Popular • Save 24%',
+    },
+    'super_like_30': {
+      'price': 5199.0, // 173 each x 30 ≈ 5190 (rounded)
+      'currency': 'INR',
+      'title': '30 Super Likes', 
+      'description': 'Best Value • Save 42%',
     },
     'premium_1_month': {
-      'price': 299.0,
+      'price': 2000.0,
       'currency': 'INR',
       'title': 'Premium - 1 Month',
-      'description': 'Unlimited swipes, see who liked you, and more!',
+      'description': 'Unlimited swipes, calls, media, and more!',
     },
     'premium_3_months': {
-      'price': 799.0,
+      'price': 3000.0,
       'currency': 'INR',
       'title': 'Premium - 3 Months',
-      'description': 'Save ₹98 with 3-month premium!',
+      'description': '3 months of full premium access',
     },
     'premium_6_months': {
-      'price': 1499.0,
+      'price': 5000.0,
       'currency': 'INR',
       'title': 'Premium - 6 Months',
-      'description': 'Save ₹295 with 6-month premium!',
+      'description': '6 months of full premium access',
     },
   };
 
@@ -196,14 +198,14 @@ class InAppPurchaseService {
     try {
       int superLikesToAdd = 0;
       switch (productId) {
-        case 'super_like_5_pack':
-          superLikesToAdd = 5;
+        case 'super_like_3_pack':
+          superLikesToAdd = 3;
           break;
-        case 'super_like_10_pack':
-          superLikesToAdd = 10;
+        case 'super_like_15_pack':
+          superLikesToAdd = 15;
           break;
-        case 'super_like_20_pack':
-          superLikesToAdd = 20;
+        case 'super_like_30_pack':
+          superLikesToAdd = 30;
           break;
       }
       

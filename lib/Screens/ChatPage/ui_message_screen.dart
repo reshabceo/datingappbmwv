@@ -22,6 +22,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
+import 'package:lovebug/Widgets/upgrade_prompt_widget.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'dart:typed_data';
 
@@ -43,13 +44,32 @@ class MessageScreen extends StatefulWidget {
   State<MessageScreen> createState() => _MessageScreenState();
 }
 
-class _MessageScreenState extends State<MessageScreen> {
+class _MessageScreenState extends State<MessageScreen> with WidgetsBindingObserver {
   final ThemeController themeController = Get.find<ThemeController>();
   String? currentUserImage;
+
+  void _showFrostedDialog(Widget child, {bool barrierDismissible = true}) {
+    Get.dialog(
+      Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 24.h),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(26.r),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: child,
+          ),
+        ),
+      ),
+      barrierDismissible: barrierDismissible,
+      barrierColor: Colors.black.withOpacity(0.6),
+    );
+  }
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     print('🔄 DEBUG: MessageScreen initState - loading current user profile');
     print('🔄 DEBUG: MessageScreen initState - widget.userImage: ${widget.userImage}');
     print('🔄 DEBUG: MessageScreen initState - widget.userName: ${widget.userName}');
@@ -59,12 +79,32 @@ class _MessageScreenState extends State<MessageScreen> {
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // Reload profile when dependencies change
-    if (currentUserImage == null) {
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // Reload profile when app comes back to foreground
+    if (state == AppLifecycleState.resumed) {
       _loadCurrentUserProfile();
     }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Always reload profile when dependencies change to ensure fresh data
+    _loadCurrentUserProfile();
+  }
+
+  @override
+  void didUpdateWidget(MessageScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Reload profile when widget updates (e.g., user returned from profile edit)
+    _loadCurrentUserProfile();
   }
 
   Future<void> _loadCurrentUserProfile() async {
@@ -73,22 +113,45 @@ class _MessageScreenState extends State<MessageScreen> {
       final currentUser = SupabaseService.currentUser;
       print('🔄 DEBUG: Loading current user profile for: ${currentUser?.id}');
       if (currentUser != null) {
-        final profile = await SupabaseService.getProfile(currentUser.id);
+        // Force fresh fetch by bypassing cache
+        final profile = await SupabaseService.client
+            .from('profiles')
+            .select()
+            .eq('id', currentUser.id)
+            .maybeSingle();
         print('🔄 DEBUG: Profile loaded: $profile');
         if (profile != null && mounted) {
           setState(() {
-            // Get the first photo from the user's profile
+            // Prioritize image_urls over photos (image_urls is the source of truth)
             final photos = <String>[];
-            if (profile['photos'] != null) {
-              photos.addAll(List<String>.from(profile['photos']));
-            }
+            
+            // First check image_urls (current photos)
             if (profile['image_urls'] != null) {
-              photos.addAll(List<String>.from(profile['image_urls']));
+              final imageUrls = List<String>.from(profile['image_urls']);
+              photos.addAll(imageUrls.where((url) => 
+                url.isNotEmpty && 
+                (url.startsWith('http://') || url.startsWith('https://'))
+              ));
             }
-            print('🔄 DEBUG: Found photos: $photos');
-            currentUserImage = photos.isNotEmpty ? photos.first : null;
-            print('🔄 DEBUG: Set currentUserImage to: $currentUserImage');
-            print('🔄 DEBUG: currentUserImage length: ${currentUserImage?.length ?? 0}');
+            
+            // Only use photos field if image_urls is empty/null
+            if (photos.isEmpty && profile['photos'] != null) {
+              final photoList = List<String>.from(profile['photos']);
+              photos.addAll(photoList.where((p) => 
+                p.isNotEmpty && 
+                (p.startsWith('http://') || p.startsWith('https://'))
+              ));
+            }
+            
+            // Remove duplicates
+            final validPhotos = photos.toSet().toList();
+            print('🔄 DEBUG: Found photos from image_urls: ${profile['image_urls']}');
+            print('🔄 DEBUG: Found photos from photos: ${profile['photos']}');
+            print('🔄 DEBUG: Valid photos after filtering: $validPhotos');
+            final newImage = validPhotos.isNotEmpty ? validPhotos.first : null;
+            // Always update to force refresh
+            currentUserImage = newImage;
+            print('🔄 DEBUG: Updated currentUserImage to: $currentUserImage');
           });
         }
       }
@@ -97,7 +160,7 @@ class _MessageScreenState extends State<MessageScreen> {
     }
   }
 
-  Profile _mapToProfile(Map<String, dynamic> profileData) {
+  Profile _mapToProfile(Map<String, dynamic> profileData, {String? matchId}) {
     final photos = <String>[];
     if (profileData['photos'] != null) {
       photos.addAll(List<String>.from(profileData['photos']));
@@ -128,6 +191,7 @@ class _MessageScreenState extends State<MessageScreen> {
       hobbies: hobbies,
       isVerified: (profileData['is_verified'] ?? false) as bool,
       isActiveNow: (profileData['is_active'] ?? false) as bool,
+      matchId: matchId,
     );
   }
 
@@ -153,7 +217,7 @@ class _MessageScreenState extends State<MessageScreen> {
           final profileData = await SupabaseService.getProfile(otherUserId);
           if (profileData != null) {
             // Convert Map to Profile object
-            final profile = _mapToProfile(profileData);
+            final profile = _mapToProfile(profileData, matchId: widget.matchId);
             // Navigate to profile detail screen (this is a matched profile)
             Get.to(() => ProfileDetailScreen(profile: profile, isMatched: true));
           } else {
@@ -532,64 +596,24 @@ class _MessageScreenState extends State<MessageScreen> {
         Get.put(MessageController(), tag: 'msg_${widget.matchId}')
           ..ensureInitialized(widget.matchId, isBffMatch: widget.isBffMatch);
 
-    return Scaffold(
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(kToolbarHeight),
-        child: Container(
-          decoration: BoxDecoration(color: themeController.blackColor),
-          child: AppBar(
-            backgroundColor: themeController.transparentColor,
-            elevation: 0,
-            iconTheme: IconThemeData(color: themeController.whiteColor),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: Get.back,
-            ),
-            centerTitle: true,
-            title: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextConstant(
-                      title: widget.userName ?? '',
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                      color: themeController.whiteColor,
-                    ),
-                    SizedBox(width: 8.w),
-                    // Premium indicator for current user
-                    PremiumBadge(
-                      size: 10.sp,
-                      showText: false,
-                    ),
-                  ],
-                ),
-                TextConstant(
-                  title: 'online'.tr,
-                  fontWeight: FontWeight.w600,
-                  color: themeController.greenColor,
-                  fontSize: 11,
-                ),
-              ],
-            ),
-            actions: [
-              InkWell(
-                onTap: () => _showChatOptions(),
-                child: SvgPicture.asset(
-                  AppAssets.menu,
-                  height: 35.h,
-                  width: 35.h,
-                  fit: BoxFit.cover,
-                ),
-              ),
-              widthBox(12),
-            ],
-          ),
+    return WillPopScope(
+      onWillPop: () async {
+        if (controller.isSelectionMode.value) {
+          controller.clearSelection();
+          return false;
+        }
+        return true;
+      },
+      child: Scaffold(
+        appBar: PreferredSize(
+          preferredSize: const Size.fromHeight(kToolbarHeight),
+          child: Obx(() {
+            return controller.isSelectionMode.value
+                ? _buildSelectionAppBar(controller)
+                : _buildDefaultAppBar();
+          }),
         ),
-      ),
-      body: Container(
+        body: Container(
         width: Get.width,
         height: Get.height,
         decoration: BoxDecoration(
@@ -668,10 +692,14 @@ class _MessageScreenState extends State<MessageScreen> {
               color: themeController.greyColor.withOpacity(0.2),
               thickness: 1.5.h,
             ),
+            _buildFlameBanner(controller),
             Expanded(
               child: Padding(
                 padding: EdgeInsets.symmetric(horizontal: 15.w),
                 child: Obx(() {
+                  // Access selectedMessageKeys to make Obx reactive to selection changes
+                  final _ = controller.selectedMessageKeys.length;
+                  
                   if (controller.messages.isEmpty) {
                     return Center(
                       child: Container(
@@ -715,6 +743,8 @@ class _MessageScreenState extends State<MessageScreen> {
                     );
                   }
 
+                  final isSelectionMode = controller.isSelectionMode.value;
+
                   return ListView.builder(
                     controller: controller.scrollController,
                     itemCount: controller.messages.length,
@@ -730,12 +760,24 @@ class _MessageScreenState extends State<MessageScreen> {
                         _loadCurrentUserProfile();
                       }
                       
-                            return EnhancedChatBubble(
+                      final isSelectable = controller.isItemSelectable(message);
+                      final isSelected = controller.isItemSelected(message);
+
+                      return EnhancedChatBubble(
                         message: message,
                         userName: widget.userName ?? '',
                         isBffMatch: widget.isBffMatch,
                         userImage: currentUserImage,
                         otherUserImage: widget.userImage,
+                        isSelectionMode: isSelectionMode,
+                        isSelectable: isSelectable,
+                        isSelected: isSelected,
+                        onTap: controller.isSelectionMode.value && isSelectable
+                            ? () => controller.toggleSelectionForItem(message)
+                            : null,
+                        onLongPress: isSelectable
+                            ? () => controller.startSelectionForItem(message)
+                            : null,
                       );
                     },
                   );
@@ -744,6 +786,403 @@ class _MessageScreenState extends State<MessageScreen> {
             ),
             // Input field
             _buildChatInputField(controller),
+          ],
+        ),
+      ),
+      ),
+    );
+  }
+
+  Widget _buildDefaultAppBar() {
+    return Container(
+      decoration: BoxDecoration(color: themeController.blackColor),
+      child: AppBar(
+        backgroundColor: themeController.transparentColor,
+        elevation: 0,
+        iconTheme: IconThemeData(color: themeController.whiteColor),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: Get.back,
+        ),
+        centerTitle: true,
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextConstant(
+                  title: widget.userName ?? '',
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: themeController.whiteColor,
+                ),
+                SizedBox(width: 8.w),
+                PremiumBadge(
+                  size: 10.sp,
+                  showText: false,
+                ),
+              ],
+            ),
+            TextConstant(
+              title: 'online'.tr,
+              fontWeight: FontWeight.w600,
+              color: themeController.greenColor,
+              fontSize: 11,
+            ),
+          ],
+        ),
+        actions: [
+          InkWell(
+            onTap: () => _showChatOptions(),
+            child: SvgPicture.asset(
+              AppAssets.menu,
+              height: 35.h,
+              width: 35.h,
+              fit: BoxFit.cover,
+            ),
+          ),
+          widthBox(12),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSelectionAppBar(MessageController controller) {
+    final selectedCount = controller.selectedMessageKeys.length;
+    final bool canDeleteAll = controller.canDeleteForEveryone.value;
+
+    return Container(
+      decoration: BoxDecoration(color: themeController.blackColor),
+      child: AppBar(
+        backgroundColor: themeController.transparentColor,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: controller.clearSelection,
+        ),
+        title: TextConstant(
+          title: '$selectedCount selected',
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: themeController.whiteColor,
+        ),
+        actions: [
+          IconButton(
+            icon: Icon(
+              canDeleteAll ? Icons.delete_forever : Icons.delete_outline,
+            ),
+            color: themeController.whiteColor,
+            onPressed: controller.selectedMessageKeys.isEmpty
+                ? null
+                : () => _showDeleteOptions(controller),
+          ),
+          widthBox(8),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteOptions(MessageController controller) {
+    final bool canDeleteAll = controller.canDeleteForEveryone.value;
+
+    Get.bottomSheet(
+      ClipRRect(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22.r)),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Container(
+            margin: EdgeInsets.only(bottom: MediaQuery.of(Get.context!).viewInsets.bottom),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white.withOpacity(0.25),
+                  themeController.getAccentColor().withValues(alpha: 0.18),
+                  themeController.getSecondaryColor().withValues(alpha: 0.16),
+                ],
+              ),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(22.r)),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.3),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: themeController.getAccentColor().withValues(alpha: 0.18),
+                  blurRadius: 22,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+            ),
+            child: SafeArea(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 40.w,
+                      height: 4.h,
+                      decoration: BoxDecoration(
+                        color: themeController.whiteColor.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(2.r),
+                      ),
+                    ),
+                    heightBox(20.h.toInt()),
+                    _buildDeleteOption(
+                      icon: Icons.delete_outline,
+                      title: 'Delete for me',
+                      onTap: () async {
+                        Get.back();
+                        await controller.deleteSelectedMessages(forEveryone: false);
+                      },
+                    ),
+                    if (canDeleteAll)
+                      _buildDeleteOption(
+                        icon: Icons.delete_forever,
+                        title: 'Delete for everyone',
+                        isDestructive: true,
+                        onTap: () async {
+                          Get.back();
+                          await controller.deleteSelectedMessages(forEveryone: true);
+                        },
+                      ),
+                    heightBox(8),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+    );
+  }
+
+  Widget _buildDeleteOption({
+    required IconData icon,
+    required String title,
+    required Future<void> Function() onTap,
+    bool isDestructive = false,
+  }) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 8.h),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () async => await onTap(),
+          borderRadius: BorderRadius.circular(12.r),
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+            decoration: BoxDecoration(
+              color: isDestructive
+                  ? Colors.red.withValues(alpha: 0.1)
+                  : themeController.whiteColor.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(12.r),
+              border: Border.all(
+                color: isDestructive
+                    ? Colors.red.withValues(alpha: 0.3)
+                    : themeController.getAccentColor().withValues(alpha: 0.2),
+                width: 1.w,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  color: isDestructive ? Colors.red : themeController.getAccentColor(),
+                  size: 20.sp,
+                ),
+                SizedBox(width: 12.w),
+                Expanded(
+                  child: TextConstant(
+                    title: title,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: isDestructive
+                        ? Colors.red
+                        : themeController.whiteColor,
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  color: isDestructive
+                      ? Colors.red.withValues(alpha: 0.5)
+                      : themeController.whiteColor.withValues(alpha: 0.5),
+                  size: 14.sp,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFlameBanner(MessageController controller) {
+    return Obx(() {
+      if (!controller.shouldShowFlameBanner) {
+        return SizedBox.shrink();
+      }
+
+      final bool isActive = controller.isFlameActive.value;
+      final bool isBff = controller.isBffMode;
+      final bool shouldUpgrade = controller.shouldBlockPostFlameMessaging;
+
+      final Color primaryColor = isBff
+          ? themeController.bffPrimaryColor
+          : themeController.getAccentColor();
+      final Color secondaryColor = isBff
+          ? themeController.bffSecondaryColor
+          : themeController.getSecondaryColor();
+
+      final LinearGradient gradient = LinearGradient(
+        colors: [primaryColor, secondaryColor],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
+
+      final IconData icon = isActive
+          ? Icons.local_fire_department
+          : (shouldUpgrade ? Icons.lock_clock : Icons.check_circle_outline);
+
+      final String headline = isActive
+          ? 'Flame Chat is live'
+          : 'Flame Chat ended';
+
+      final String detail = isActive
+          ? '${controller.formattedFlameCountdown} remaining'
+          : (shouldUpgrade
+              ? 'Continue now to keep the conversation going.'
+              : 'You can keep chatting without restrictions.');
+
+      return Container(
+        margin: EdgeInsets.fromLTRB(15.w, 12.h, 15.w, 8.h),
+        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+        decoration: BoxDecoration(
+          gradient: gradient,
+          borderRadius: BorderRadius.circular(18.r),
+          boxShadow: [
+            BoxShadow(
+              color: primaryColor.withValues(alpha: 0.25),
+              blurRadius: 16,
+              offset: Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  icon,
+                  color: Colors.white,
+                  size: 22.sp,
+                ),
+                widthBox(10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextConstant(
+                        title: headline,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                      SizedBox(height: 4.h),
+                      TextConstant(
+                        title: detail,
+                        fontSize: 13,
+                        color: Colors.white.withValues(alpha: 0.85),
+                        softWrap: true,
+                        maxLines: null,
+                      ),
+                      if (isActive)
+                        Padding(
+                          padding: EdgeInsets.only(top: 2.h),
+                          child: TextConstant(
+                            title: 'Unlimited messages while the timer runs.',
+                            fontSize: 12,
+                            color: Colors.white.withValues(alpha: 0.75),
+                            softWrap: true,
+                            maxLines: null,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (!isActive) ...[
+              SizedBox(height: 12.h),
+              if (shouldUpgrade && controller.formattedNextMessageTime.isNotEmpty)
+                Padding(
+                  padding: EdgeInsets.only(bottom: 12.h),
+                  child: TextConstant(
+                    title: 'Next message available ${controller.formattedNextMessageTime}.',
+                    fontSize: 12,
+                    color: Colors.white.withValues(alpha: 0.8),
+                    softWrap: true,
+                    maxLines: null,
+                  ),
+                ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: _buildFlameActionButton(
+                  label: 'Continue Chat',
+                  primary: primaryColor,
+                  secondary: secondaryColor,
+                  onTap: controller.handleContinueChat,
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+    });
+  }
+
+  Widget _buildFlameActionButton({
+    required String label,
+    required Color primary,
+    required Color secondary,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 18.w, vertical: 10.h),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [primary, secondary],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20.r),
+          boxShadow: [
+            BoxShadow(
+              color: primary.withValues(alpha: 0.3),
+              blurRadius: 12,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.arrow_forward, color: Colors.white, size: 16.sp),
+            SizedBox(width: 6.w),
+            TextConstant(
+              title: label,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
           ],
         ),
       ),
@@ -777,7 +1216,26 @@ class _MessageScreenState extends State<MessageScreen> {
             ButtonSquare(
               height: 35,
               width: 35,
-              onTap: () => _showCameraGalleryPicker(controller),
+              onTap: () async {
+                // Bypass premium check during active flame chat
+                final isFlameActive = controller.isFlameActive.value;
+                if (!isFlameActive) {
+                  final isPremium = await SupabaseService.isPremiumUser();
+                  if (!isPremium) {
+                    _showFrostedDialog(
+                      UpgradePromptWidget(
+                        title: 'Premium Feature',
+                        message: 'Sending images is a premium feature. Upgrade to unlock it.',
+                        action: 'Upgrade Now',
+                        limitType: 'message',
+                        onDismiss: () => Get.back(),
+                      ),
+                    );
+                    return;
+                  }
+                }
+                _showCameraGalleryPicker(controller);
+              },
               iconSize: 16,
               icon: Icons.camera_alt_outlined,
               iconColor: themeController.whiteColor,
@@ -804,60 +1262,72 @@ class _MessageScreenState extends State<MessageScreen> {
                 ),
                 child: SingleChildScrollView(
                   reverse: true,
-                  child: TextField(
-                    controller: controller.textController,
-                    onChanged: (v) {},
-                    style: TextStyle(
-                      fontWeight: FontWeight.w500,
-                      color: themeController.whiteColor,
-                    ),
-                    maxLines: null,
-                    minLines: 1,
-                    textInputAction: TextInputAction.done,
-                    onSubmitted: (v) {
-                      if (v.trim().isNotEmpty && !v.contains('\n')) {
-                        controller.sendMessage(widget.matchId, v.trim());
-                      }
-                    },
-                    decoration: InputDecoration(
-                      filled: true,
-                      hintText: 'type_message'.tr,
-                      hintStyle: TextStyle(
+                  child: Obx(() {
+                    final bool inputEnabled = controller.isFlameActive.value || !controller.shouldBlockPostFlameMessaging;
+                    return TextField(
+                      controller: controller.textController,
+                      enabled: inputEnabled,
+                      onChanged: (v) {},
+                      style: TextStyle(
                         fontWeight: FontWeight.w500,
-                        color:
-                            themeController.whiteColor.withOpacity(0.6),
+                        color: themeController.whiteColor,
                       ),
-                      fillColor:
-                          themeController.blackColor.withOpacity(0.25),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 15.w,
-                        vertical: 12.h,
-                      ),
-                      border: OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: themeController.getAccentColor()
-                              .withOpacity(0.3),
-                          width: 1.w,
+                      maxLines: null,
+                      minLines: 1,
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (v) {
+                        if (v.trim().isNotEmpty && !v.contains('\n')) {
+                          controller.sendMessage(widget.matchId, v.trim());
+                        }
+                      },
+                      decoration: InputDecoration(
+                        filled: true,
+                        hintText: inputEnabled
+                            ? 'type_message'.tr
+                            : 'Continue chat to keep messaging',
+                        hintStyle: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          color: themeController.whiteColor.withOpacity(0.6),
                         ),
-                        borderRadius: BorderRadius.circular(50.r),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: themeController.getAccentColor()
-                              .withOpacity(0.3),
-                          width: 1.w,
+                        fillColor: themeController.blackColor.withOpacity(0.25),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 15.w,
+                          vertical: 12.h,
                         ),
-                        borderRadius: BorderRadius.circular(50.r),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: themeController.getAccentColor(),
-                          width: 1.5.w,
+                        border: OutlineInputBorder(
+                          borderSide: BorderSide(
+                            color: themeController.getAccentColor()
+                                .withOpacity(0.3),
+                            width: 1.w,
+                          ),
+                          borderRadius: BorderRadius.circular(50.r),
                         ),
-                        borderRadius: BorderRadius.circular(50.r),
+                        enabledBorder: OutlineInputBorder(
+                          borderSide: BorderSide(
+                            color: themeController.getAccentColor()
+                                .withOpacity(0.3),
+                            width: 1.w,
+                          ),
+                          borderRadius: BorderRadius.circular(50.r),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderSide: BorderSide(
+                            color: themeController.getAccentColor(),
+                            width: 1.5.w,
+                          ),
+                          borderRadius: BorderRadius.circular(50.r),
+                        ),
+                        disabledBorder: OutlineInputBorder(
+                          borderSide: BorderSide(
+                            color: themeController.getAccentColor()
+                                .withOpacity(0.15),
+                            width: 1.w,
+                          ),
+                          borderRadius: BorderRadius.circular(50.r),
+                        ),
                       ),
-                    ),
-                  ),
+                    );
+                  }),
                 ),
               ),
             ),
@@ -966,8 +1436,21 @@ class _MessageScreenState extends State<MessageScreen> {
                       _buildMenuOption(
                         icon: Icons.videocam,
                         title: 'Video Call',
-                        onTap: () {
+                        onTap: () async {
                           Get.back();
+                          final isPremium = await SupabaseService.isPremiumUser();
+                          if (!isPremium) {
+                            _showFrostedDialog(
+                              UpgradePromptWidget(
+                                title: 'Premium Feature',
+                                message: 'Video call is a premium feature. Upgrade to unlock it.',
+                                action: 'Upgrade Now',
+                                limitType: 'message',
+                                onDismiss: () => Get.back(),
+                              ),
+                            );
+                            return;
+                          }
                           _startVideoCall();
                         },
                       ),
@@ -975,8 +1458,21 @@ class _MessageScreenState extends State<MessageScreen> {
                       _buildMenuOption(
                         icon: Icons.call,
                         title: 'Audio Call',
-                        onTap: () {
+                        onTap: () async {
                           Get.back();
+                          final isPremium = await SupabaseService.isPremiumUser();
+                          if (!isPremium) {
+                            _showFrostedDialog(
+                              UpgradePromptWidget(
+                                title: 'Premium Feature',
+                                message: 'Audio call is a premium feature. Upgrade to unlock it.',
+                                action: 'Upgrade Now',
+                                limitType: 'message',
+                                onDismiss: () => Get.back(),
+                              ),
+                            );
+                            return;
+                          }
                           _startAudioCall();
                         },
                       ),
@@ -1158,88 +1654,68 @@ class _MessageScreenState extends State<MessageScreen> {
   }
 
   void _showClearChatDialog() {
-    Get.dialog(
-      AlertDialog(
-        backgroundColor: Colors.transparent,
-        content: Container(
+    _showFrostedDialog(
+      Container(
+        decoration: BoxDecoration(
+          color: themeController.blackColor.withOpacity(0.85),
+          borderRadius: BorderRadius.circular(22.r),
+        ),
+        child: Padding(
           padding: EdgeInsets.all(20.w),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                themeController.getAccentColor().withValues(alpha: 0.15),
-                themeController.purpleColor.withValues(alpha: 0.1),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(18.r),
-            border: Border.all(
-              color: themeController.getAccentColor().withValues(alpha: 0.3),
-              width: 1.w,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: themeController.getAccentColor().withValues(alpha: 0.1),
-                blurRadius: 8,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextConstant(
                 title: 'Clear Chat',
-                color: themeController.whiteColor,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
+                color: themeController.whiteColor,
               ),
-              heightBox(15.h.toInt()),
+              SizedBox(height: 12.h),
               TextConstant(
                 title: 'Are you sure you want to clear all messages in this chat? This action cannot be undone.',
-                color: themeController.whiteColor.withValues(alpha: 0.8),
                 fontSize: 14,
+                color: themeController.whiteColor.withValues(alpha: 0.8),
                 textAlign: TextAlign.center,
               ),
-              heightBox(20.h.toInt()),
+              SizedBox(height: 20.h),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  Container(
-                    width: 100.w,
-                    child: ElevatedButton(
-                      onPressed: () => Get.back(),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: themeController.greyColor,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10.r),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => Get.back(),
+                      child: Container(
+                        padding: EdgeInsets.symmetric(vertical: 12.h),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(18.r),
                         ),
-                      ),
-                      child: TextConstant(
-                        title: 'Cancel',
-                        color: themeController.whiteColor,
-                        fontSize: 14,
+                        child: TextConstant(
+                          title: 'Cancel',
+                          color: themeController.whiteColor,
+                          textAlign: TextAlign.center,
+                        ),
                       ),
                     ),
                   ),
-                  Container(
-                    width: 100.w,
-                    child: ElevatedButton(
-                      onPressed: () async {
+                  SizedBox(width: 12.w),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () async {
                         Get.back();
                         await _clearChat();
                       },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10.r),
+                      child: Container(
+                        padding: EdgeInsets.symmetric(vertical: 12.h),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(colors: [Colors.redAccent, Colors.pink]),
+                          borderRadius: BorderRadius.circular(18.r),
                         ),
-                      ),
-                      child: TextConstant(
-                        title: 'Clear',
-                        color: themeController.whiteColor,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
+                        child: TextConstant(
+                          title: 'Clear',
+                          color: Colors.white,
+                          textAlign: TextAlign.center,
+                        ),
                       ),
                     ),
                   ),
@@ -1253,108 +1729,23 @@ class _MessageScreenState extends State<MessageScreen> {
   }
 
   void _showUnmatchUserDialog() {
-    Get.dialog(
-      AlertDialog(
-        backgroundColor: Colors.transparent,
-        content: Container(
-          padding: EdgeInsets.all(20.w),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                themeController.getAccentColor().withValues(alpha: 0.15),
-                themeController.purpleColor.withValues(alpha: 0.1),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(18.r),
-            border: Border.all(
-              color: themeController.getAccentColor().withValues(alpha: 0.3),
-              width: 1.w,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: themeController.getAccentColor().withValues(alpha: 0.1),
-                blurRadius: 8,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextConstant(
-                title: 'Unmatch User',
-                color: themeController.whiteColor,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-              heightBox(15.h.toInt()),
-              TextConstant(
-                title: 'What would you like to do?',
-                color: themeController.whiteColor.withValues(alpha: 0.8),
-                fontSize: 14,
-                textAlign: TextAlign.center,
-              ),
-              heightBox(20.h.toInt()),
-              // Just Unmatch button
-              Container(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Get.back();
-                    _justUnmatch();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: themeController.getAccentColor(),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10.r),
-                    ),
-                  ),
-                  child: TextConstant(
-                    title: 'Just Unmatch',
-                    color: themeController.whiteColor,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              heightBox(10.h.toInt()),
-              // Report User button
-              Container(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Get.back();
-                    _reportUser();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10.r),
-                    ),
-                  ),
-                  child: TextConstant(
-                    title: 'Report User',
-                    color: themeController.whiteColor,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              heightBox(15.h.toInt()),
-              // Cancel button
-              TextButton(
-                onPressed: () => Get.back(),
-                child: TextConstant(
-                  title: 'Cancel',
-                  color: themeController.greyColor,
-                  fontSize: 16,
-                ),
-              ),
-            ],
-          ),
-        ),
+    _showFrostedDialog(
+      UpgradePromptWidget(
+        title: 'Unmatch User',
+        message: 'Are you sure you want to unmatch with this user? You will no longer be able to message each other.',
+        action: 'Unmatch',
+        dismissLabel: 'Cancel',
+        icon: Icons.person_remove,
+        gradientColors: [
+          Colors.red.withOpacity(0.2),
+          Colors.deepPurple.withOpacity(0.2),
+          Colors.black.withOpacity(0.85),
+        ],
+        onDismiss: () => Get.back(),
+        onUpgrade: () async {
+          Get.back();
+          await _justUnmatch();
+        },
       ),
     );
   }

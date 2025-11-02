@@ -7,6 +7,9 @@ import 'package:lovebug/Screens/DiscoverPage/profile_detail_screen.dart';
 import 'package:lovebug/Screens/DiscoverPage/controller_discover_screen.dart';
 import 'package:lovebug/ThemeController/theme_controller.dart';
 import 'package:lovebug/services/supabase_service.dart';
+import 'package:lovebug/widgets/upgrade_prompt_widget.dart';
+import 'package:lovebug/Screens/SubscriptionPage/ui_subscription_screen.dart';
+import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
@@ -396,6 +399,22 @@ class _InstagramStoryViewerState extends State<InstagramStoryViewer>
           return;
         }
         
+        // Ensure flame chat state is initialized
+        final flameMeta = await SupabaseService.startFlameChat(matchId);
+        final meta = flameMeta.isNotEmpty
+            ? flameMeta
+            : await SupabaseService.getFlameStatus(matchId);
+
+        final userSummary = await SupabaseService.getCurrentUserSummary();
+        final gender = (userSummary['gender'] ?? '').toString().toLowerCase();
+        final bool isPremium = gender == 'female' || userSummary['is_premium'] == true;
+        final bool isFlameActive = _isFlameActive(meta);
+
+        if (!isFlameActive && !isPremium) {
+          _showUpgradePrompt(_nextMessageTime(meta));
+          return;
+        }
+
         // Send message to chat with story context
         print('DEBUG: Sending message to match $matchId: "$comment"');
         await SupabaseService.sendMessage(
@@ -403,6 +422,7 @@ class _InstagramStoryViewerState extends State<InstagramStoryViewer>
           content: comment,
           storyId: currentStory.id,
           storyUserName: currentStory.userName,
+          bypassFreemium: isFlameActive,
         );
         print('DEBUG: Message sent successfully');
         
@@ -1223,6 +1243,41 @@ class _InstagramStoryViewerState extends State<InstagramStoryViewer>
           ),
         ),
       ),
+    );
+  }
+
+  bool _isFlameActive(Map<String, dynamic> meta) {
+    final expiresRaw = meta['flame_expires_at'];
+    if (expiresRaw == null) return false;
+    final expires = DateTime.tryParse(expiresRaw.toString())?.toLocal();
+    if (expires == null) return false;
+    return DateTime.now().isBefore(expires);
+  }
+
+  DateTime? _nextMessageTime(Map<String, dynamic> meta) {
+    final expiresRaw = meta['flame_expires_at'];
+    final expires = expiresRaw == null
+        ? DateTime.now()
+        : DateTime.tryParse(expiresRaw.toString())?.toLocal() ?? DateTime.now();
+    return expires.add(const Duration(days: 1));
+  }
+
+  void _showUpgradePrompt(DateTime? nextTime) {
+    final formatted = nextTime != null
+        ? DateFormat('MMM d • h:mm a').format(nextTime)
+        : 'tomorrow';
+    Get.dialog(
+      Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.symmetric(horizontal: 24.w),
+        child: UpgradePromptWidget(
+          title: 'Continue Chat',
+          message: 'You can send your next message $formatted. Upgrade now to keep the conversation alive.',
+          action: 'Upgrade Now',
+          limitType: 'message',
+        ),
+      ),
+      barrierDismissible: true,
     );
   }
 }

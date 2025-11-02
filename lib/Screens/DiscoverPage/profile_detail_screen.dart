@@ -1,15 +1,20 @@
-import 'package:lovebug/Common/text_constant.dart';
-import 'package:lovebug/Common/widget_constant.dart';
-import 'package:lovebug/Screens/DiscoverPage/controller_discover_screen.dart';
-import 'package:lovebug/ThemeController/theme_controller.dart';
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
-import 'package:glassmorphism/glassmorphism.dart';
-import 'package:gradient_borders/gradient_borders.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:lovebug/Common/text_constant.dart';
+import 'package:lovebug/Common/widget_constant.dart';
+import 'package:lovebug/Screens/ChatPage/chat_integration_helper.dart';
+import 'package:lovebug/Screens/DiscoverPage/controller_discover_screen.dart';
+import 'package:lovebug/ThemeController/theme_controller.dart';
+import 'package:lovebug/Widgets/upgrade_prompt_widget.dart';
+import 'package:lovebug/controllers/call_controller.dart';
+import 'package:lovebug/models/call_models.dart';
+import 'package:lovebug/services/supabase_service.dart';
 
 class ProfileDetailScreen extends StatefulWidget {
   final Profile profile;
@@ -27,15 +32,436 @@ class ProfileDetailScreen extends StatefulWidget {
 
 class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
   int _currentImageIndex = 0;
+  String? _resolvedMatchId;
+  bool _isBffMatch = false;
+  bool _isLoadingMatchContext = false;
 
   @override
   void initState() {
     super.initState();
+    _resolvedMatchId = widget.profile.matchId;
+    _initializeMatchContext();
   }
 
   @override
   void dispose() {
     super.dispose();
+  }
+
+  void _initializeMatchContext() {
+    if (!widget.isMatched) return;
+    if (_resolvedMatchId != null) {
+      _determineMatchTypeForResolvedId(_resolvedMatchId!);
+    } else {
+      _fetchAndStoreMatchContext();
+    }
+  }
+
+  Future<void> _determineMatchTypeForResolvedId(String matchId) async {
+    try {
+      final existing = await SupabaseService.client
+          .from('bff_matches')
+          .select('id')
+          .eq('id', matchId)
+          .maybeSingle();
+      if (!mounted) return;
+      setState(() {
+        _isBffMatch = existing != null;
+      });
+    } catch (e) {
+      print('Error determining match type: $e');
+    }
+  }
+
+  Future<_MatchContext?> _queryMatchContext() async {
+    try {
+      final currentUserId = SupabaseService.currentUser?.id;
+      if (currentUserId == null || widget.profile.id.isEmpty) return null;
+
+      final otherUserId = widget.profile.id;
+
+      final matchesResponse = await SupabaseService.client
+          .from('matches')
+          .select('id,user_id_1,user_id_2,status')
+          .or('user_id_1.eq.$currentUserId,user_id_2.eq.$currentUserId')
+          .neq('status', 'unmatched');
+
+      if (matchesResponse is List) {
+        for (final row in matchesResponse) {
+          final user1 = row['user_id_1']?.toString();
+          final user2 = row['user_id_2']?.toString();
+          if ((user1 == currentUserId && user2 == otherUserId) ||
+              (user2 == currentUserId && user1 == otherUserId)) {
+            return _MatchContext(matchId: row['id'].toString(), isBff: false);
+          }
+        }
+      }
+
+      final bffResponse = await SupabaseService.client
+          .from('bff_matches')
+          .select('id,user_id_1,user_id_2,status')
+          .or('user_id_1.eq.$currentUserId,user_id_2.eq.$currentUserId')
+          .neq('status', 'unmatched');
+
+      if (bffResponse is List) {
+        for (final row in bffResponse) {
+          final user1 = row['user_id_1']?.toString();
+          final user2 = row['user_id_2']?.toString();
+          if ((user1 == currentUserId && user2 == otherUserId) ||
+              (user2 == currentUserId && user1 == otherUserId)) {
+            return _MatchContext(matchId: row['id'].toString(), isBff: true);
+          }
+        }
+      }
+    } catch (e) {
+      print('Error querying match context: $e');
+    }
+    return null;
+  }
+
+  Future<void> _fetchAndStoreMatchContext() async {
+    if (_isLoadingMatchContext) return;
+    setState(() {
+      _isLoadingMatchContext = true;
+    });
+    try {
+      final context = await _queryMatchContext();
+      if (!mounted) return;
+      setState(() {
+        _resolvedMatchId = context?.matchId;
+        _isBffMatch = context?.isBff ?? false;
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingMatchContext = false;
+        });
+      }
+    }
+  }
+
+  Future<bool> _ensureMatchContext() async {
+    if (!widget.isMatched) {
+      _showNotMatchedSnack();
+      return false;
+    }
+    if (_resolvedMatchId != null) return true;
+    await _fetchAndStoreMatchContext();
+    if (_resolvedMatchId == null) {
+      final themeController = Get.find<ThemeController>();
+      Get.snackbar(
+        'Match Not Found',
+        'Could not locate an active chat for this profile',
+        backgroundColor: themeController.blackColor,
+        colorText: themeController.whiteColor,
+      );
+      return false;
+    }
+    return true;
+  }
+
+  Future<void> _onMessageTap() async {
+    if (!await _ensureMatchContext()) return;
+    ChatIntegrationHelper.navigateToChat(
+      userImage: widget.profile.imageUrl,
+      userName: widget.profile.name,
+      matchId: _resolvedMatchId!,
+    );
+  }
+
+  Future<void> _onVideoCallTap() async {
+    if (!await _ensureMatchContext()) return;
+    final isPremium = await SupabaseService.isPremiumUser();
+    if (!isPremium) {
+      _showUpgradePrompt('Video call is a premium feature. Upgrade to unlock it.');
+      return;
+    }
+    await _startVideoCallInternal();
+  }
+
+  Future<void> _onAudioCallTap() async {
+    if (!await _ensureMatchContext()) return;
+    final isPremium = await SupabaseService.isPremiumUser();
+    if (!isPremium) {
+      _showUpgradePrompt('Audio call is a premium feature. Upgrade to unlock it.');
+      return;
+    }
+    await _startAudioCallInternal();
+  }
+
+  void _showUpgradePrompt(String message) {
+    final themeController = Get.find<ThemeController>();
+    Get.dialog(
+      Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.symmetric(horizontal: 24.w),
+        child: UpgradePromptWidget(
+          title: 'Premium Feature',
+          message: message,
+          action: 'Upgrade Now',
+          limitType: 'message',
+        ),
+      ),
+      barrierDismissible: true,
+    );
+  }
+
+  void _showNotMatchedSnack() {
+    final themeController = Get.find<ThemeController>();
+    Get.snackbar(
+      'Match Required',
+      'You need to match with this user to open chat or call options.',
+      backgroundColor: themeController.blackColor,
+      colorText: themeController.whiteColor,
+    );
+  }
+
+  Future<Map<String, dynamic>?> _getOtherUserProfile() async {
+    try {
+      return await SupabaseService.getProfile(widget.profile.id);
+    } catch (e) {
+      print('Error loading other user profile: $e');
+      return null;
+    }
+  }
+
+  String _extractPrimaryImage(Map<String, dynamic> profileData) {
+    final images = <String>[];
+    if (profileData['image_urls'] is List) {
+      images.addAll(List<String>.from(profileData['image_urls']));
+    }
+    if (profileData['photos'] is List) {
+      images.addAll(List<String>.from(profileData['photos']));
+    }
+    if (images.isNotEmpty) {
+      return images.first;
+    }
+    return widget.profile.imageUrl;
+  }
+
+  Future<void> _startVideoCallInternal() async {
+    try {
+      final otherUserProfile = await _getOtherUserProfile();
+      if (otherUserProfile == null) {
+        Get.snackbar('Error', 'Could not load user profile');
+        return;
+      }
+
+      final callController = Get.isRegistered<CallController>()
+          ? Get.find<CallController>()
+          : Get.put(CallController());
+
+      await callController.initiateCall(
+        matchId: _resolvedMatchId!,
+        receiverId: widget.profile.id,
+        receiverName: otherUserProfile['name']?.toString() ?? widget.profile.name,
+        receiverImage: _extractPrimaryImage(otherUserProfile),
+        receiverFcmToken: otherUserProfile['fcm_token']?.toString() ?? '',
+        callType: CallType.video,
+        isBffMatch: _isBffMatch,
+      );
+    } catch (e) {
+      print('Error starting video call from profile: $e');
+      Get.snackbar('Error', 'Failed to start video call');
+    }
+  }
+
+  Future<void> _startAudioCallInternal() async {
+    try {
+      final otherUserProfile = await _getOtherUserProfile();
+      if (otherUserProfile == null) {
+        Get.snackbar('Error', 'Could not load user profile');
+        return;
+      }
+
+      final callController = Get.isRegistered<CallController>()
+          ? Get.find<CallController>()
+          : Get.put(CallController());
+
+      await callController.initiateCall(
+        matchId: _resolvedMatchId!,
+        receiverId: widget.profile.id,
+        receiverName: otherUserProfile['name']?.toString() ?? widget.profile.name,
+        receiverImage: _extractPrimaryImage(otherUserProfile),
+        receiverFcmToken: otherUserProfile['fcm_token']?.toString() ?? '',
+        callType: CallType.audio,
+        isBffMatch: _isBffMatch,
+      );
+    } catch (e) {
+      print('Error starting audio call from profile: $e');
+      Get.snackbar('Error', 'Failed to start audio call');
+    }
+  }
+
+  void _onAppBarMenuTap() {
+    if (!widget.isMatched) {
+      _showNotMatchedSnack();
+      return;
+    }
+    _showProfileOptions();
+  }
+
+  void _showProfileOptions() {
+    final themeController = Get.find<ThemeController>();
+    showModalBottomSheet(
+      context: Get.context!,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.6),
+      isScrollControlled: true,
+      builder: (_) {
+        return ClipRRect(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22.r)),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              margin: EdgeInsets.only(bottom: MediaQuery.of(Get.context!).viewInsets.bottom),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.pink.withValues(alpha: 0.15),
+                    Colors.purple.withValues(alpha: 0.2),
+                    themeController.blackColor.withValues(alpha: 0.85),
+                  ],
+                  stops: [0.0, 0.3, 1.0],
+                ),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(22.r)),
+                border: Border.all(
+                  color: themeController.getAccentColor().withValues(alpha: 0.35),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: themeController.getAccentColor().withValues(alpha: 0.15),
+                    blurRadius: 20,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: SafeArea(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 40.w,
+                        height: 4.h,
+                        decoration: BoxDecoration(
+                          color: themeController.whiteColor.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(2.r),
+                        ),
+                      ),
+                      heightBox(20.h.toInt()),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.more_vert,
+                            color: themeController.getAccentColor(),
+                            size: 20.sp,
+                          ),
+                          SizedBox(width: 8.w),
+                          TextConstant(
+                            title: 'Chat Options',
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: themeController.whiteColor,
+                          ),
+                        ],
+                      ),
+                      heightBox(20.h.toInt()),
+                      _buildSheetMenuOption(
+                        themeController,
+                        icon: Icons.message,
+                        title: 'Open Chat',
+                        onTap: () async {
+                          Get.back();
+                          await _onMessageTap();
+                        },
+                      ),
+                      _buildSheetMenuOption(
+                        themeController,
+                        icon: Icons.videocam,
+                        title: 'Video Call',
+                        onTap: () async {
+                          Get.back();
+                          await _onVideoCallTap();
+                        },
+                      ),
+                      _buildSheetMenuOption(
+                        themeController,
+                        icon: Icons.call,
+                        title: 'Audio Call',
+                        onTap: () async {
+                          Get.back();
+                          await _onAudioCallTap();
+                        },
+                      ),
+                      heightBox(20.h.toInt()),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSheetMenuOption(
+    ThemeController themeController, {
+    required IconData icon,
+    required String title,
+    required Future<void> Function() onTap,
+  }) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 8.h),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            onTap();
+          },
+          borderRadius: BorderRadius.circular(12.r),
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+            decoration: BoxDecoration(
+              color: themeController.whiteColor.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(12.r),
+              border: Border.all(
+                color: themeController.getAccentColor().withValues(alpha: 0.1),
+                width: 1.w,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  color: themeController.getAccentColor(),
+                  size: 20.sp,
+                ),
+                SizedBox(width: 12.w),
+                Expanded(
+                  child: TextConstant(
+                    title: title,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: themeController.whiteColor,
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  color: themeController.whiteColor.withValues(alpha: 0.5),
+                  size: 14.sp,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -123,7 +549,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
           ),
           Spacer(),
           GestureDetector(
-            onTap: () {},
+            onTap: _onAppBarMenuTap,
             child: Container(
               width: 40.h,
               height: 40.h,
@@ -511,8 +937,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
               icon: Icons.message,
               color: themeController.lightPinkColor,
               onTap: () {
-                Get.back();
-                // TODO: Navigate to chat
+                _onMessageTap();
               },
             ),
             
@@ -522,17 +947,17 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
               icon: Icons.videocam,
               color: Colors.blue,
               onTap: () {
-                // TODO: Implement video call
+                _onVideoCallTap();
               },
             ),
             
-            // More Options Button
+            // Audio Call Button
             _buildActionButton(
               themeController,
-              icon: Icons.more_horiz,
-              color: Colors.grey,
+              icon: Icons.call,
+              color: themeController.greenColor,
               onTap: () {
-                // TODO: Show more options
+                _onAudioCallTap();
               },
             ),
           ],
@@ -652,4 +1077,11 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
   int _getImageCount() {
     return _getImages().length;
   }
+}
+
+class _MatchContext {
+  final String matchId;
+  final bool isBff;
+
+  const _MatchContext({required this.matchId, required this.isBff});
 }

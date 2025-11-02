@@ -4,7 +4,10 @@ import 'package:lovebug/Screens/ActivityPage/controller_activity_screen.dart';
 import 'package:lovebug/Screens/ActivityPage/models/activity_model.dart';
 import 'package:lovebug/ThemeController/theme_controller.dart';
 import 'package:lovebug/widgets/blurred_profile_widget.dart';
+import 'package:lovebug/Widgets/upgrade_prompt_widget.dart';
+import 'package:lovebug/Screens/SubscriptionPage/ui_subscription_screen.dart';
 import 'package:flutter/material.dart';
+import 'dart:ui';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -146,14 +149,54 @@ class ActivityScreen extends StatelessWidget {
                                 : themeController.purpleColor);
 
                         // Check if activity should be blurred for free users
-                        final shouldBlur = !controller.isPremium.value &&
-                            (activity.type == ActivityType.premiumMessage);
+                        final bool hideIdentity = !controller.isPremium.value &&
+                            (activity.type == ActivityType.like || activity.type == ActivityType.superLike);
+                        final bool shouldBlur = !controller.isPremium.value &&
+                            (activity.type == ActivityType.premiumMessage || hideIdentity);
+
+                        final String displayMessage = hideIdentity
+                            ? (activity.type == ActivityType.superLike
+                                ? 'Someone super liked you!'
+                                : 'Someone liked your profile')
+                            : activity.displayMessage;
+
+                        final String? displayPhoto = activity.otherUserPhoto;
+
+                        final String blurredActivityType = () {
+                          switch (activity.type) {
+                            case ActivityType.superLike:
+                              return 'super_like';
+                            case ActivityType.premiumMessage:
+                            case ActivityType.message:
+                            case ActivityType.bffMessage:
+                              return 'message';
+                            case ActivityType.match:
+                            case ActivityType.bffMatch:
+                              return 'match';
+                            case ActivityType.storyReply:
+                              return 'message';
+                            case ActivityType.like:
+                            default:
+                              return 'like';
+                          }
+                        }();
                         
-                        Widget activityWidget = InkWell(
-                          onTap: () => controller.onActivityTap(activity),
-                          child: Container(
-                                width: Get.width,
-                                decoration: BoxDecoration(
+                        final VoidCallback handleTap = shouldBlur
+                            ? () => _showUpgradePrompt(activity)
+                            : () => controller.onActivityTap(activity);
+
+                        Widget activityWidget = LayoutBuilder(
+                          builder: (context, constraints) {
+                            print('✅ DEBUG: Activity card - type: ${activity.type}, shouldBlur: $shouldBlur');
+                            print('✅ DEBUG: Activity card constraints: width=${constraints.maxWidth}, height=${constraints.maxHeight}');
+                            return InkWell(
+                              onTap: () {
+                                print('✅ DEBUG: Activity card tapped - type: ${activity.type}, shouldBlur: $shouldBlur');
+                                handleTap();
+                              },
+                              child: Container(
+                                    width: Get.width,
+                                    decoration: BoxDecoration(
                                   gradient: isBffActivity
                                       ? LinearGradient(
                                           colors: [
@@ -194,21 +237,14 @@ class ActivityScreen extends StatelessWidget {
                                       decoration: BoxDecoration(
                                         shape: BoxShape.circle,
                                         color: backgroundColor,
-                                        image: activity.otherUserPhoto !=
-                                                    null &&
-                                                activity.otherUserPhoto!
-                                                    .isNotEmpty
+                                        image: displayPhoto != null && displayPhoto.isNotEmpty
                                             ? DecorationImage(
-                                                image: NetworkImage(
-                                                    activity.otherUserPhoto!),
+                                                image: NetworkImage(displayPhoto),
                                                 fit: BoxFit.cover,
                                               )
                                             : null,
                                       ),
-                                      child: (activity.otherUserPhoto ==
-                                                  null ||
-                                              activity.otherUserPhoto!
-                                                  .isEmpty)
+                                      child: (displayPhoto == null || displayPhoto.isEmpty)
                                           ? Icon(
                                               Icons.person,
                                               color: iconColor,
@@ -223,7 +259,7 @@ class ActivityScreen extends StatelessWidget {
                                             CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            activity.displayMessage,
+                                            displayMessage,
                                             style: TextStyle(
                                               color: themeController
                                                   .whiteColor,
@@ -267,16 +303,132 @@ class ActivityScreen extends StatelessWidget {
                                 ),
                               ),
                             );
+                          },
+                        );
                         
-                        // Wrap with blurring for free users
+                        // Wrap with blurring for free users - using same structure as normal notification
                         if (shouldBlur) {
-                          return BlurredActivityWidget(
-                            activityType: activity.type.toString(),
-                            child: activityWidget,
-                            onTap: () => controller.onActivityTap(activity),
+                          print('✅ DEBUG: Creating blurred notification - type: ${activity.type}');
+                          return InkWell(
+                            onTap: handleTap,
+                            child: Container(
+                              width: Get.width,
+                              decoration: BoxDecoration(
+                                gradient: isBffActivity
+                                    ? LinearGradient(
+                                        colors: [
+                                          themeController.bffPrimaryColor.withValues(alpha: 0.15),
+                                          themeController.bffSecondaryColor.withValues(alpha: 0.1),
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      )
+                                    : null,
+                                color: isBffActivity
+                                    ? null
+                                    : themeController.lightPinkColor.withValues(alpha: 0.15),
+                                border: Border.all(
+                                  color: isBffActivity
+                                      ? themeController.bffPrimaryColor.withValues(alpha: 0.3)
+                                      : themeController.lightPinkColor.withValues(alpha: 0.3),
+                                  width: 1.w,
+                                ),
+                                borderRadius: BorderRadius.circular(16.r),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: isBffActivity
+                                        ? themeController.bffPrimaryColor.withValues(alpha: 0.2)
+                                        : themeController.lightPinkColor.withValues(alpha: 0.2),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              padding: EdgeInsets.all(12.w),
+                              child: Row(
+                                children: [
+                                  // Blurred profile photo - show actual photo with blur
+                                  Container(
+                                    width: 40.h,
+                                    height: 40.h,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: backgroundColor,
+                                      image: displayPhoto != null && displayPhoto.isNotEmpty
+                                          ? DecorationImage(
+                                              image: NetworkImage(displayPhoto),
+                                              fit: BoxFit.cover,
+                                            )
+                                          : null,
+                                    ),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(20.h),
+                                      child: displayPhoto != null && displayPhoto.isNotEmpty
+                                          ? BackdropFilter(
+                                              filter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
+                                              child: Container(
+                                                color: Colors.black.withOpacity(0.2),
+                                              ),
+                                            )
+                                          : Container(
+                                              color: Colors.black.withOpacity(0.3),
+                                              child: Icon(
+                                                Icons.person,
+                                                color: iconColor.withValues(alpha: 0.5),
+                                                size: 20.sp,
+                                              ),
+                                            ),
+                                    ),
+                                  ),
+                                  widthBox(12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          displayMessage,
+                                          style: TextStyle(
+                                            color: themeController.whiteColor,
+                                            fontSize: 13.sp,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        heightBox(4),
+                                        Text(
+                                          'Upgrade to see who it is',
+                                          style: TextStyle(
+                                            color: themeController.whiteColor.withValues(alpha: 0.6),
+                                            fontSize: 11.sp,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  widthBox(8),
+                                  Icon(
+                                    activity.icon,
+                                    color: iconColor,
+                                    size: 20.sp,
+                                  ),
+                                  widthBox(8),
+                                  if (activity.isUnread)
+                                    Container(
+                                      width: 8.h,
+                                      height: 8.h,
+                                      decoration: BoxDecoration(
+                                        color: themeController.lightPinkColor,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
                           );
                         }
                         
+                        print('✅ DEBUG: Returning unwrapped activityWidget - type: ${activity.type}');
                         return activityWidget;
                       },
                     ),
@@ -287,6 +439,82 @@ class ActivityScreen extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  void _showUpgradePrompt(Activity activity) {
+    final bool isSuperLike = activity.type == ActivityType.superLike;
+    final bool isLike = activity.type == ActivityType.like;
+    final bool isPremiumMessage = activity.type == ActivityType.premiumMessage;
+
+    String title;
+    String message;
+    String limitType;
+    IconData icon;
+    List<Color> gradient;
+
+    if (isPremiumMessage) {
+      title = 'Unlock Premium Messages';
+      message = 'Upgrade to see who sent this message and keep the conversation going instantly.';
+      limitType = 'message';
+      icon = Icons.forum_rounded;
+      gradient = [
+        themeController.purpleColor.withValues(alpha: 0.2),
+        themeController.lightPinkColor.withValues(alpha: 0.25),
+        themeController.blackColor.withValues(alpha: 0.85),
+      ];
+    } else if (isSuperLike) {
+      title = 'See Your Super Liker';
+      message = 'Someone is really into you! Upgrade to reveal who super liked you and match instantly.';
+      limitType = 'swipe';
+      icon = Icons.star_rounded;
+      gradient = [
+        themeController.lightPinkColor.withValues(alpha: 0.2),
+        themeController.purpleColor.withValues(alpha: 0.25),
+        themeController.blackColor.withValues(alpha: 0.85),
+      ];
+    } else if (isLike) {
+      title = 'See Who Liked You';
+      message = 'Upgrade to reveal everyone who liked you and start chatting before the spark fades.';
+      limitType = 'swipe';
+      icon = Icons.favorite_rounded;
+      gradient = [
+        themeController.lightPinkColor.withValues(alpha: 0.2),
+        themeController.purpleColor.withValues(alpha: 0.2),
+        themeController.blackColor.withValues(alpha: 0.85),
+      ];
+    } else {
+      title = 'Premium Feature';
+      message = 'Upgrade to unlock this premium activity and experience the full LoveBug magic.';
+      limitType = 'swipe';
+      icon = Icons.lock_outline;
+      gradient = [
+        themeController.lightPinkColor.withValues(alpha: 0.2),
+        themeController.purpleColor.withValues(alpha: 0.2),
+        themeController.blackColor.withValues(alpha: 0.85),
+      ];
+    }
+
+    Get.dialog(
+      Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 24.h),
+        child: UpgradePromptWidget(
+          title: title,
+          message: message,
+          action: 'Upgrade Now',
+          limitType: limitType,
+          icon: icon,
+          gradientColors: gradient,
+          dismissLabel: 'Maybe Later',
+          onUpgrade: () {
+            Get.back();
+            Get.to(() => SubscriptionScreen());
+          },
+          onDismiss: () => Get.back(),
+        ),
+      ),
+      barrierDismissible: true,
     );
   }
 }

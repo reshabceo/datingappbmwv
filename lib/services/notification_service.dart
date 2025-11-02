@@ -4,6 +4,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:flutter/services.dart';
 import 'package:lovebug/services/supabase_service.dart';
 import 'package:lovebug/services/call_listener_service.dart';
 import 'package:lovebug/services/callkit_service.dart';
@@ -35,7 +36,21 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       final callerImageUrl = data['caller_image_url'] as String?;
       
       if (callId != null && callerId != null && matchId != null) {
+        // Suppress repeat if recently declined
+        if (NotificationService._isSuppressed(callId)) {
+          print('🚫 BACKGROUND(iOS): Suppressed incoming call UI for $callId');
+          return;
+        }
         print('📱 BACKGROUND: CallKit data - ID: $callId, Caller: $callerName, Type: $callType');
+        // De-dup: if CallKit already showing this call, skip
+        try {
+          final active = await FlutterCallkitIncoming.activeCalls();
+          final isActive = (active ?? []).any((c) => (c['id']?.toString() ?? '') == callId);
+          if (isActive) {
+            print('⚠️ BACKGROUND: Call $callId already active in CallKit - skipping duplicate show');
+            return;
+          }
+        } catch (_) {}
         
         // CRITICAL: Use showCallkitIncoming for CallKit triggering
         // This is the correct API for the current flutter_callkit_incoming version
@@ -79,6 +94,39 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         // CRITICAL: Use showCallkitIncoming for CallKit triggering
         await FlutterCallkitIncoming.showCallkitIncoming(params);
         print('✅ BACKGROUND: CallKit incoming call reported successfully');
+
+        // Verify CallKit is active; retry if needed to ensure sheet is visible
+        try {
+          await Future.delayed(const Duration(milliseconds: 700));
+          final firstActive = await FlutterCallkitIncoming.activeCalls();
+          final firstIsActive = (firstActive ?? []).any((c) => (c['id']?.toString() ?? '') == callId);
+          if (!firstIsActive) {
+            print('⚠️ BACKGROUND: CallKit not active after 700ms for $callId - retrying show');
+            try {
+              await FlutterCallkitIncoming.endAllCalls();
+              print('🧹 BACKGROUND: Cleared any phantom CallKit calls before retry #1');
+            } catch (_) {}
+            await FlutterCallkitIncoming.showCallkitIncoming(params);
+          } else {
+            print('✅ BACKGROUND: CallKit active after 700ms for $callId');
+          }
+
+          await Future.delayed(const Duration(seconds: 2));
+          final secondActive = await FlutterCallkitIncoming.activeCalls();
+          final secondIsActive = (secondActive ?? []).any((c) => (c['id']?.toString() ?? '') == callId);
+          if (!secondIsActive) {
+            print('⚠️ BACKGROUND: CallKit not active after 2s for $callId - final retry show');
+            try {
+              await FlutterCallkitIncoming.endAllCalls();
+              print('🧹 BACKGROUND: Cleared any phantom CallKit calls before retry #2');
+            } catch (_) {}
+            await FlutterCallkitIncoming.showCallkitIncoming(params);
+          } else {
+            print('✅ BACKGROUND: CallKit confirmed active after 2s for $callId');
+          }
+        } catch (e) {
+          print('⚠️ BACKGROUND: Error verifying CallKit active state: $e');
+        }
       } else {
         print('❌ BACKGROUND: Missing required call data for CallKit');
       }
@@ -91,6 +139,44 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 class NotificationService {
   static bool _initialized = false;
   static FirebaseMessaging? _messaging;
+  static const MethodChannel _androidCallActionsChannel = MethodChannel('com.lovebug.app/call_actions');
+  static const MethodChannel _androidNotificationChannel = MethodChannel('com.lovebug.app/notification');
+
+  // Suppression cache to avoid repeated in-app invitations for same call shortly after decline
+  static final Map<String, DateTime> _suppressedCallIds = <String, DateTime>{};
+  static const Duration _suppressionDuration = Duration(seconds: 90);
+
+  static bool _isSuppressed(String? callId) {
+    if (callId == null || callId.isEmpty) return false;
+    // Cleanup expired entries
+    final now = DateTime.now();
+    _suppressedCallIds.removeWhere((_, until) => until.isBefore(now));
+    final until = _suppressedCallIds[callId];
+    final suppressed = until != null && until.isAfter(now);
+    if (suppressed) {
+      print('🚫 SUPPRESS: Call $callId is suppressed until $until');
+    }
+    return suppressed;
+  }
+
+  static void _suppressCall(String? callId) {
+    if (callId == null || callId.isEmpty) return;
+    final until = DateTime.now().add(_suppressionDuration);
+    _suppressedCallIds[callId] = until;
+    print('✅ SUPPRESS: Call $callId suppressed until $until');
+  }
+
+  // Public helpers for other services (realtime/polling) to use suppression
+  static bool isCallSuppressed(String? callId) => _isSuppressed(callId);
+  static void suppressCallId(String? callId) => _suppressCall(callId);
+
+  static Future<void> _clearAndroidCallNotification() async {
+    try {
+      if (Platform.isAndroid) {
+        await _androidNotificationChannel.invokeMethod('clearCallNotification');
+      }
+    } catch (_) {}
+  }
 
   static Future<void> initialize() async {
     if (_initialized) {
@@ -128,6 +214,13 @@ class NotificationService {
           provisional: false,
         );
         print('🍎 DEBUG: iOS permission result: $permission');
+        // Ensure foreground banners/sounds can appear when using alert-style pushes
+        await _messaging!.setForegroundNotificationPresentationOptions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+        print('🍎 DEBUG: iOS foreground presentation options set (alert/badge/sound)');
         
         // CRITICAL: Get APNs token immediately after permission
         print('🍎 DEBUG: Attempting to get APNs token...');
@@ -159,10 +252,81 @@ class NotificationService {
       // Set up message handlers
       _setupMessageHandlers();
 
+      // Listen for native call action intents from both Android and iOS
+      _setupAndroidCallActionsBridge();
+
       _initialized = true;
       print('✅ NotificationService initialized (FCM token will be registered after login)');
     } catch (e) {
       print('❌ NotificationService init failed: $e');
+    }
+  }
+
+  static void _setupAndroidCallActionsBridge() {
+    try {
+      _androidCallActionsChannel.setMethodCallHandler((MethodCall call) async {
+        if (call.method == 'handleCallAction') {
+          final Map<dynamic, dynamic>? args = call.arguments as Map<dynamic, dynamic>?;
+          final String action = (args?['action'] as String?) ?? '';
+          final String? callId = args?['call_id'] as String?;
+          final String callerName = (args?['caller_name'] as String?) ?? 'Unknown';
+          final String callType = (args?['call_type'] as String?) ?? 'video';
+
+          print('📲 NATIVE: Received call action from channel → action=$action, callId=$callId');
+
+          if (action == 'accept') {
+            if (callId != null && callId.isNotEmpty) {
+              // Use same accept flow as Android notification accept
+              _suppressCall(callId); // prevent duplicate prompts
+              await CallListenerService.acceptCallFromNotification(
+                callId: callId,
+                callerId: (args?['caller_id'] as String?) ?? '',
+                matchId: (args?['match_id'] as String?) ?? '',
+                callType: callType,
+              );
+            }
+          } else if (action == 'decline') {
+            print('📲 NATIVE: Decline action received for callId=$callId');
+            _suppressCall(callId);
+            await _clearAndroidCallNotification();
+            if (callId != null && callId.isNotEmpty) {
+              try {
+                await CallListenerService.declineCall(callId);
+              } catch (_) {}
+            }
+          } else if (action == 'open') {
+            // iOS default tap: just open app; do NOT suppress or auto-accept.
+            print('📲 NATIVE: Open action received (show in-app invite) for callId=$callId');
+            if (callId != null && callId.isNotEmpty) {
+              // Immediately fetch and show invite if ringing to avoid race with polling
+              try {
+                final row = await SupabaseService.client
+                    .from('call_sessions')
+                    .select('id, caller_id, match_id, call_type, state')
+                    .eq('id', callId)
+                    .maybeSingle();
+                final state = row != null ? (row['state'] as String? ?? '') : '';
+                if (row != null && (state == 'initial' || state == 'ringing')) {
+                  final cid = row['caller_id']?.toString() ?? '';
+                  final mid = row['match_id']?.toString() ?? '';
+                  final ctype = row['call_type']?.toString() ?? callType;
+                  // Present the same in-app invite logic
+                  await CallListenerService.showIncomingInvite(
+                    callId: callId,
+                    callerId: cid,
+                    callerName: callerName,
+                    matchId: mid,
+                    callType: ctype,
+                  );
+                }
+              } catch (_) {}
+            }
+          }
+        }
+      });
+      print('✅ NATIVE: Call actions MethodChannel bridge initialized');
+    } catch (e) {
+      print('❌ NATIVE: Failed to initialize call actions bridge: $e');
     }
   }
 
@@ -313,11 +477,11 @@ class NotificationService {
     print('🔔 FCM: Setting up message handlers...');
     
     // Handle messages when app is in foreground
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
       print('📱 PUSH: Received foreground message: ${message.messageId}');
       print('📱 PUSH: Message data: ${message.data}');
       print('📱 PUSH: Message notification: ${message.notification?.title} - ${message.notification?.body}');
-      _handleForegroundMessage(message);
+      await _handleForegroundMessage(message);
     });
 
     // Handle messages when app is opened from background
@@ -332,18 +496,89 @@ class NotificationService {
     print('✅ FCM: Message handlers set up successfully (background handler registered in main.dart)');
   }
 
-  static void _handleForegroundMessage(RemoteMessage message) {
+  static Future<void> _handleForegroundMessage(RemoteMessage message) async {
     print('📱 FOREGROUND: Handling foreground message');
     print('📱 FOREGROUND: Message data: ${message.data}');
     
     final data = message.data;
     final type = data['type'];
     
-    // CRITICAL FIX: Suppress push notification for incoming calls when app is open
-    // Real-time listener will handle it via CallListenerService
+    // Foreground incoming call handling
     if (type == 'incoming_call') {
-      print('📱 FOREGROUND: Incoming call detected - suppressing notification (real-time listener will handle)');
-      // Do NOT show notification - let CallListenerService handle via real-time listener
+      if (Platform.isIOS) {
+        print('📱 FOREGROUND(iOS): Incoming call - triggering CallKit');
+        try {
+          final callId = data['call_id'] as String?;
+          final callerName = (data['caller_name'] as String?) ?? 'Unknown';
+          final callType = (data['call_type'] as String?) ?? 'video';
+          final matchId = data['match_id'] as String?;
+          final callerId = data['caller_id'] as String?;
+          final callerImageUrl = data['caller_image_url'] as String?;
+          if (callId != null && matchId != null && callerId != null) {
+            if (_isSuppressed(callId)) {
+              print('🚫 FOREGROUND(iOS): Suppressed incoming call UI for $callId');
+              return;
+            }
+            // De-dup: if CallKit already showing this call, skip
+            try {
+              final active = await FlutterCallkitIncoming.activeCalls();
+              final isActive = (active ?? []).any((c) => (c['id']?.toString() ?? '') == callId);
+              if (isActive) {
+                print('⚠️ FOREGROUND(iOS): Call $callId already active in CallKit - skipping duplicate show');
+                return;
+              }
+            } catch (_) {}
+            final params = CallKitParams(
+              id: callId,
+              nameCaller: callerName,
+              appName: 'LoveBug',
+              avatar: callerImageUrl ?? 'https://i.pravatar.cc',
+              handle: callType == 'video' ? 'Incoming video call' : 'Incoming audio call',
+              type: callType == 'video' ? 1 : 0,
+              duration: 30000,
+              textAccept: 'Accept',
+              textDecline: 'Decline',
+              extra: {
+                'callId': callId,
+                'matchId': matchId,
+                'callType': callType,
+                'isBffMatch': false,
+                'callerId': callerId,
+                'callerName': callerName,
+              },
+              headers: <String, dynamic>{'apiKey': 'LoveBug@123!', 'platform': 'flutter'},
+              ios: IOSParams(
+                iconName: 'CallKitLogo',
+                handleType: 'generic',
+                supportsVideo: callType == 'video',
+                maximumCallGroups: 1,
+                maximumCallsPerCallGroup: 1,
+                audioSessionMode: 'default',
+                audioSessionActive: true,
+                audioSessionPreferredSampleRate: 44100.0,
+                audioSessionPreferredIOBufferDuration: 0.005,
+                supportsDTMF: true,
+                supportsHolding: true,
+                supportsGrouping: false,
+                supportsUngrouping: false,
+                ringtonePath: 'call_ringtone.wav',
+              ),
+            );
+            FlutterCallkitIncoming.showCallkitIncoming(params);
+          }
+        } catch (e) {
+          print('❌ FOREGROUND(iOS): Error triggering CallKit: $e');
+        }
+      } else {
+        // Android: allow native service to show actionable notification
+        final callId = data['call_id'] as String?;
+        if (_isSuppressed(callId)) {
+          print('🚫 FOREGROUND(Android): Suppressed incoming call UI for $callId');
+          return;
+        }
+        print('📱 FOREGROUND(Android): letting native notification show actions');
+        _showIncomingCallNotification(data);
+      }
       return;
     }
     
@@ -361,6 +596,35 @@ class NotificationService {
     final type = data['type'];
     
     switch (type) {
+      case 'incoming_call':
+        if (Platform.isIOS) {
+          try {
+            final callId = data['call_id'] as String?;
+            final callerId = data['caller_id'] as String?;
+            final callerName = (data['caller_name'] as String?) ?? 'Unknown';
+            final callType = (data['call_type'] as String?) ?? 'video';
+            final matchId = data['match_id'] as String?;
+            final callerImageUrl = data['caller_image_url'] as String?;
+            if (callId != null && callerId != null && matchId != null) {
+              final payload = CallPayload(
+                userId: callerId,
+                name: callerName,
+                username: callerName,
+                imageUrl: callerImageUrl,
+                callType: callType == 'video' ? CallType.video : CallType.audio,
+                callAction: CallAction.create,
+                notificationId: callId,
+                webrtcRoomId: callId,
+                matchId: matchId,
+                isBffMatch: false,
+              );
+              CallKitService.showIncomingCall(payload: payload);
+            }
+          } catch (e) {
+            print('❌ TAP(iOS): Error triggering CallKit: $e');
+          }
+        }
+        return;
       case 'new_match':
         // Navigate to matches screen
         Get.toNamed('/matches');
@@ -424,6 +688,19 @@ class NotificationService {
     );
   }
 
+  static void _showIncomingCallNotification(Map<String, dynamic> data) {
+    // Show incoming call notification with action buttons
+    final callerName = data['caller_name'] ?? 'Unknown';
+    final callType = data['call_type'] ?? 'audio';
+    final callId = data['call_id'] ?? '';
+    
+    print('📱 FOREGROUND: Showing incoming call notification for $callerName');
+    print('📱 FOREGROUND: Call ID: $callId, Type: $callType');
+    
+    // The native Android service will handle showing the notification with action buttons
+    // This method just logs the action - the actual notification is handled by MyFirebaseMessagingService
+  }
+
   static void _showAccountSuspendedDialog(String message) {
     Get.dialog(
       AlertDialog(
@@ -474,6 +751,10 @@ class NotificationService {
 
   static void _showIncomingCallDialog(Map<String, dynamic> data) {
     final callId = data['call_id'];
+    if (_isSuppressed(callId is String ? callId : callId?.toString())) {
+      print('🚫 DIALOG: Suppressed incoming call dialog for $callId');
+      return;
+    }
     final callerName = data['caller_name'];
     final callType = data['call_type'] ?? 'audio';
     final callIcon = callType == 'video' ? '📹' : '📞';
@@ -542,7 +823,8 @@ class NotificationService {
       case 'decline':
         // Handle call decline logic
         print('Call declined: $callId');
-        // You can add call decline logic here
+        _suppressCall(callId);
+        _clearAndroidCallNotification();
         break;
     }
   }

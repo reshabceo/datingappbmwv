@@ -12,44 +12,56 @@ class RewindService {
   // Get the last swiped profile for rewind
   static Future<Map<String, dynamic>?> getLastSwipedProfile() async {
     try {
-      final response = await SupabaseService.client
+      // First, get the last swipe that can be rewound
+      final swipeResponse = await SupabaseService.client
           .from('swipes')
-          .select('''
-            id,
-            swiped_id,
-            action,
-            created_at,
-            can_rewind,
-            profiles!swipes_swiped_id_fkey(
-              id,
-              name,
-              age,
-              photos,
-              location,
-              description,
-              hobbies
-            )
-          ''')
+          .select('id, swiped_id, action, created_at, can_rewind')
           .eq('swiper_id', SupabaseService.currentUser?.id ?? '')
           .eq('can_rewind', true)
           .order('created_at', ascending: false)
           .limit(1)
           .maybeSingle();
 
-      if (response == null) return null;
+      if (swipeResponse == null) {
+        print('🔄 DEBUG: No swipes found with can_rewind=true');
+        return null;
+      }
 
-      final profile = response['profiles'];
-      if (profile == null) return null;
+      print('🔄 DEBUG: Found swipe - id: ${swipeResponse['id']}, swiped_id: ${swipeResponse['swiped_id']}, action: ${swipeResponse['action']}');
+
+      // Then, fetch the profile separately
+      final profileResponse = await SupabaseService.client
+          .from('profiles')
+          .select('id, name, age, photos, image_urls, location, description, hobbies')
+          .eq('id', swipeResponse['swiped_id'])
+          .maybeSingle();
+
+      if (profileResponse == null) {
+        print('🔄 DEBUG: Profile not found for swiped_id: ${swipeResponse['swiped_id']}');
+        return null;
+      }
+
+      // Prioritize image_urls over photos
+      final List<String> photos = [];
+      if (profileResponse['image_urls'] != null) {
+        photos.addAll(List<String>.from(profileResponse['image_urls']));
+      } else if (profileResponse['photos'] != null) {
+        photos.addAll(List<String>.from(profileResponse['photos']));
+      }
 
       return {
-        'swipe_id': response['id'],
-        'swiped_id': response['swiped_id'],
-        'action': response['action'],
-        'created_at': response['created_at'],
-        'profile': profile,
+        'swipe_id': swipeResponse['id'],
+        'swiped_id': swipeResponse['swiped_id'],
+        'action': swipeResponse['action'],
+        'created_at': swipeResponse['created_at'],
+        'profile': {
+          ...profileResponse,
+          'photos': photos,
+          'image_urls': photos,
+        },
       };
     } catch (e) {
-      print('Error getting last swiped profile: $e');
+      print('❌ Error getting last swiped profile: $e');
       return null;
     }
   }
@@ -63,7 +75,32 @@ class RewindService {
 
       // Check if there's a rewindable swipe
       final lastSwipe = await getLastSwipedProfile();
-      return lastSwipe != null;
+      if (lastSwipe == null) return false;
+      
+      // Check if user sent a premium message to this profile
+      // If so, rewind is not allowed
+      final swipedId = lastSwipe['swiped_id'] as String;
+      final currentUserId = SupabaseService.currentUser?.id;
+      
+      if (currentUserId != null) {
+        try {
+          final premiumMessages = await SupabaseService.client
+              .from('premium_messages')
+              .select('id')
+              .eq('sender_id', currentUserId)
+              .eq('recipient_id', swipedId)
+              .maybeSingle();
+          
+          if (premiumMessages != null) {
+            print('⚠️ DEBUG: Cannot rewind - premium message was sent to this profile');
+            return false;
+          }
+        } catch (e) {
+          print('Error checking premium messages: $e');
+        }
+      }
+      
+      return true;
     } catch (e) {
       print('Error checking rewind capability: $e');
       return false;
@@ -85,24 +122,55 @@ class RewindService {
       // Get last swiped profile
       final lastSwipe = await getLastSwipedProfile();
       if (lastSwipe == null) {
+        print('🔄 DEBUG: No swipes available to rewind');
         return {
           'error': 'No swipes available to rewind',
         };
       }
 
-      // Mark swipe as rewinded
-      await SupabaseService.client
+      // Check if user sent a premium message to this profile
+      // If so, rewind is not allowed
+      final swipedId = lastSwipe['swiped_id'] as String;
+      final currentUserId = SupabaseService.currentUser?.id;
+      
+      if (currentUserId != null) {
+        try {
+          final premiumMessages = await SupabaseService.client
+              .from('premium_messages')
+              .select('id')
+              .eq('sender_id', currentUserId)
+              .eq('recipient_id', swipedId)
+              .maybeSingle();
+          
+          if (premiumMessages != null) {
+            print('⚠️ DEBUG: Cannot rewind - premium message was sent to this profile');
+            return {
+              'error': 'Cannot rewind: You sent a message to this profile',
+            };
+          }
+        } catch (e) {
+          print('Error checking premium messages: $e');
+        }
+      }
+
+      print('🔄 DEBUG: Rewinding swipe - id: ${lastSwipe['swipe_id']}, swiped_id: ${lastSwipe['swiped_id']}, action: ${lastSwipe['action']}');
+
+      // DELETE the swipe so the profile can reappear in the discover feed
+      // This is the correct behavior - rewinding should undo the swipe completely
+      final deleteResponse = await SupabaseService.client
           .from('swipes')
-          .update({
-            'can_rewind': false,
-            'rewinded_at': DateTime.now().toIso8601String(),
-          })
+          .delete()
           .eq('id', lastSwipe['swipe_id']);
+
+      print('✅ DEBUG: Swipe deleted successfully');
+      print('🔄 DEBUG: Deleted swipe - swiped_id: ${lastSwipe['swiped_id']}, profile name: ${lastSwipe['profile']['name']}');
+      print('💡 DEBUG: Swipe deleted from database. Profile will be re-inserted via undoLastSwipe()');
 
       return {
         'success': true,
         'profile': lastSwipe['profile'],
-        'swipe_id': lastSwipe['swipe_id'],
+        'swiped_id': lastSwipe['swiped_id'],
+        'action': lastSwipe['action'],
       };
     } catch (e) {
       print('Error performing rewind: $e');
@@ -117,94 +185,174 @@ class RewindService {
     required VoidCallback onRewind,
     required VoidCallback onUpgrade,
   }) {
+    final themeController = Get.find<ThemeController>();
+    
+    // Detect current mode (dating/bff)
+    bool isBffMode = false;
+    if (Get.isRegistered<DiscoverController>()) {
+      try {
+        final d = Get.find<DiscoverController>();
+        isBffMode = (d.currentMode.value == 'bff');
+      } catch (_) {}
+    }
+
+    // Pick gradient colors based on mode (pink for dating, blue for BFF)
+    final List<Color> bgColors = isBffMode
+        ? [
+            themeController.bffPrimaryColor.withValues(alpha: 0.15),
+            themeController.bffSecondaryColor.withValues(alpha: 0.15),
+          ]
+        : [
+            themeController.getAccentColor().withValues(alpha: 0.15),
+            themeController.getSecondaryColor().withValues(alpha: 0.15),
+          ];
+    final Color borderColor = isBffMode
+        ? themeController.bffPrimaryColor
+        : themeController.getAccentColor();
+    final Color iconColor = isBffMode
+        ? themeController.bffPrimaryColor
+        : themeController.getAccentColor();
+    final List<Color> ctaColors = isBffMode
+        ? [themeController.bffPrimaryColor, themeController.bffSecondaryColor]
+        : [themeController.getAccentColor(), themeController.getSecondaryColor()];
+
     Get.dialog(
       Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16.r),
-        ),
-        child: Container(
-          padding: EdgeInsets.all(20.w),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Rewind icon
-              Container(
-                padding: EdgeInsets.all(16.w),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.undo,
-                  size: 32.sp,
-                  color: Colors.blue,
-                ),
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.symmetric(horizontal: 24.w),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: bgColors,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              
-              SizedBox(height: 16.h),
-              
-              // Title
-              Text(
-                'Rewind Last Swipe',
-                style: TextStyle(
-                  fontSize: 18.sp,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-                textAlign: TextAlign.center,
+              borderRadius: BorderRadius.circular(22.r),
+              border: Border.all(
+                color: borderColor.withValues(alpha: 0.35),
+                width: 1.5,
               ),
-              
-              SizedBox(height: 8.h),
-              
-              // Message
-              Text(
-                'Take back your last swipe and give it another chance!',
-                style: TextStyle(
-                  fontSize: 14.sp,
-                  color: Colors.black54,
-                  height: 1.4,
+              boxShadow: [
+                BoxShadow(
+                  color: borderColor.withValues(alpha: 0.15),
+                  blurRadius: 20,
+                  spreadRadius: 2,
                 ),
-                textAlign: TextAlign.center,
-              ),
-              
-              SizedBox(height: 20.h),
-              
-              // Action buttons
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Get.back(),
-                      style: OutlinedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(vertical: 12.h),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8.r),
-                        ),
+              ],
+            ),
+            child: SafeArea(
+              child: Padding(
+                padding: EdgeInsets.all(20.w),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Rewind icon
+                    Container(
+                      padding: EdgeInsets.all(16.w),
+                      decoration: BoxDecoration(
+                        color: iconColor.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
                       ),
-                      child: Text('Cancel'),
-                    ),
-                  ),
-                  SizedBox(width: 12.w),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Get.back();
-                        onRewind();
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                        padding: EdgeInsets.symmetric(vertical: 12.h),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8.r),
-                        ),
+                      child: Icon(
+                        Icons.undo,
+                        size: 32.sp,
+                        color: iconColor,
                       ),
-                      child: Text('Rewind'),
                     ),
-                  ),
-                ],
+                    
+                    SizedBox(height: 16.h),
+                    
+                    // Title
+                    Text(
+                      'Rewind Last Swipe',
+                      style: TextStyle(
+                        fontSize: 18.sp,
+                        fontWeight: FontWeight.bold,
+                        color: themeController.whiteColor,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    
+                    SizedBox(height: 8.h),
+                    
+                    // Message
+                    Text(
+                      'Take back your last swipe and give it another chance!',
+                      style: TextStyle(
+                        fontSize: 14.sp,
+                        color: themeController.whiteColor.withValues(alpha: 0.8),
+                        height: 1.4,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    
+                    SizedBox(height: 20.h),
+                    
+                    // Action buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => Get.back(),
+                            child: Container(
+                              padding: EdgeInsets.symmetric(vertical: 12.h),
+                              decoration: BoxDecoration(
+                                color: themeController.whiteColor.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(20.r),
+                                border: Border.all(
+                                  color: themeController.whiteColor.withValues(alpha: 0.3),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Text(
+                                'Cancel',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: themeController.whiteColor,
+                                  fontSize: 15.sp,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 12.w),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              Get.back();
+                              onRewind();
+                            },
+                            child: Container(
+                              padding: EdgeInsets.symmetric(vertical: 12.h),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(colors: ctaColors),
+                                borderRadius: BorderRadius.circular(20.r),
+                                border: Border.all(
+                                  color: borderColor.withValues(alpha: 0.5),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Text(
+                                'Rewind',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15.sp,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ],
+            ),
           ),
         ),
       ),

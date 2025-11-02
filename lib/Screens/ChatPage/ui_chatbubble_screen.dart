@@ -15,6 +15,11 @@ class EnhancedChatBubble extends StatelessWidget {
   final bool isBffMatch;
   final String? userImage;
   final String? otherUserImage;
+  final bool isSelected;
+  final bool isSelectionMode;
+  final bool isSelectable;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
 
   const EnhancedChatBubble({
     super.key,
@@ -23,100 +28,163 @@ class EnhancedChatBubble extends StatelessWidget {
     this.isBffMatch = false,
     this.userImage,
     this.otherUserImage,
+    this.isSelected = false,
+    this.isSelectionMode = false,
+    this.isSelectable = false,
+    this.onTap,
+    this.onLongPress,
   });
 
   @override
   Widget build(BuildContext context) {
     final ThemeController themeController = Get.find<ThemeController>();
     final isMe = message.isUser;
-    
-    return Container(
-      margin: EdgeInsets.symmetric(vertical: 4.h, horizontal: 16.w),
-      child: Column(
-        crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
-            children: [
-              if (!isMe) ...[
-                _buildProfilePicture(
-                  imageUrl: otherUserImage,
-                  isBffMatch: isBffMatch,
-                  themeController: themeController,
-                ),
-                SizedBox(width: 8.w),
-              ],
-              Flexible(
-                child: Container(
-                  constraints: BoxConstraints(
-                    maxWidth: Get.width * 0.75, // Limit max width to 75% of screen
-                    minWidth: 0, // Allow shrinking
+    final bool isDeleted = message.isDeletedForEveryone;
+    final Color accentColor = isBffMatch
+        ? themeController.bffPrimaryColor
+        : themeController.getAccentColor();
+
+    final LinearGradient outgoingGradient = isDeleted
+        ? LinearGradient(
+            colors: [
+              themeController.greyColor.withValues(alpha: 0.5),
+              themeController.greyColor.withValues(alpha: 0.4),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          )
+        : (isBffMatch
+            ? LinearGradient(
+                colors: [
+                  themeController.bffPrimaryColor.withValues(alpha: 0.7),
+                  themeController.bffSecondaryColor.withValues(alpha: 0.5),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : LinearGradient(
+                colors: [
+                  themeController.getAccentColor().withValues(alpha: 0.7),
+                  themeController.getSecondaryColor().withValues(alpha: 0.5),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ));
+
+    final LinearGradient incomingGradient = isDeleted
+        ? LinearGradient(
+            colors: [
+              themeController.greyColor.withValues(alpha: 0.4),
+              themeController.greyColor.withValues(alpha: 0.3),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          )
+        : LinearGradient(
+            colors: [
+              themeController.greyColor.withValues(alpha: 0.5),
+              themeController.greyColor.withValues(alpha: 0.3),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          );
+
+    return GestureDetector(
+      onTap: onTap,
+      onLongPress: isSelectable ? onLongPress : null,
+      behavior: HitTestBehavior.translucent,
+      child: Container(
+        margin: EdgeInsets.symmetric(vertical: 4.h, horizontal: 16.w),
+        child: Column(
+          crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+              children: [
+                if (!isMe) ...[
+                  _buildProfilePicture(
+                    imageUrl: otherUserImage,
+                    isBffMatch: isBffMatch,
+                    themeController: themeController,
                   ),
-                  padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.1), // Add subtle background
-                    gradient: isMe 
-                        ? (isBffMatch 
-                            ? LinearGradient(
-                                colors: [
-                                  themeController.bffPrimaryColor.withValues(alpha: 0.7),
-                                  themeController.bffSecondaryColor.withValues(alpha: 0.5),
-                                ],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              )
-                            : LinearGradient(
-                                colors: [
-                                  themeController.getAccentColor().withValues(alpha: 0.7),
-                                  themeController.getSecondaryColor().withValues(alpha: 0.5),
-                                ],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ))
-                        : LinearGradient(
-                            colors: [
-                              themeController.greyColor.withValues(alpha: 0.5),
-                              themeController.greyColor.withValues(alpha: 0.3),
-                            ],
+                  SizedBox(width: 8.w),
+                ],
+                Flexible(
+                  child: () {
+                    final bool showSelection = isSelectionMode && isSelected;
+                    
+                    final LinearGradient bubbleGradient = showSelection
+                        ? LinearGradient(
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
-                          ),
-                    borderRadius: BorderRadius.circular(20.r),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.1),
-                      width: 1,
-                    ),
-                  ),
-                  child: IntrinsicWidth(
-                    child: _buildMessageContent(themeController, isMe),
-                  ),
+                            colors: [
+                              accentColor.withValues(alpha: isMe ? 0.82 : 0.6),
+                              accentColor.withValues(alpha: isMe ? 0.65 : 0.48),
+                            ],
+                          )
+                        : (isMe ? outgoingGradient : incomingGradient);
+
+                    final Color borderColor = showSelection
+                        ? accentColor
+                        : themeController.whiteColor.withValues(alpha: 0.12);
+
+                    final List<BoxShadow> bubbleshadow = [
+                      BoxShadow(
+                        color: showSelection
+                            ? accentColor.withValues(alpha: 0.35)
+                            : themeController.blackColor.withValues(alpha: 0.15),
+                        blurRadius: showSelection ? 18 : 8,
+                        offset: Offset(0, showSelection ? 6 : 3),
+                      ),
+                    ];
+                    
+                    return Container(
+                      constraints: BoxConstraints(
+                        maxWidth: Get.width * 0.75,
+                        minWidth: 0,
+                      ),
+                      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.06),
+                        gradient: bubbleGradient,
+                        borderRadius: BorderRadius.circular(20.r),
+                        border: Border.all(
+                          color: borderColor,
+                          width: showSelection ? 2.w : 1.1,
+                        ),
+                        boxShadow: bubbleshadow,
+                      ),
+                      child: IntrinsicWidth(
+                        child: _buildMessageContent(themeController, isMe),
+                      ),
+                    );
+                  }(),
                 ),
-              ),
-              if (isMe) ...[
-                SizedBox(width: 8.w),
-                _buildProfilePicture(
-                  imageUrl: userImage,
-                  isBffMatch: isBffMatch,
-                  themeController: themeController,
-                ),
+                if (isMe) ...[
+                  SizedBox(width: 8.w),
+                  _buildProfilePicture(
+                    imageUrl: userImage,
+                    isBffMatch: isBffMatch,
+                    themeController: themeController,
+                  ),
+                ],
               ],
-            ],
-          ),
-          // Timestamp outside the bubble
-          SizedBox(height: 4.h),
-          Padding(
-            padding: EdgeInsets.only(
-              left: isMe ? 0 : 8.w,
-              right: isMe ? 8.w : 0,
             ),
-            child: TextConstant(
-              title: _formatTimestamp(message.timestamp),
-              color: themeController.whiteColor.withValues(alpha: 0.6),
-              fontSize: 12,
-              fontWeight: FontWeight.w400,
+            SizedBox(height: 4.h),
+            Padding(
+              padding: EdgeInsets.only(
+                left: isMe ? 0 : 8.w,
+                right: isMe ? 8.w : 0,
+              ),
+              child: TextConstant(
+                title: _formatTimestamp(message.timestamp),
+                color: themeController.whiteColor.withValues(alpha: 0.6),
+                fontSize: 12,
+                fontWeight: FontWeight.w400,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -138,6 +206,9 @@ class EnhancedChatBubble extends StatelessWidget {
                 width: 32.w,
                 height: 32.h,
                 fit: BoxFit.cover,
+                cacheWidth: (32.w * 3).round(), // Force reload with cache busting
+                cacheHeight: (32.h * 3).round(),
+                headers: {'Cache-Control': 'no-cache'}, // Disable caching
                 errorBuilder: (context, error, stackTrace) {
                   print('❌ DEBUG: Error loading profile image: $error');
                   return Icon(
@@ -169,6 +240,10 @@ class EnhancedChatBubble extends StatelessWidget {
   }
 
   Widget _buildMessageContent(ThemeController themeController, bool isMe) {
+    if (message.isDeletedForEveryone) {
+      return _buildDeletedMessage(themeController);
+    }
+    
     // Check if it's a disappearing photo
     if (message.isDisappearingPhoto == true && message.disappearingPhotoId != null) {
       return _buildDisappearingPhotoContent(themeController, isMe);
@@ -198,6 +273,27 @@ class EnhancedChatBubble extends StatelessWidget {
           overflow: TextOverflow.visible,
           softWrap: true,
           textAlign: TextAlign.start,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDeletedMessage(ThemeController themeController) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.block,
+          color: themeController.whiteColor.withValues(alpha: 0.6),
+          size: 14.sp,
+        ),
+        SizedBox(width: 8.w),
+        TextConstant(
+          title: 'This message was deleted',
+          color: themeController.whiteColor.withValues(alpha: 0.7),
+          fontSize: 14,
+          fontWeight: FontWeight.w400,
+          fontStyle: FontStyle.italic,
         ),
       ],
     );

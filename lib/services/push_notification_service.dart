@@ -2,7 +2,7 @@ import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class PushNotificationService {
-  static const String _edgeFunctionUrl = 'https://your-project.supabase.co/functions/v1/send-push-notification';
+  static const String _edgeFunctionUrl = 'https://dkcitxzvojvecuvacwsp.supabase.co/functions/v1/send-push-notification';
 
   /// Send a push notification to a specific user
   static Future<bool> sendNotification({

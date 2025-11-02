@@ -1302,7 +1302,7 @@ class WebRTCService extends GetxController {
               .from('call_sessions')
               .update({
                 'state': terminationState,
-                'ended_at': DateTime.now().toIso8601String(),
+                'ended_at': DateTime.now().toUtc().toIso8601String(),
               })
               .eq('id', _currentCallId!);
           print('✅ Call session state updated to $terminationState');
@@ -1312,7 +1312,7 @@ class WebRTCService extends GetxController {
               .from('webrtc_rooms')
               .update({
                 'call_state': 'ended',
-                'ended_at': DateTime.now().toIso8601String(),
+                'ended_at': DateTime.now().toUtc().toIso8601String(),
                 'ended_by': SupabaseService.currentUser?.id,
               })
               .eq('room_id', _currentCallId!);
@@ -1515,7 +1515,7 @@ class WebRTCService extends GetxController {
         .from('call_sessions')
         .update({
           'state': normalized,
-          if (isTerminalState) 'ended_at': DateTime.now().toIso8601String(),
+          if (isTerminalState) 'ended_at': DateTime.now().toUtc().toIso8601String(),
         })
         .eq('id', callId)
         .then((_) => print('✅ Call state updated in DB: $normalized'))
@@ -1555,15 +1555,15 @@ class WebRTCService extends GetxController {
     });
   }
 
-  // Auto-cancel if no answer within 30 seconds for caller
+  // Auto-cancel if no answer within 10 seconds for caller
   void _startNoAnswerTimeout() {
     _noAnswerTimeout?.cancel();
     // Only relevant for initiator while connecting
     if (!_isInitiator) return;
     
-    print('⏰ DEBUG: Starting 30-second timeout for caller (no answer)');
-    _noAnswerTimeout = Timer(const Duration(seconds: 30), () async {
-      print('⏰ DEBUG: 30-second timeout triggered for caller');
+    print('⏰ DEBUG: Starting 10-second timeout for caller (no answer)');
+    _noAnswerTimeout = Timer(const Duration(seconds: 10), () async {
+      print('⏰ DEBUG: 10-second timeout triggered for caller');
       print('⏰ DEBUG: Current call state: ${_callState.value}');
       print('⏰ DEBUG: Answer applied: $_answerApplied');
       
@@ -1582,15 +1582,15 @@ class WebRTCService extends GetxController {
     });
   }
 
-  // Auto-cancel if receiver doesn't answer within 30 seconds
+  // Auto-cancel if receiver doesn't answer within 12 seconds
   void _startReceiverTimeout() {
     _noAnswerTimeout?.cancel();
     // Only relevant for receiver while connecting
     if (_isInitiator) return;
     
-    print('⏰ DEBUG: Starting 30-second timeout for receiver (not answering)');
-    _noAnswerTimeout = Timer(const Duration(seconds: 30), () async {
-      print('⏰ DEBUG: 30-second timeout triggered for receiver');
+    print('⏰ DEBUG: Starting 12-second timeout for receiver (not answering)');
+    _noAnswerTimeout = Timer(const Duration(seconds: 12), () async {
+      print('⏰ DEBUG: 12-second timeout triggered for receiver');
       print('⏰ DEBUG: Current call state: ${_callState.value}');
       print('⏰ DEBUG: Answer applied: $_answerApplied');
       

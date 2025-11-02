@@ -192,66 +192,111 @@ serve(async (req) => {
       )
     }
 
-    const message = {
-      message: {
-        token: profile.fcm_token,
-        notification: {
-          title: notificationTitle,
-          body: notificationBody,
-        },
-        data: stringifiedData,
-        android: {
-          // CRITICAL FIX: Use correct priority field at android level (not in notification)
-          priority: isCallNotification ? 'HIGH' : 'NORMAL',
-          notification: {
-            icon: isCallNotification ? 'ic_call' : 'ic_notification',
-            color: isCallNotification ? '#4CAF50' : '#FF6B6B',
-            sound: isCallNotification ? 'call_ringtone' : 'default',
-            // CRITICAL FIX: Use notification_priority (valid values: PRIORITY_MIN, PRIORITY_LOW, PRIORITY_DEFAULT, PRIORITY_HIGH, PRIORITY_MAX)
-            notification_priority: isCallNotification ? 'PRIORITY_MAX' : 'PRIORITY_DEFAULT',
-            visibility: 'public',
-            // Ensure channel matches the one created in MainActivity
-            channel_id: isCallNotification ? 'call_notifications' : 'default_notifications',
-            // CRITICAL FIX: Include caller name in Android notification title and body
-            title: notificationTitle,
-            body: notificationBody,
-            // Add caller image for Android notifications
-            ...(isCallNotification && data.caller_image_url && {
-              image: data.caller_image_url
-            }),
-          },
-        },
-        apns: {
-          payload: {
-            aps: {
-              sound: isCallNotification ? 'call_ringtone.wav' : 'default',
-              badge: 1,
-              category: isCallNotification ? 'CALL_CATEGORY' : undefined,
-              'mutable-content': isCallNotification ? 1 : 0,
-              alert: {
-                title: notificationTitle,
-                body: notificationBody,
-                'launch-image': isCallNotification ? 'call_background.png' : undefined
-              }
+    // Build message depending on type.
+    // For incoming_call on iOS we now send an ALERT-style APNs payload with
+    // category CALL_CATEGORY so the system shows Accept/Decline actions.
+    // Android keeps using data portion and high priority.
+    const message = type === 'incoming_call'
+      ? {
+          message: {
+            token: profile.fcm_token,
+            data: stringifiedData,
+            android: {
+              priority: 'HIGH'
             },
-            // CRITICAL FIX: Add caller image for iOS notifications
-            ...(isCallNotification && data.caller_image_url && {
-              caller_image_url: data.caller_image_url
-            }),
-            // CRITICAL FIX: Add call-specific data for iOS
-            ...(isCallNotification && {
-              call_id: data.call_id || '',
-              caller_id: data.caller_id || '',
-              caller_name: data.caller_name || '',
-              call_type: data.call_type || 'audio',
-              match_id: data.match_id || '',
-              action: 'incoming_call'
-            })
+            apns: {
+              headers: {
+                // Visible alert for call invite
+                'apns-push-type': 'alert',
+                'apns-priority': '10',
+                ...(data.call_id ? { 'apns-collapse-id': String(data.call_id) } : {}),
+              },
+              payload: {
+                aps: {
+                  alert: {
+                    title: `${data.caller_name || 'Someone'} is calling`,
+                    body: `Incoming ${data.call_type || 'audio'} call`
+                  },
+                  sound: 'call_ringtone.wav',
+                  badge: 1,
+                  category: 'CALL_CATEGORY',
+                  // iOS 15+: allow to break through Focus for calls
+                  'interruption-level': 'time-sensitive',
+                  'mutable-content': 0
+                },
+                call_id: data.call_id || '',
+                caller_id: data.caller_id || '',
+                caller_name: data.caller_name || '',
+                call_type: data.call_type || 'audio',
+                match_id: data.match_id || '',
+                type: 'incoming_call',
+                action: 'incoming_call'
+              }
+            }
           }
         }
-      }
-    }
-    
+      : {
+          message: {
+            token: profile.fcm_token,
+            notification: {
+              title: notificationTitle,
+              body: notificationBody,
+            },
+            data: stringifiedData,
+            android: {
+              priority: 'HIGH',
+              notification: {
+                icon: isCallNotification ? 'ic_call' : 'ic_notification',
+                color: isCallNotification ? '#4CAF50' : '#FF6B6B',
+                sound: isCallNotification ? 'call_ringtone' : 'default',
+                notification_priority: isCallNotification ? 'PRIORITY_MAX' : 'PRIORITY_DEFAULT',
+                visibility: 'public',
+                channel_id: isCallNotification ? 'call_notifications' : 'default_notifications',
+                title: notificationTitle,
+                body: notificationBody,
+                ...(isCallNotification && data.caller_image_url && { image: data.caller_image_url }),
+              },
+            },
+            apns: {
+              headers: {
+                // Alert push for visible notifications
+                'apns-push-type': 'alert',
+                'apns-priority': '10',
+              },
+              payload: {
+                aps: {
+                  sound: isCallNotification ? 'call_ringtone.wav' : 'default',
+                  badge: 1,
+                  category: isCallNotification ? 'CALL_CATEGORY' : undefined,
+                  'mutable-content': isCallNotification ? 1 : 0,
+                  alert: {
+                    title: notificationTitle,
+                    body: notificationBody,
+                    'launch-image': isCallNotification ? 'call_background.png' : undefined
+                  }
+                },
+                ...(isCallNotification && data.caller_image_url && { caller_image_url: data.caller_image_url }),
+                ...(isCallNotification && {
+                  call_id: data.call_id || '',
+                  caller_id: data.caller_id || '',
+                  caller_name: data.caller_name || '',
+                  call_type: data.call_type || 'audio',
+                  match_id: data.match_id || '',
+                  action: 'incoming_call'
+                })
+              }
+            }
+          }
+        }
+    // Targeted debug: confirm APNs headers and aps.category for iOS
+    try {
+      const apns = (message as any)?.message?.apns;
+      const aps = apns?.payload?.aps;
+      console.log('🔎 APNs headers:', apns?.headers);
+      console.log('🔎 APNs aps.category:', aps?.category);
+      console.log('🔎 APNs alert:', aps?.alert);
+    } catch (_) {}
+
     console.log('📱 PUSH: FCM message structure:', JSON.stringify(message, null, 2));
     
     console.log('📱 PUSH: Sending FCM request to:', fcmUrl);
