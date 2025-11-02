@@ -1,4 +1,5 @@
 import React from 'react'
+import DunsSeal from './DunsSeal'
 
 export default function Footer() {
   return (
@@ -77,7 +78,12 @@ export default function Footer() {
           </a>
         </div>
       </div>
-      <div className="max-w-6xl mx-auto px-4 mt-8 text-center text-xs text-light-white">© 2025 Love Bug. All rights reserved.</div>
+      <div className="max-w-6xl mx-auto px-4 mt-8 flex flex-col md:flex-row items-center justify-between text-xs text-light-white">
+        <div>© 2025 Love Bug. All rights reserved.</div>
+        <div className="mt-4 md:mt-0">
+          <DunsSeal size="small" showText={false} />
+        </div>
+      </div>
     </footer>
   )
 }
