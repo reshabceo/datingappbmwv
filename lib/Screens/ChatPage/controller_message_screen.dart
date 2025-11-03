@@ -526,7 +526,7 @@ class MessageController extends GetxController {
         backgroundColor: Colors.transparent,
         insetPadding: EdgeInsets.symmetric(horizontal: 24.w),
         child: UpgradePromptWidget(
-          title: 'Continue Chat',
+          title: 'continue_chat'.tr,
           message: 'You can send your next message $formatted. Upgrade to keep chatting without waiting.',
           action: 'Upgrade Now',
           limitType: 'message',

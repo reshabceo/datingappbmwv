@@ -21,6 +21,9 @@ class Language {
 
 /// set Locale Language
 Future setLocale(String languageCode, String languageName) async {
+  print('🌍 DEBUG: setLocale called with code: $languageCode, name: $languageName');
+  
+  // Save to SharedPreferences first
   await SharedPreferenceHelper.setString(
     SharedPreferenceHelper.languageCode,
     languageCode,
@@ -29,11 +32,19 @@ Future setLocale(String languageCode, String languageName) async {
     SharedPreferenceHelper.languageName,
     languageName,
   );
+  
+  // Update reactive values AFTER saving to trigger UI rebuilds
+  lanCode.value = languageCode;
+  lanName.value = languageName;
+  
+  // Update GetX locale - this should trigger UI rebuild for all .tr calls
   Get.updateLocale(Locale(languageCode));
-  lanCode.value = SharedPreferenceHelper.getString(
-    SharedPreferenceHelper.languageCode,
-  );
-  lanName.value = SharedPreferenceHelper.getString(
-    SharedPreferenceHelper.languageName,
-  );
+  
+  // Force rebuild of GetMaterialApp by updating the locale again
+  // This ensures all widgets using .tr are rebuilt
+  await Future.delayed(Duration(milliseconds: 100));
+  Get.updateLocale(Locale(languageCode));
+  
+  print('🌍 DEBUG: Locale updated to: $languageCode');
+  print('🌍 DEBUG: Current Get.locale: ${Get.locale}');
 }

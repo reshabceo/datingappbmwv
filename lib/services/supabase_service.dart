@@ -909,8 +909,8 @@ class SupabaseService {
       }
     }
     
-    // Check super like limit if action is super_like
-    if (action == 'super_like' && !premiumNow) {
+    // Check super like limit if action is super_like (ALL users have 1 per day)
+    if (action == 'super_like') {
       final canSuperLike = await canPerformAction('super_like');
       if (!canSuperLike) {
         return {
@@ -1185,6 +1185,113 @@ class SupabaseService {
       );
     } catch (e) {
       print('❌ Failed to send message notification: $e');
+    }
+  }
+
+  /// Activate Ghost Mode for current user (24 hours)
+  static Future<Map<String, dynamic>> activateGhostMode() async {
+    try {
+      final currentUser = SupabaseService.currentUser;
+      if (currentUser == null) {
+        throw Exception('User not authenticated');
+      }
+
+      final response = await client.rpc('activate_ghost_mode', params: {
+        'p_user_id': currentUser.id,
+      }).single();
+
+      print('✅ Ghost mode activated for user: ${currentUser.id}');
+      return response as Map<String, dynamic>;
+    } catch (e) {
+      print('❌ Error activating ghost mode: $e');
+      rethrow;
+    }
+  }
+
+  /// Deactivate Ghost Mode for current user
+  static Future<Map<String, dynamic>> deactivateGhostMode() async {
+    try {
+      final currentUser = SupabaseService.currentUser;
+      if (currentUser == null) {
+        throw Exception('User not authenticated');
+      }
+
+      final response = await client.rpc('deactivate_ghost_mode', params: {
+        'p_user_id': currentUser.id,
+      }).single();
+
+      print('✅ Ghost mode deactivated for user: ${currentUser.id}');
+      return response as Map<String, dynamic>;
+    } catch (e) {
+      print('❌ Error deactivating ghost mode: $e');
+      rethrow;
+    }
+  }
+
+  /// Get potential matches count and last liker details
+  static Future<Map<String, dynamic>> getPotentialMatches() async {
+    try {
+      final currentUser = SupabaseService.currentUser;
+      if (currentUser == null) {
+        return {
+          'total_count': 0,
+          'last_liker_id': null,
+          'last_liker_name': null,
+          'last_liker_photo': null,
+          'last_liked_at': null,
+        };
+      }
+
+      final response = await client.rpc('get_potential_matches', params: {
+        'p_user_id': currentUser.id,
+      }).single();
+
+      print('✅ Potential matches fetched: ${response['total_count']}');
+      return Map<String, dynamic>.from(response);
+    } catch (e) {
+      print('❌ Error fetching potential matches: $e');
+      return {
+        'total_count': 0,
+        'last_liker_id': null,
+        'last_liker_name': null,
+        'last_liker_photo': null,
+        'last_liked_at': null,
+      };
+    }
+  }
+
+  /// Get Ghost Mode status for current user
+  static Future<Map<String, dynamic>> getGhostModeStatus() async {
+    try {
+      final currentUser = SupabaseService.currentUser;
+      if (currentUser == null) {
+        return {
+          'is_ghost_mode': false,
+          'activated_at': null,
+          'expires_at': null,
+          'is_expired': false,
+          'remaining_hours': 0.0,
+        };
+      }
+
+      // First, check and deactivate expired ghost modes
+      await client.rpc('check_and_deactivate_ghost_mode');
+
+      final response = await client.rpc('get_ghost_mode_status', params: {
+        'p_user_id': currentUser.id,
+      }).single();
+
+      print('✅ Ghost mode status retrieved for user: ${currentUser.id}');
+      return response as Map<String, dynamic>;
+    } catch (e) {
+      print('❌ Error getting ghost mode status: $e');
+      return {
+        'is_ghost_mode': false,
+        'activated_at': null,
+        'expires_at': null,
+        'is_expired': false,
+        'remaining_hours': 0.0,
+      };
     }
   }
 

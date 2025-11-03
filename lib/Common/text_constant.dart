@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:get/get.dart';
 // Using app-wide theme font; no direct GoogleFonts here so the global font applies
 
 class TextConstant extends StatelessWidget {
@@ -38,11 +39,25 @@ class TextConstant extends StatelessWidget {
     final theme = Theme.of(context);
     final Color defaultColor = theme.colorScheme.onSurface;
 
+    // If title contains a translation key (no spaces and looks like a key), use .tr
+    // Otherwise, if it's a direct translation key, use .tr
+    String displayText = title;
+    // Check if it's a translation key (contains underscore and all lowercase or matches known keys)
+    if (title.contains('_') || title == title.toLowerCase() || 
+        (title.length > 0 && title[0] == title[0].toLowerCase() && !title.contains(' '))) {
+      try {
+        displayText = title.tr;
+      } catch (e) {
+        // If translation fails, use original title
+        displayText = title;
+      }
+    }
+    
     return Text(
-      title,
-      overflow: overflow,
+      displayText,
+      overflow: overflow ?? TextOverflow.visible,
       textAlign: textAlign,
-      softWrap: softWrap,
+      softWrap: softWrap ?? true, // Default to true to allow soft wrapping to prevent truncation
       style: textStyle(
         height: height,
         fontSize: fontSize,
@@ -52,7 +67,7 @@ class TextConstant extends StatelessWidget {
         decorationColor: decorationColor,
         fontStyle: fontStyle,
       ),
-      maxLines: maxLines,
+      maxLines: maxLines, // null means unlimited lines
     );
   }
 }

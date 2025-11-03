@@ -8,6 +8,7 @@ import 'package:lovebug/Common/textfield_constant.dart';
 import 'auth_controller.dart';
 import 'package:lovebug/services/supabase_service.dart';
 import 'package:lovebug/Screens/BottomBarPage/bottombar_screen.dart';
+import 'package:lovebug/Language/language_model.dart';
 
 class GetStartedAuthScreen extends StatelessWidget {
   GetStartedAuthScreen({super.key});
@@ -61,17 +62,70 @@ class GetStartedAuthScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                heightBox(24),
-                // App logo
-                Center(
-                  child: Image.asset(
-                    'assets/images/lovebug_logo.png',
-                    height: 48,
-                  ),
+                heightBox(40),
+                // App logo with language button aligned to the right
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Logo
+                    Image.asset(
+                      'assets/images/lovebug_logo.png',
+                      height: 48,
+                    ),
+                    SizedBox(width: 16.w),
+                    // Language selection button aligned to the right of logo
+                    Obx(
+                      () => PopupMenuButton<String>(
+                        onSelected: (String languageName) {
+                          authController.selectedLanguage.value = languageName;
+                          final languageCode = authController.languagesMap[languageName];
+                          if (languageCode != null) {
+                            setLocale(languageCode, authController.selectedLanguage.value);
+                          }
+                        },
+                        child: Container(
+                          padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 8.h),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(20.r),
+                            border: Border.all(color: Colors.white.withOpacity(0.2)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              TextConstant(
+                                title: authController.selectedLanguage.value,
+                                color: theme.whiteColor,
+                                fontSize: 14,
+                              ),
+                              SizedBox(width: 6.w),
+                              Icon(
+                                Icons.arrow_drop_down,
+                                color: theme.whiteColor,
+                                size: 18.sp,
+                              ),
+                            ],
+                          ),
+                        ),
+                        itemBuilder: (BuildContext context) {
+                          return authController.languagesMap.keys.map((String language) {
+                            return PopupMenuItem<String>(
+                              value: language,
+                              child: TextConstant(
+                                title: language,
+                                color: theme.blackColor,
+                              ),
+                            );
+                          }).toList();
+                        },
+                      ),
+                    ),
+                  ],
                 ),
-                heightBox(24),
+                heightBox(32),
                 TextConstant(
-                  title: 'Log in or sign up',
+                  title: 'log_in_or_sign_up',
                   fontSize: 32,
                   fontWeight: FontWeight.w700,
                   color: theme.whiteColor,
@@ -82,7 +136,7 @@ class GetStartedAuthScreen extends StatelessWidget {
                 TextFieldConstant(
                   height: 50.h,
                   hintFontSize: 14,
-                  hintText: 'Email address',
+                  hintText: 'email_address',
                   hintFontWeight: FontWeight.bold,
                   controller: emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -97,7 +151,7 @@ class GetStartedAuthScreen extends StatelessWidget {
                   width: double.infinity,
                   height: 56.h,
                   child: elevatedButton(
-                    title: 'Continue',
+                    title: 'continue',
                     textColor: theme.whiteColor,
                     borderRadius: 28,
                     onPressed: () async {
@@ -126,7 +180,7 @@ class GetStartedAuthScreen extends StatelessWidget {
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: 16.w),
                       child: TextConstant(
-                        title: 'OR',
+                        title: 'or',
                         color: theme.whiteColor.withValues(alpha: 0.7),
                         fontWeight: FontWeight.w600,
                         fontSize: 14,
@@ -173,7 +227,7 @@ class GetStartedAuthScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(28.r),
                       child: Center(
                         child: TextConstant(
-                          title: 'Continue with Google',
+                          title: 'continue_google',
                           color: theme.whiteColor.withValues(alpha: 0.9),
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -217,7 +271,7 @@ class GetStartedAuthScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(28.r),
                       child: Center(
                         child: TextConstant(
-                          title: 'Continue with Apple',
+                          title: 'continue_apple',
                           color: theme.whiteColor.withValues(alpha: 0.9),
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -235,7 +289,7 @@ class GetStartedAuthScreen extends StatelessWidget {
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       TextConstant(
-                        title: 'Terms of Use',
+                        title: 'terms_of_use',
                         color: theme.whiteColor.withValues(alpha: 0.7),
                       ),
                       TextConstant(
@@ -243,7 +297,7 @@ class GetStartedAuthScreen extends StatelessWidget {
                         color: theme.whiteColor.withValues(alpha: 0.3),
                       ),
                       TextConstant(
-                        title: 'Privacy Policy',
+                        title: 'privacy_policy',
                         color: theme.whiteColor.withValues(alpha: 0.7),
                       ),
                     ],

@@ -391,7 +391,7 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> with Widg
                     heightBox(20.h.toInt()),
                     _buildDeleteOption(
                       icon: Icons.delete_outline,
-                      title: 'Delete for me',
+                      title: 'delete_for_me'.tr,
                       onTap: () async {
                         Get.back();
                         await controller.deleteSelectedMessages(forEveryone: false);
@@ -400,7 +400,7 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> with Widg
                     if (canDeleteAll)
                       _buildDeleteOption(
                         icon: Icons.delete_forever,
-                        title: 'Delete for everyone',
+                        title: 'delete_for_everyone'.tr,
                         isDestructive: true,
                         onTap: () async {
                           Get.back();

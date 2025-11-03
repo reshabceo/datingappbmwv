@@ -3,7 +3,6 @@ import 'package:lovebug/Screens/DiscoverPage/controller_discover_screen.dart';
 import 'package:lovebug/Screens/DiscoverPage/profile_detail_screen.dart';
 import 'package:lovebug/Screens/DiscoverPage/Widget/image_gallery_widget.dart';
 import 'package:lovebug/ThemeController/theme_controller.dart';
-import 'package:lovebug/widgets/premium_message_button.dart';
 import 'package:lovebug/services/supabase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -241,15 +240,7 @@ class _ProfileCardState extends State<ProfileCard>
                       ),
                     ),
                   
-                  // Premium message button
-                  ProfilePremiumMessageButton(
-                    recipientId: widget.profile.id,
-                    recipientName: widget.profile.name,
-                    recipientPhoto: widget.profile.photos.isNotEmpty 
-                        ? widget.profile.photos.first 
-                        : '',
-                  ),
-                  
+                  // Premium message button removed - no buttons should appear on top left
                   
                 ],
               ),

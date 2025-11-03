@@ -1,4 +1,5 @@
 import 'package:lovebug/global_data.dart';
+import 'package:lovebug/shared_prefrence_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
@@ -38,8 +39,14 @@ class AuthController extends GetxController {
 
   @override
   void onInit() {
-    selectedLanguage.value = lanName.value;
     super.onInit();
+    // Load saved language preference
+    final savedLanguageName = SharedPreferenceHelper.getString(
+      SharedPreferenceHelper.languageName,
+      defaultValue: 'English',
+    );
+    selectedLanguage.value = savedLanguageName.isNotEmpty ? savedLanguageName : 'English';
+    print('🌍 DEBUG: AuthController initialized with language: ${selectedLanguage.value}');
   }
 
 
@@ -351,8 +358,8 @@ class AuthController extends GetxController {
   void _showAccountDeactivatedDialog(String userId) {
     Get.dialog(
       AlertDialog(
-        title: Text('Account Deactivated'),
-        content: Text('Your account has been deactivated. All your data is preserved and will be restored when you reactivate your account.'),
+        title: Text('account_deactivated'.tr),
+        content: Text('account_deactivated_message'.tr),
         actions: [
           TextButton(
             onPressed: () {
@@ -360,14 +367,14 @@ class AuthController extends GetxController {
               // Navigate to welcome screen
               Get.offAll(() => WelcomeScreen());
             },
-            child: Text('Cancel'),
+            child: Text('cancel'.tr),
           ),
           TextButton(
             onPressed: () async {
               Get.back();
               await _reactivateAccount(userId);
             },
-            child: Text('Reactivate Account'),
+            child: Text('reactivate_account'.tr),
           ),
         ],
       ),

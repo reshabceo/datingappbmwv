@@ -324,7 +324,7 @@ class ProfileScreen extends StatelessWidget {
                                               ),
                                               widthBox(6),
                                               TextConstant(
-                                                title: 'View',
+                                                title: 'view',
                                                 fontSize: 14,
                                                 fontWeight: FontWeight.w600,
                                                 color: !controller.isEditMode.value
@@ -369,7 +369,7 @@ class ProfileScreen extends StatelessWidget {
                                               ),
                                               widthBox(6),
                                               TextConstant(
-                                                title: 'Edit',
+                                                title: 'edit',
                                                 fontSize: 14,
                                                 fontWeight: FontWeight.w600,
                                                 color: controller.isEditMode.value
@@ -421,7 +421,7 @@ class ProfileScreen extends StatelessWidget {
                                                 borderRadius: BorderRadius.circular(25.r),
                                                 child: Center(
                                                   child: TextConstant(
-                                                    title: 'Cancel',
+                                                    title: 'cancel',
                                                     fontSize: 16,
                                                     fontWeight: FontWeight.w600,
                                                     color: themeController.whiteColor.withValues(alpha: 0.8),
@@ -457,7 +457,7 @@ class ProfileScreen extends StatelessWidget {
                                                 borderRadius: BorderRadius.circular(25.r),
                                                 child: Center(
                                                   child: TextConstant(
-                                                    title: 'Save Changes',
+                                                    title: 'save_changes',
                                                     fontSize: 16,
                                                     fontWeight: FontWeight.w600,
                                                     color: Colors.white,
@@ -508,7 +508,7 @@ class ProfileScreen extends StatelessWidget {
                                       Icon(Icons.settings, color: Colors.white, size: 20.sp),
                                       widthBox(8),
                                       TextConstant(
-                                        title: 'Settings',
+                                        title: 'settings',
                                         fontSize: 16,
                                         fontWeight: FontWeight.w600,
                                         color: Colors.white,
@@ -735,7 +735,7 @@ class ProfileScreen extends StatelessWidget {
                                       Icon(Icons.logout, color: Colors.white, size: 20.sp),
                                       widthBox(8),
                                       TextConstant(
-                                        title: 'Logout',
+                                        title: 'logout',
                                         fontSize: 16,
                                         fontWeight: FontWeight.w600,
                                         color: Colors.white,
@@ -984,7 +984,7 @@ class ProfileScreen extends StatelessWidget {
         // My Photos
         // --------------------
         TextConstant(
-          title: 'My Photos',
+          title: 'my_photos',
           fontSize: 18,
           fontWeight: FontWeight.bold,
           color: themeController.whiteColor,
@@ -1045,7 +1045,7 @@ class ProfileScreen extends StatelessWidget {
                     ),
                     heightBox(4),
                     TextConstant(
-                      title: 'Add Photo',
+                      title: 'add_photo',
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                       color: themeController.whiteColor,
@@ -1099,7 +1099,7 @@ class ProfileScreen extends StatelessWidget {
         // About Me
         // --------------------
         TextConstant(
-          title: 'About Me',
+          title: 'about_me',
           fontSize: 18,
           fontWeight: FontWeight.bold,
           color: themeController.whiteColor,
@@ -1114,7 +1114,7 @@ class ProfileScreen extends StatelessWidget {
             fontWeight: FontWeight.w500,
           ),
           decoration: InputDecoration(
-            hintText: 'Tell us about yourself...',
+            hintText: 'tell_us_about_yourself',
             hintStyle: TextStyle(
               color: themeController.whiteColor.withValues(alpha: 0.5),
               fontSize: 14.sp,
@@ -1155,7 +1155,7 @@ class ProfileScreen extends StatelessWidget {
         // My Interests
         // --------------------
         TextConstant(
-          title: 'My Interests',
+          title: 'my_interests',
           fontSize: 18,
           fontWeight: FontWeight.bold,
           color: themeController.whiteColor,

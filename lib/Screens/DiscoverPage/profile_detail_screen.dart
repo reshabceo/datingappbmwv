@@ -196,7 +196,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
         backgroundColor: Colors.transparent,
         insetPadding: EdgeInsets.symmetric(horizontal: 24.w),
         child: UpgradePromptWidget(
-          title: 'Premium Feature',
+          title: 'premium_feature'.tr,
           message: message,
           action: 'Upgrade Now',
           limitType: 'message',
@@ -363,7 +363,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                           ),
                           SizedBox(width: 8.w),
                           TextConstant(
-                            title: 'Chat Options',
+                            title: 'chat_options',
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                             color: themeController.whiteColor,
@@ -374,7 +374,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                       _buildSheetMenuOption(
                         themeController,
                         icon: Icons.message,
-                        title: 'Open Chat',
+                        title: 'open_chat',
                         onTap: () async {
                           Get.back();
                           await _onMessageTap();
@@ -383,7 +383,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                       _buildSheetMenuOption(
                         themeController,
                         icon: Icons.videocam,
-                        title: 'Video Call',
+                        title: 'video_call',
                         onTap: () async {
                           Get.back();
                           await _onVideoCallTap();
@@ -392,7 +392,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                       _buildSheetMenuOption(
                         themeController,
                         icon: Icons.call,
-                        title: 'Audio Call',
+                        title: 'audio_call',
                         onTap: () async {
                           Get.back();
                           await _onAudioCallTap();
@@ -856,7 +856,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           TextConstant(
-            title: 'About Me',
+            title: 'about_me',
             fontSize: 20.sp,
             fontWeight: FontWeight.bold,
             color: themeController.whiteColor,
@@ -884,7 +884,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           TextConstant(
-            title: 'Interests',
+            title: 'interests',
             fontSize: 20.sp,
             fontWeight: FontWeight.bold,
             color: themeController.whiteColor,

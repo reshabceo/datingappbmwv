@@ -280,35 +280,25 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       ),
       GestureDetector(
         onTap: () async {
-          // Determine premium and remaining daily super likes
-          final isPremium = await SupabaseService.isPremiumUser();
-          if (isPremium) {
-            // Premium: proceed with super like instantly
-            _swiperController.swipe(CardSwiperDirection.top);
-            return;
-          }
+          // Check super like limit for ALL users (free and premium both have 1 per day)
           final usage = await SupabaseService.getDailyUsage();
           final used = usage['super_likes_used'] ?? 0;
           final remaining = (1 - used).clamp(0, 1);
           if (remaining > 0) {
-            // Allow first daily super like and visually update badge to 0
+            // Allow super like if within daily limit
             _swiperController.swipe(CardSwiperDirection.top);
             return;
           }
-          // Out of daily super likes for free user:
+          // Out of daily super likes:
           // First show upgrade prompt once; subsequent taps show purchase dialog
+          // Show superlike limit prompt
           if (!_superLikeUpgradeShown) {
             _superLikeUpgradeShown = true;
             Get.dialog(
               Dialog(
                 backgroundColor: Colors.transparent,
-                insetPadding: EdgeInsets.symmetric(horizontal: 24.w),
-                child: UpgradePromptWidget(
-                  title: 'Premium Feature',
-                  message: 'You\'ve used your free super like. Upgrade to unlock unlimited super likes.',
-                  action: 'Upgrade Now',
-                  limitType: 'super_like',
-                ),
+                insetPadding: EdgeInsets.zero,
+                child: SuperLikeLimitWidget(),
               ),
               barrierDismissible: true,
             );
@@ -337,14 +327,23 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               Positioned(
                 top: 6.h,
                 right: 8.w,
-                child: FutureBuilder<Map<String, int>>(
-                  future: SupabaseService.getDailyUsage(),
+                child: FutureBuilder<Map<String, dynamic>>(
+                  future: _getSuperLikeCount(),
+                  key: ValueKey(controller.deckVersion.value), // Refresh when deck version changes
                   builder: (context, snapshot) {
-                    int remaining = 1;
-                    if (snapshot.hasData) {
-                      final used = snapshot.data!['super_likes_used'] ?? 0;
-                      remaining = (1 - used).clamp(0, 1);
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const SizedBox.shrink();
                     }
+                    
+                    final data = snapshot.data ?? {'isPremium': false, 'remaining': 0};
+                    final bool isPremium = data['isPremium'] ?? false;
+                    final int remaining = data['remaining'] ?? 0;
+                    
+                    // Don't show badge for premium users (unlimited) or if remaining is 0
+                    if (isPremium || remaining == 0) {
+                      return const SizedBox.shrink();
+                    }
+                    
                     return AnimatedSwitcher(
                       duration: const Duration(milliseconds: 250),
                       transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
@@ -1106,7 +1105,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         ),
         padding: EdgeInsets.all(16.w),
         child: Center(
-          child: Text('Filters', style: TextStyle(color: Colors.white, fontSize: 18.sp, fontWeight: FontWeight.w600)),
+          child: Text('filters'.tr, style: TextStyle(color: Colors.white, fontSize: 18.sp, fontWeight: FontWeight.w600)),
         ),
       ),
     );
@@ -1650,5 +1649,31 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         ),
       ),
     );
+  }
+
+  // Get superlike count for badge display
+  Future<Map<String, dynamic>> _getSuperLikeCount() async {
+    try {
+      // Check if user is premium - premium users have unlimited
+      final isPremium = await SupabaseService.isPremiumUser();
+      if (isPremium) {
+        return {'isPremium': true, 'remaining': 0};
+      }
+
+      // Get daily usage for free users
+      final usage = await SupabaseService.getDailyUsage();
+      final used = usage['super_likes_used'] ?? 0;
+      
+      // Free users get 1 super like per day
+      // Calculate remaining: 1 free - used
+      final remaining = (1 - used).clamp(0, 1);
+      
+      // If remaining is 0, the badge will be hidden
+      return {'isPremium': false, 'remaining': remaining};
+    } catch (e) {
+      print('Error getting superlike count: $e');
+      // On error, assume 0 remaining to hide badge
+      return {'isPremium': false, 'remaining': 0};
+    }
   }
 }

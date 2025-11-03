@@ -6,9 +6,11 @@ import 'package:lovebug/ThemeController/theme_controller.dart';
 import 'package:lovebug/widgets/blurred_profile_widget.dart';
 import 'package:lovebug/Widgets/upgrade_prompt_widget.dart';
 import 'package:lovebug/Screens/SubscriptionPage/ui_subscription_screen.dart';
+import 'package:lovebug/Screens/DiscoverPage/controller_discover_screen.dart';
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:get/get.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -22,35 +24,56 @@ class ActivityScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: themeController.blackColor,
-      body: Container(
-        width: Get.width,
-        height: Get.height,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              themeController.blackColor,
-              themeController.bgGradient1,
-              themeController.blackColor,
-            ],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-        child: screenPadding(
-          customPadding: EdgeInsets.fromLTRB(15.w, 20.h, 15.w, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              heightBox(35),
-              TextConstant(
-                fontSize: 24,
-                title: 'activity'.tr,
-                fontWeight: FontWeight.bold,
-                color: themeController.whiteColor,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Container(
+              width: Get.width,
+              height: Get.height,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    themeController.blackColor,
+                    themeController.bgGradient1,
+                    themeController.blackColor,
+                  ],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
               ),
-              heightBox(2),
-              Expanded(
-                child: Obx(() {
+              child: screenPadding(
+                customPadding: EdgeInsets.fromLTRB(15.w, 20.h, 15.w, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    heightBox(35),
+                    TextConstant(
+                      fontSize: 24,
+                      title: 'activity'.tr,
+                      fontWeight: FontWeight.bold,
+                      color: themeController.whiteColor,
+                    ),
+                    heightBox(16),
+                    
+                    // Potential Matches Notification Bar - Only for free users with matches
+                    Obx(() {
+                      if (controller.isPremium.value || controller.potentialMatchesCount.value == 0) {
+                        return SizedBox.shrink();
+                      }
+                      return Column(
+                        children: [
+                          _buildPotentialMatchesBar(),
+                          heightBox(16),
+                        ],
+                      );
+                    }),
+                    
+                    // Ghost Mode Card - Always visible
+                    _buildGhostModeCard(),
+                    
+                    heightBox(16),
+                    Expanded(
+                  child: Obx(() {
                   // Loading
                   if (controller.isLoading.value &&
                       controller.activities.isEmpty) {
@@ -130,7 +153,7 @@ class ActivityScreen extends StatelessWidget {
                     color: themeController.lightPinkColor,
                     child: ListView.separated(
                       physics: const AlwaysScrollableScrollPhysics(),
-                      padding: EdgeInsets.zero,
+                      padding: EdgeInsets.only(bottom: 160.h), // Space for floating button to prevent overlap
                       itemCount: controller.activities.length,
                       separatorBuilder: (context, index) => heightBox(10),
                       itemBuilder: (context, index) {
@@ -194,9 +217,9 @@ class ActivityScreen extends StatelessWidget {
                                 print('✅ DEBUG: Activity card tapped - type: ${activity.type}, shouldBlur: $shouldBlur');
                                 handleTap();
                               },
-                              child: Container(
-                                    width: Get.width,
-                                    decoration: BoxDecoration(
+                          child: Container(
+                                width: Get.width,
+                                decoration: BoxDecoration(
                                   gradient: isBffActivity
                                       ? LinearGradient(
                                           colors: [
@@ -304,12 +327,12 @@ class ActivityScreen extends StatelessWidget {
                               ),
                             );
                           },
-                        );
+                            );
                         
                         // Wrap with blurring for free users - using same structure as normal notification
                         if (shouldBlur) {
                           print('✅ DEBUG: Creating blurred notification - type: ${activity.type}');
-                          return InkWell(
+                          final blurredWidget = InkWell(
                             onTap: handleTap,
                             child: Container(
                               width: Get.width,
@@ -426,18 +449,34 @@ class ActivityScreen extends StatelessWidget {
                               ),
                             ),
                           );
+                          
+                          // Wrap blurred widget with Slidable
+                          return _buildSlidableActivity(
+                            activity: activity,
+                            child: blurredWidget,
+                          );
                         }
                         
                         print('✅ DEBUG: Returning unwrapped activityWidget - type: ${activity.type}');
-                        return activityWidget;
+                        
+                        // Wrap with Slidable for swipe-to-delete
+                        return _buildSlidableActivity(
+                          activity: activity,
+                          child: activityWidget,
+                        );
                       },
                     ),
                   );
                 }),
+                  ),
+                  ],
+                ),
               ),
-            ],
+            ),
           ),
-        ),
+          // Floating Clear All Button - positioned above bottom nav bar
+          _buildClearAllButton(),
+        ],
       ),
     );
   }
@@ -516,5 +555,674 @@ class ActivityScreen extends StatelessWidget {
       ),
       barrierDismissible: true,
     );
+  }
+
+  Widget _buildPotentialMatchesBar() {
+    return Obx(() {
+      final count = controller.potentialMatchesCount.value;
+      final lastPhoto = controller.lastLikerPhoto.value;
+      
+      // Only show if count > 0 and user is free
+      if (count == 0 || controller.isPremium.value) {
+        return SizedBox.shrink();
+      }
+      
+      final remainingCount = count > 1 ? count - 1 : 0;
+      
+      return InkWell(
+        onTap: () {
+          // Navigate to subscription screen
+          Get.to(() => SubscriptionScreen());
+        },
+        child: Container(
+          width: Get.width,
+          padding: EdgeInsets.all(16.w),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                themeController.lightPinkColor.withValues(alpha: 0.3),
+                themeController.purpleColor.withValues(alpha: 0.2),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16.r),
+            border: Border.all(
+              color: themeController.lightPinkColor.withValues(alpha: 0.4),
+              width: 1.w,
+            ),
+          ),
+          child: Row(
+            children: [
+              // Profile picture with blur effect
+              Stack(
+                children: [
+                  Container(
+                    width: 56.w,
+                    height: 56.w,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: themeController.whiteColor.withValues(alpha: 0.1),
+                    ),
+                    child: lastPhoto.isNotEmpty
+                        ? ClipOval(
+                            child: ImageFiltered(
+                              imageFilter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                              child: Image.network(
+                                lastPhoto,
+                                width: 56.w,
+                                height: 56.w,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Icon(
+                                    Icons.person,
+                                    color: themeController.whiteColor.withValues(alpha: 0.5),
+                                    size: 28.sp,
+                                  );
+                                },
+                              ),
+                            ),
+                          )
+                        : Icon(
+                            Icons.person,
+                            color: themeController.whiteColor.withValues(alpha: 0.5),
+                            size: 28.sp,
+                          ),
+                  ),
+                  // +X badge
+                  if (remainingCount > 0)
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 24.w,
+                        height: 24.w,
+                        decoration: BoxDecoration(
+                          color: themeController.lightPinkColor,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: themeController.blackColor,
+                            width: 2.w,
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '+$remainingCount',
+                            style: TextStyle(
+                              color: themeController.whiteColor,
+                              fontSize: 10.sp,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              widthBox(16),
+              
+              // Text section
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'you_have_potential_matches'.tr.replaceAll('{count}', count.toString()),
+                      style: TextStyle(
+                        color: themeController.whiteColor,
+                        fontSize: 15.sp,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    heightBox(4),
+                    TextConstant(
+                      title: 'upgrade_to_view_who_all',
+                      fontSize: 12,
+                      color: themeController.whiteColor.withValues(alpha: 0.7),
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Arrow icon
+              Icon(
+                LucideIcons.chevronRight,
+                color: themeController.whiteColor.withValues(alpha: 0.7),
+                size: 20.sp,
+              ),
+            ],
+          ),
+        ),
+      );
+    });
+  }
+  
+  Widget _buildGhostModeCard() {
+    return Obx(() {
+      final isActive = controller.isGhostModeActive.value;
+      final timeRemaining = controller.getGhostModeTimeRemaining();
+      
+      return Container(
+        width: Get.width,
+        padding: EdgeInsets.all(16.w),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              themeController.purpleColor.withValues(alpha: 0.3),
+              themeController.purpleColor.withValues(alpha: 0.2),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16.r),
+          border: Border.all(
+            color: themeController.purpleColor.withValues(alpha: 0.4),
+            width: 1.w,
+          ),
+        ),
+        child: Row(
+          children: [
+            // Ghost icon container
+            Container(
+              width: 48.w,
+              height: 48.w,
+              decoration: BoxDecoration(
+                color: themeController.purpleColor.withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                LucideIcons.ghost,
+                color: themeController.whiteColor,
+                size: 24.sp,
+              ),
+            ),
+            widthBox(16),
+            
+            // Text section
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextConstant(
+                    title: 'ghost_mode',
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: themeController.whiteColor,
+                  ),
+                  heightBox(4),
+                  TextConstant(
+                    title: 'become_hours',
+                    fontSize: 12,
+                    color: themeController.whiteColor.withValues(alpha: 0.7),
+                  ),
+                  if (isActive && timeRemaining.isNotEmpty) ...[
+                    heightBox(4),
+                    Text(
+                      timeRemaining,
+                      style: TextStyle(
+                        fontSize: 11.sp,
+                        color: themeController.whiteColor.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            
+            // Toggle switch
+            Switch(
+              value: isActive,
+              onChanged: (value) {
+                controller.toggleGhostMode();
+              },
+              activeColor: themeController.purpleColor,
+              inactiveThumbColor: themeController.whiteColor.withValues(alpha: 0.5),
+              inactiveTrackColor: themeController.whiteColor.withValues(alpha: 0.2),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+  
+  Widget _buildSlidableActivity({required Activity activity, required Widget child}) {
+    return Slidable(
+      key: ValueKey('slidable_${activity.id}'),
+      groupTag: 'activity_list', // Ensures only one Slidable can be open at a time - must be same String for all
+      closeOnScroll: true,
+      endActionPane: ActionPane(
+        motion: const BehindMotion(),
+        extentRatio: 0.25,
+        children: [
+          CustomSlidableAction(
+            backgroundColor: Colors.transparent,
+            onPressed: (context) async {
+              final confirmed = await _showDeleteConfirmDialog(activity);
+              if (confirmed && context.mounted) {
+                Slidable.of(context)?.close();
+              }
+            },
+            padding: EdgeInsets.zero,
+            flex: 1,
+            child: Container(
+              width: double.infinity,
+              height: double.infinity,
+              decoration: BoxDecoration(
+                color: themeController.lightPinkColor,
+                borderRadius: BorderRadius.only(
+                  topRight: Radius.circular(16.r), // Match card's border radius exactly
+                  bottomRight: Radius.circular(16.r),
+                ),
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                LucideIcons.trash2,
+                color: themeController.whiteColor,
+                size: 22.sp,
+              ),
+            ),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+  
+  Widget _buildClearAllButton() {
+    return Obx(() {
+      // Only show if there are activities
+      if (controller.activities.isEmpty) {
+        return SizedBox.shrink();
+      }
+      
+      return Positioned(
+        bottom: 70.h, // Right above bottom nav bar (70.h)
+        left: 0,
+        right: 0,
+        child: SafeArea(
+          bottom: false, // Don't add extra bottom padding
+          child: Center(
+            child: InkWell(
+              onTap: () => _showClearAllConfirmation(),
+              borderRadius: BorderRadius.circular(30.r), // Circular
+              child: Container(
+                width: 50.w, // Smaller circular size
+                height: 50.w, // Same as width for perfect circle
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      themeController.getAccentColor(),
+                      themeController.getSecondaryColor(),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle, // Circular shape
+                  boxShadow: [
+                    BoxShadow(
+                      color: themeController.getAccentColor().withValues(alpha: 0.4),
+                      blurRadius: 12,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  LucideIcons.trash2,
+                  color: themeController.whiteColor,
+                  size: 20.sp,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    });
+  }
+  
+  void _showClearAllConfirmation() {
+    // Detect current mode (dating/bff) for styling
+    bool isBffMode = false;
+    if (Get.isRegistered<DiscoverController>()) {
+      try {
+        final d = Get.find<DiscoverController>();
+        isBffMode = (d.currentMode.value == 'bff');
+      } catch (_) {}
+    }
+
+    // Pick gradient colors based on mode
+    final List<Color> bgColors = isBffMode
+        ? [
+            themeController.bffPrimaryColor.withValues(alpha: 0.15),
+            themeController.bffSecondaryColor.withValues(alpha: 0.15),
+          ]
+        : [
+            themeController.getAccentColor().withValues(alpha: 0.15),
+            themeController.getSecondaryColor().withValues(alpha: 0.15),
+          ];
+    final Color borderColor = isBffMode
+        ? themeController.bffPrimaryColor
+        : themeController.getAccentColor();
+    final Color iconColor = isBffMode
+        ? themeController.bffPrimaryColor
+        : themeController.getAccentColor();
+    final List<Color> ctaColors = isBffMode
+        ? [themeController.bffPrimaryColor, themeController.bffSecondaryColor]
+        : [themeController.getAccentColor(), themeController.getSecondaryColor()];
+
+    Get.dialog(
+      Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.symmetric(horizontal: 24.w),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: bgColors,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(22.r),
+              border: Border.all(
+                color: borderColor.withValues(alpha: 0.35),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: borderColor.withValues(alpha: 0.15),
+                  blurRadius: 20,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: SafeArea(
+              child: Padding(
+                padding: EdgeInsets.all(20.w),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Warning icon in circular container
+                    Container(
+                      padding: EdgeInsets.all(16.w),
+                      decoration: BoxDecoration(
+                        color: iconColor.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.warning_rounded,
+                        size: 32.sp,
+                        color: iconColor,
+                      ),
+                    ),
+                    heightBox(16),
+                    // Title
+                    TextConstant(
+                      title: 'clear_all_activities',
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: themeController.whiteColor,
+                      textAlign: TextAlign.center,
+                    ),
+                    heightBox(8),
+                    // Message with proper text overflow handling - wrapped with constraints
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 8.w),
+                      child: TextConstant(
+                        title: 'clear_all_activities_message',
+                        fontSize: 14,
+                        color: themeController.whiteColor.withValues(alpha: 0.8),
+                        textAlign: TextAlign.center,
+                        softWrap: true,
+                        maxLines: 3,
+                      ),
+                    ),
+                    SizedBox(height: 20.h),
+                    // Action buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => Get.back(),
+                            child: Container(
+                              padding: EdgeInsets.symmetric(vertical: 12.h),
+                              decoration: BoxDecoration(
+                                color: themeController.whiteColor.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(20.r),
+                                border: Border.all(
+                                  color: themeController.whiteColor.withValues(alpha: 0.3),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: TextConstant(
+                                title: 'cancel',
+                                textAlign: TextAlign.center,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: themeController.whiteColor,
+                              ),
+                            ),
+                          ),
+                        ),
+                        widthBox(12),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              Get.back();
+                              controller.clearAllActivities();
+                              Get.snackbar(
+                                'Cleared',
+                                'All activities cleared',
+                                backgroundColor: themeController.lightPinkColor.withValues(alpha: 0.9),
+                                colorText: themeController.whiteColor,
+                                duration: Duration(seconds: 2),
+                              );
+                            },
+                            child: Container(
+                              padding: EdgeInsets.symmetric(vertical: 12.h),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(colors: ctaColors),
+                                borderRadius: BorderRadius.circular(20.r),
+                                border: Border.all(
+                                  color: borderColor.withValues(alpha: 0.5),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: TextConstant(
+                                title: 'clear',
+                                textAlign: TextAlign.center,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: themeController.whiteColor,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+      barrierDismissible: true,
+    );
+  }
+
+  Future<bool> _showDeleteConfirmDialog(Activity activity) async {
+    // Detect current mode (dating/bff) for styling
+    bool isBffMode = false;
+    if (Get.isRegistered<DiscoverController>()) {
+      try {
+        final d = Get.find<DiscoverController>();
+        isBffMode = (d.currentMode.value == 'bff');
+      } catch (_) {}
+    }
+
+    // Pick gradient colors based on mode
+    final List<Color> bgColors = isBffMode
+        ? [
+            themeController.bffPrimaryColor.withValues(alpha: 0.15),
+            themeController.bffSecondaryColor.withValues(alpha: 0.15),
+          ]
+        : [
+            themeController.getAccentColor().withValues(alpha: 0.15),
+            themeController.getSecondaryColor().withValues(alpha: 0.15),
+          ];
+    final Color borderColor = isBffMode
+        ? themeController.bffPrimaryColor
+        : themeController.getAccentColor();
+    final Color iconColor = isBffMode
+        ? themeController.bffPrimaryColor
+        : themeController.getAccentColor();
+    final List<Color> ctaColors = isBffMode
+        ? [themeController.bffPrimaryColor, themeController.bffSecondaryColor]
+        : [themeController.getAccentColor(), themeController.getSecondaryColor()];
+
+    final confirmed = await Get.dialog<bool>(
+      Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.symmetric(horizontal: 24.w),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: bgColors,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(22.r),
+              border: Border.all(
+                color: borderColor.withValues(alpha: 0.35),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: borderColor.withValues(alpha: 0.15),
+                  blurRadius: 20,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: SafeArea(
+              child: Padding(
+                padding: EdgeInsets.all(20.w),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Warning icon in circular container
+                    Container(
+                      padding: EdgeInsets.all(16.w),
+                      decoration: BoxDecoration(
+                        color: iconColor.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.warning_rounded,
+                        size: 32.sp,
+                        color: iconColor,
+                      ),
+                    ),
+                    heightBox(16),
+                    // Title
+                    TextConstant(
+                      title: 'delete_activity',
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: themeController.whiteColor,
+                      textAlign: TextAlign.center,
+                    ),
+                    heightBox(8),
+                    // Message with proper text overflow handling - wrapped with constraints
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 8.w),
+                      child: TextConstant(
+                        title: 'delete_activity_message',
+                        fontSize: 14,
+                        color: themeController.whiteColor.withValues(alpha: 0.8),
+                        textAlign: TextAlign.center,
+                        softWrap: true,
+                        maxLines: 3,
+                      ),
+                    ),
+                    SizedBox(height: 20.h),
+                    // Action buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => Get.back(result: false),
+                            child: Container(
+                              padding: EdgeInsets.symmetric(vertical: 12.h),
+                              decoration: BoxDecoration(
+                                color: themeController.whiteColor.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(20.r),
+                                border: Border.all(
+                                  color: themeController.whiteColor.withValues(alpha: 0.3),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: TextConstant(
+                                title: 'cancel',
+                                textAlign: TextAlign.center,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: themeController.whiteColor,
+                              ),
+                            ),
+                          ),
+                        ),
+                        widthBox(12),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => Get.back(result: true),
+                            child: Container(
+                              padding: EdgeInsets.symmetric(vertical: 12.h),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(colors: ctaColors),
+                                borderRadius: BorderRadius.circular(20.r),
+                                border: Border.all(
+                                  color: borderColor.withValues(alpha: 0.5),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: TextConstant(
+                                title: 'delete',
+                                textAlign: TextAlign.center,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: themeController.whiteColor,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+      barrierDismissible: true,
+    );
+
+    if (confirmed == true) {
+      await controller.deleteActivity(activity.id);
+      Get.snackbar(
+        'Deleted',
+        'Activity deleted',
+        backgroundColor: themeController.lightPinkColor.withValues(alpha: 0.9),
+        colorText: themeController.whiteColor,
+        duration: Duration(seconds: 2),
+      );
+      return true;
+    }
+    return false;
   }
 }

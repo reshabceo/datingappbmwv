@@ -73,6 +73,18 @@ class TextFieldConstant extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeController themeController = Get.find<ThemeController>();
     final theme = Theme.of(context);
+    
+    // Support translation keys for hintText
+    String displayHintText = hintText;
+    if (hintText.contains('_') || hintText == hintText.toLowerCase() || 
+        (hintText.length > 0 && hintText[0] == hintText[0].toLowerCase() && !hintText.contains(' '))) {
+      try {
+        displayHintText = hintText.tr;
+      } catch (e) {
+        displayHintText = hintText;
+      }
+    }
+    
     return TextFormField(
       onTap: onTap,
       minLines: minLines,
@@ -92,7 +104,7 @@ class TextFieldConstant extends StatelessWidget {
       style: textStyle(fontSize: hintFontSize ?? 14, fontWeight: hintFontWeight, fontStyle: fontStyle ?? FontStyle.normal, color: textColor ?? Colors.white),
       decoration: InputDecoration(
         filled: false,
-        hintText: hintText,
+        hintText: displayHintText,
         hintStyle: textStyle(
           fontWeight: hintFontWeight,
           fontSize: hintFontSize ?? 14,

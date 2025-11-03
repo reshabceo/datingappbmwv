@@ -169,15 +169,12 @@ Future<void> _requestPermissions() async {
 void _showLocationPermissionDialog() {
   Get.dialog(
     AlertDialog(
-      title: Text('Location Permission Required'),
-      content: Text(
-        'LoveBug needs location access to show you nearby profiles and help you find matches in your area.\n\n'
-        'Please go to Settings > Privacy & Security > Location Services > LoveBug and enable location access.',
-      ),
+      title: Text('location_permission_required'.tr),
+      content: Text('location_permission_message'.tr),
       actions: [
         TextButton(
           onPressed: () => Get.back(),
-          child: Text('Cancel'),
+          child: Text('cancel'.tr),
         ),
         TextButton(
           onPressed: () {
@@ -185,7 +182,7 @@ void _showLocationPermissionDialog() {
             // Open app settings
             openAppSettings();
           },
-          child: Text('Open Settings'),
+          child: Text('open_settings'.tr),
         ),
       ],
     ),
@@ -197,15 +194,12 @@ void _showLocationPermissionDialog() {
 void _showNotificationPermissionDialog() {
   Get.dialog(
     AlertDialog(
-      title: Text('Notification Permission Required'),
-      content: Text(
-        'LoveBug needs notification access to alert you about incoming calls, new messages, and matches.\n\n'
-        'Please go to Settings > Apps > LoveBug > Notifications and enable notifications.',
-      ),
+      title: Text('notification_permission_required'.tr),
+      content: Text('notification_permission_message'.tr),
       actions: [
         TextButton(
           onPressed: () => Get.back(),
-          child: Text('Cancel'),
+          child: Text('cancel'.tr),
         ),
         TextButton(
           onPressed: () {
@@ -213,7 +207,7 @@ void _showNotificationPermissionDialog() {
             // Open app settings
             openAppSettings();
           },
-          child: Text('Open Settings'),
+          child: Text('open_settings'.tr),
         ),
       ],
     ),
@@ -271,17 +265,18 @@ class MyApp extends StatelessWidget {
         systemNavigationBarColor: Colors.transparent,
         systemNavigationBarIconBrightness: Brightness.light,
       ),
-              child: GetMaterialApp(
-                title: 'Dating App',
+              child: Obx(() => GetMaterialApp(
+                title: 'dating_app'.tr,
                 debugShowCheckedModeBanner: false,
-                locale: Locale(lanCode.value),
+                locale: lanCode.value.isNotEmpty ? Locale(lanCode.value) : const Locale('en'),
+                fallbackLocale: const Locale('en'),
                 translations: AppTranslations(),
                 theme: themeController.lightTheme,
                 darkTheme: themeController.darkTheme,
                 themeMode: themeController.isDarkMode.value ? ThemeMode.dark : ThemeMode.light,
                 home: _AuthGate(),
                 // home: BottombarScreen(),
-              ),
+              )),
             );
         },
       ),
@@ -757,8 +752,8 @@ class _AuthGateState extends State<_AuthGate> with WidgetsBindingObserver {
   void _showAccountDeactivatedDialog(String userId) {
     Get.dialog(
       AlertDialog(
-        title: Text('Account Deactivated'),
-        content: Text('Your account has been deactivated. All your data is preserved and will be restored when you reactivate your account.'),
+        title: Text('account_deactivated'.tr),
+        content: Text('account_deactivated_message'.tr),
         actions: [
           TextButton(
             onPressed: () {
@@ -771,14 +766,14 @@ class _AuthGateState extends State<_AuthGate> with WidgetsBindingObserver {
                 _checkingProfile = false;
               });
             },
-            child: Text('Cancel'),
+            child: Text('cancel'.tr),
           ),
           TextButton(
             onPressed: () async {
               Get.back();
               await _reactivateAccount(userId);
             },
-            child: Text('Reactivate Account'),
+            child: Text('reactivate_account'.tr),
           ),
         ],
       ),

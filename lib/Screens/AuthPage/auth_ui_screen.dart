@@ -87,75 +87,78 @@ class AuthScreen extends StatelessWidget {
             child: Column(
               children: [
                 screenPadding(
-                  customPadding: EdgeInsets.only(top: 30.h),
-                  child: Align(
-                    alignment: Alignment.topRight,
-                    child: Obx(
-                      () => PopupMenuButton<String>(
-                        onSelected: (String languageName) {
-                          controller.selectedLanguage.value = languageName;
-                          final languageCode = controller.languagesMap[languageName];
-                          if (languageCode != null) {
-                            setLocale(languageCode, controller.selectedLanguage.value);
-                          }
-                        },
-                        child: Container(
-                          padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(20.r),
-                            border: Border.all(color: Colors.white.withOpacity(0.2)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              TextConstant(
-                                title: controller.selectedLanguage.value,
-                                color: themeController.whiteColor,
-                                fontSize: 12,
-                              ),
-                              Icon(
-                                Icons.arrow_drop_down,
-                                color: themeController.whiteColor,
-                                size: 16.sp,
-                              ),
-                            ],
-                          ),
-                        ),
-                        itemBuilder: (BuildContext context) {
-                          return controller.languagesMap.keys.map((String language) {
-                            return PopupMenuItem<String>(
-                              value: language,
-                              child: TextConstant(
-                                title: language,
-                                color: themeController.blackColor,
-                              ),
-                            );
-                          }).toList();
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-                heightBox(40),
-                screenPadding(
                   child: Column(
                     children: [
-                      // App logo
-                      Image.asset(
-                        'assets/images/lovebug_logo.png',
-                        height: 48,
+                      // App logo with language button aligned to the right
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          // Logo
+                          Image.asset(
+                            'assets/images/lovebug_logo.png',
+                            height: 48,
+                          ),
+                          SizedBox(width: 16.w),
+                          // Language selection button aligned to the right of logo
+                          Obx(
+                            () => PopupMenuButton<String>(
+                              onSelected: (String languageName) {
+                                controller.selectedLanguage.value = languageName;
+                                final languageCode = controller.languagesMap[languageName];
+                                if (languageCode != null) {
+                                  setLocale(languageCode, controller.selectedLanguage.value);
+                                }
+                              },
+                              child: Container(
+                                padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 8.h),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(20.r),
+                                  border: Border.all(color: Colors.white.withOpacity(0.2)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    TextConstant(
+                                      title: controller.selectedLanguage.value,
+                                      color: themeController.whiteColor,
+                                      fontSize: 14,
+                                    ),
+                                    SizedBox(width: 6.w),
+                                    Icon(
+                                      Icons.arrow_drop_down,
+                                      color: themeController.whiteColor,
+                                      size: 18.sp,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              itemBuilder: (BuildContext context) {
+                                return controller.languagesMap.keys.map((String language) {
+                                  return PopupMenuItem<String>(
+                                    value: language,
+                                    child: TextConstant(
+                                      title: language,
+                                      color: themeController.blackColor,
+                                    ),
+                                  );
+                                }).toList();
+                              },
+                            ),
+                          ),
+                        ],
                       ),
                       heightBox(16),
                       TextConstant(
-                        title: 'Welcome Back',
+                        title: 'welcome_back',
                         color: themeController.whiteColor,
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
                       ),
                       heightBox(8),
                       TextConstant(
-                        title: 'Find your perfect match with LoveBug',
+                        title: 'find_your_perfect_match_with_lovebug',
                         color: themeController.greyColor,
                         fontSize: 16,
                       ),
@@ -171,7 +174,7 @@ class AuthScreen extends StatelessWidget {
                       TextFieldConstant(
                         height: 44,
                         hintFontSize: 14,
-                        hintText: 'Email Address',
+                        hintText: 'email_address',
                         hintFontWeight: FontWeight.bold,
                         keyboardType: TextInputType.emailAddress,
                         controller: controller.emailController,
@@ -186,7 +189,7 @@ class AuthScreen extends StatelessWidget {
                               TextFieldConstant(
                                 height: 44.h,
                                 hintFontSize: 14,
-                                hintText: 'Set password',
+                                hintText: 'set_password',
                                 hintFontWeight: FontWeight.bold,
                                 obscureText: true,
                                 controller: controller.passwordController,
@@ -197,7 +200,7 @@ class AuthScreen extends StatelessWidget {
                               TextFieldConstant(
                                 height: 44.h,
                                 hintFontSize: 14,
-                                hintText: 'Confirm password',
+                                hintText: 'confirm_password',
                                 hintFontWeight: FontWeight.bold,
                                 obscureText: true,
                                 controller: controller.confirmPasswordController,
@@ -210,7 +213,7 @@ class AuthScreen extends StatelessWidget {
                           return TextFieldConstant(
                             height: 44.h,
                             hintFontSize: 14,
-                            hintText: 'Password',
+                            hintText: 'password',
                             hintFontWeight: FontWeight.bold,
                             obscureText: true,
                             controller: controller.passwordController,
@@ -317,7 +320,7 @@ class AuthScreen extends StatelessWidget {
                             ),
                           ),
                           TextConstant(
-                            title: 'OR',
+                            title: 'or',
                             color: themeController.greyColor,
                             fontWeight: FontWeight.w600,
                             fontSize: 14,
@@ -369,7 +372,7 @@ class AuthScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(28.r),
                         child: Center(
                           child: TextConstant(
-                            title: 'Continue with Google',
+                            title: 'continue_google',
                             color: themeController.whiteColor.withValues(alpha: 0.9),
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -412,7 +415,7 @@ class AuthScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(28.r),
                         child: Center(
                           child: TextConstant(
-                            title: 'Continue with Apple',
+                            title: 'continue_apple',
                             color: themeController.whiteColor.withValues(alpha: 0.9),
                             fontSize: 16,
                             fontWeight: FontWeight.w600,

@@ -46,7 +46,7 @@ class _FilterWidgetState extends State<FilterWidget> {
               ),
               SizedBox(width: 8.w),
               TextConstant(
-                title: 'Filters',
+                title: 'filters',
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
                 color: themeController.whiteColor,
@@ -62,7 +62,7 @@ class _FilterWidgetState extends State<FilterWidget> {
                   controller.saveUserPreferences();
                 },
                 child: TextConstant(
-                  title: 'Reset',
+                  title: 'reset',
                   fontSize: 14,
                   color: themeController.primaryColor.value,
                 ),
@@ -99,7 +99,7 @@ class _FilterWidgetState extends State<FilterWidget> {
                 ),
               ),
               child: TextConstant(
-                title: 'Apply Filters',
+                title: 'apply_filters',
                 color: themeController.whiteColor,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
@@ -116,7 +116,7 @@ class _FilterWidgetState extends State<FilterWidget> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         TextConstant(
-          title: 'Gender',
+          title: 'gender',
           fontSize: 16,
           fontWeight: FontWeight.bold,
           color: themeController.whiteColor,
@@ -172,7 +172,7 @@ class _FilterWidgetState extends State<FilterWidget> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         TextConstant(
-          title: 'Age Range',
+          title: 'age_range',
           fontSize: 16,
           fontWeight: FontWeight.bold,
           color: themeController.whiteColor,
@@ -185,7 +185,7 @@ class _FilterWidgetState extends State<FilterWidget> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   TextConstant(
-                    title: 'Min Age',
+                    title: 'min_age',
                     fontSize: 14,
                     color: themeController.whiteColor.withOpacity(0.8),
                   ),
@@ -231,7 +231,7 @@ class _FilterWidgetState extends State<FilterWidget> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   TextConstant(
-                    title: 'Max Age',
+                    title: 'max_age',
                     fontSize: 14,
                     color: themeController.whiteColor.withOpacity(0.8),
                   ),
@@ -282,7 +282,7 @@ class _FilterWidgetState extends State<FilterWidget> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         TextConstant(
-          title: 'Maximum Distance',
+          title: 'maximum_distance',
           fontSize: 16,
           fontWeight: FontWeight.bold,
           color: themeController.whiteColor,

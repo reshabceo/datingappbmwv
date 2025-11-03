@@ -1660,7 +1660,7 @@ class DiscoverController extends GetxController {
       );
     } else {
       content = UpgradePromptWidget(
-        title: 'Limit Reached',
+        title: 'limit_reached'.tr,
         message: error,
         action: 'Upgrade Now',
         limitType: 'swipe',

@@ -10,12 +10,193 @@ class ActivityController extends GetxController {
   final RxBool isLoading = false.obs;
   final RxBool hasError = false.obs;
   final RxBool isPremium = false.obs;
+  
+  // Ghost Mode state
+  final RxBool isGhostModeActive = false.obs;
+  final Rx<DateTime?> ghostModeExpiresAt = Rx<DateTime?>(null);
+  final RxDouble remainingHours = 0.0.obs;
+  
+  // Potential matches state
+  final RxInt potentialMatchesCount = 0.obs;
+  final RxString lastLikerPhoto = ''.obs;
+  final RxString lastLikerName = ''.obs;
 
   @override
   void onInit() {
     super.onInit();
     _checkPremiumStatus();
+    _loadGhostModeStatus();
+    _loadPotentialMatches();
     loadActivities();
+    
+    // Check ghost mode status periodically (every 5 minutes)
+    _startGhostModePeriodicCheck();
+    
+    // Refresh potential matches periodically (every 30 seconds)
+    _startPotentialMatchesPeriodicCheck();
+  }
+  
+  Future<void> _loadPotentialMatches() async {
+    try {
+      final data = await SupabaseService.getPotentialMatches();
+      potentialMatchesCount.value = data['total_count'] ?? 0;
+      
+      if (data['last_liker_photo'] != null && (data['last_liker_photo'] as String).isNotEmpty) {
+        lastLikerPhoto.value = data['last_liker_photo'] as String;
+      } else {
+        lastLikerPhoto.value = '';
+      }
+      
+      lastLikerName.value = data['last_liker_name'] ?? 'Someone';
+      
+      print('📊 Potential matches: ${potentialMatchesCount.value}, Last liker: ${lastLikerName.value}');
+    } catch (e) {
+      print('❌ Error loading potential matches: $e');
+      potentialMatchesCount.value = 0;
+      lastLikerPhoto.value = '';
+      lastLikerName.value = 'Someone';
+    }
+  }
+  
+  void _startPotentialMatchesPeriodicCheck() {
+    // Refresh every 30 seconds
+    Future.delayed(Duration(seconds: 30), () {
+      if (Get.isRegistered<ActivityController>()) {
+        _loadPotentialMatches();
+        _startPotentialMatchesPeriodicCheck();
+      }
+    });
+  }
+  
+  void _startGhostModePeriodicCheck() {
+    // Update remaining time every minute if ghost mode is active, check status every 5 minutes
+    if (isGhostModeActive.value && ghostModeExpiresAt.value != null) {
+      final expiresAt = ghostModeExpiresAt.value!;
+      final now = DateTime.now();
+      
+      if (expiresAt.isBefore(now)) {
+        // Expired - reload status to deactivate
+        _loadGhostModeStatus();
+      } else {
+        // Update remaining time locally (don't need to hit DB every minute)
+        final difference = expiresAt.difference(now);
+        remainingHours.value = difference.inHours + (difference.inMinutes % 60) / 60.0;
+      }
+      
+      // Schedule next check in 1 minute
+      Future.delayed(Duration(minutes: 1), () {
+        _startGhostModePeriodicCheck();
+      });
+    } else {
+      // If not active, check every 5 minutes
+      Future.delayed(Duration(minutes: 5), () {
+        _startGhostModePeriodicCheck();
+      });
+    }
+  }
+  
+  Future<void> _loadGhostModeStatus() async {
+    try {
+      final status = await SupabaseService.getGhostModeStatus();
+      isGhostModeActive.value = status['is_ghost_mode'] ?? false;
+      
+      if (status['expires_at'] != null) {
+        ghostModeExpiresAt.value = DateTime.parse(status['expires_at']);
+      } else {
+        ghostModeExpiresAt.value = null;
+      }
+      
+      remainingHours.value = (status['remaining_hours'] ?? 0.0).toDouble();
+      
+      // If expired, ensure it's deactivated
+      if (status['is_expired'] == true && isGhostModeActive.value) {
+        isGhostModeActive.value = false;
+        ghostModeExpiresAt.value = null;
+        remainingHours.value = 0.0;
+      }
+      
+      print('👻 Ghost mode status - Active: ${isGhostModeActive.value}, Remaining: ${remainingHours.value}h');
+    } catch (e) {
+      print('❌ Error loading ghost mode status: $e');
+    }
+  }
+  
+  Future<void> toggleGhostMode() async {
+    try {
+      if (isGhostModeActive.value) {
+        // Deactivate
+        await SupabaseService.deactivateGhostMode();
+        isGhostModeActive.value = false;
+        ghostModeExpiresAt.value = null;
+        remainingHours.value = 0.0;
+        Get.snackbar(
+          'Ghost Mode',
+          'Ghost Mode deactivated',
+          backgroundColor: Get.theme.colorScheme.primary.withOpacity(0.9),
+          colorText: Get.theme.colorScheme.onPrimary,
+          duration: Duration(seconds: 2),
+        );
+      } else {
+        // Activate
+        final result = await SupabaseService.activateGhostMode();
+        isGhostModeActive.value = true;
+        
+        if (result['expires_at'] != null) {
+          ghostModeExpiresAt.value = DateTime.parse(result['expires_at']);
+        }
+        
+        // Calculate remaining hours
+        final expiresAt = ghostModeExpiresAt.value;
+        if (expiresAt != null) {
+          final now = DateTime.now();
+          final difference = expiresAt.difference(now);
+          remainingHours.value = difference.inHours + (difference.inMinutes % 60) / 60.0;
+        }
+        
+        Get.snackbar(
+          'Ghost Mode',
+          'Ghost Mode activated for 24 hours',
+          backgroundColor: Get.theme.colorScheme.primary.withOpacity(0.9),
+          colorText: Get.theme.colorScheme.onPrimary,
+          duration: Duration(seconds: 2),
+        );
+      }
+      
+      // Reload status to ensure sync
+      await _loadGhostModeStatus();
+    } catch (e) {
+      print('❌ Error toggling ghost mode: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to toggle Ghost Mode: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        duration: Duration(seconds: 2),
+      );
+    }
+  }
+  
+  String getGhostModeTimeRemaining() {
+    if (!isGhostModeActive.value || ghostModeExpiresAt.value == null) {
+      return '';
+    }
+    
+    final expiresAt = ghostModeExpiresAt.value!;
+    final now = DateTime.now();
+    
+    if (expiresAt.isBefore(now)) {
+      return 'Expired';
+    }
+    
+    final difference = expiresAt.difference(now);
+    final hours = difference.inHours;
+    final minutes = difference.inMinutes % 60;
+    
+    if (hours > 0) {
+      return '${hours}h ${minutes}m remaining';
+    } else {
+      return '${minutes}m remaining';
+    }
   }
 
   Future<void> _checkPremiumStatus() async {
@@ -146,6 +327,48 @@ class ActivityController extends GetxController {
 
   Future<void> refresh() async {
     await loadActivities();
+    await _loadPotentialMatches();
+  }
+
+  Future<void> clearAllActivities() async {
+    try {
+      // Clear activities locally
+      activities.value = [];
+      
+      // Optionally: Mark all activities as read in database
+      // This would require a database function or individual updates
+      // For now, we'll just clear the local list
+      
+      print('✅ All activities cleared');
+    } catch (e) {
+      print('❌ Error clearing activities: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to clear activities',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  Future<void> deleteActivity(String activityId) async {
+    try {
+      // Remove activity from local list
+      activities.removeWhere((activity) => activity.id == activityId);
+      
+      // Optionally: Mark as read/deleted in database if needed
+      // For now, we'll just remove from local list
+      
+      print('✅ Activity deleted: $activityId');
+    } catch (e) {
+      print('❌ Error deleting activity: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to delete activity',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
   }
 
   void onActivityTap(Activity activity) {

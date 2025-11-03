@@ -348,7 +348,7 @@ class _MessageScreenState extends State<MessageScreen> with WidgetsBindingObserv
                             ),
                             SizedBox(width: 8.w),
                             TextConstant(
-                              title: 'Select Photo Source',
+                              title: 'select_photo_source',
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                               color: themeController.whiteColor,
@@ -360,16 +360,16 @@ class _MessageScreenState extends State<MessageScreen> with WidgetsBindingObserv
                         // Camera Option
                         _buildPhotoSourceOption(
                           icon: Icons.camera_alt,
-                          title: 'Take Photo',
-                          subtitle: 'Capture a new photo',
+                          title: 'take_photo',
+                          subtitle: 'capture_new_photo',
                           onTap: () => Get.back(result: ImageSource.camera),
                         ),
                         
                         // Gallery Option
                         _buildPhotoSourceOption(
                           icon: Icons.photo_library,
-                          title: 'Choose from Gallery',
-                          subtitle: 'Select from your photos',
+                          title: 'choose_from_gallery',
+                          subtitle: 'select_from_photos',
                           onTap: () => Get.back(result: ImageSource.gallery),
                         ),
                         
@@ -933,7 +933,7 @@ class _MessageScreenState extends State<MessageScreen> with WidgetsBindingObserv
                     heightBox(20.h.toInt()),
                     _buildDeleteOption(
                       icon: Icons.delete_outline,
-                      title: 'Delete for me',
+                      title: 'delete_for_me'.tr,
                       onTap: () async {
                         Get.back();
                         await controller.deleteSelectedMessages(forEveryone: false);
@@ -942,7 +942,7 @@ class _MessageScreenState extends State<MessageScreen> with WidgetsBindingObserv
                     if (canDeleteAll)
                       _buildDeleteOption(
                         icon: Icons.delete_forever,
-                        title: 'Delete for everyone',
+                        title: 'delete_for_everyone'.tr,
                         isDestructive: true,
                         onTap: () async {
                           Get.back();
