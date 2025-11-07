@@ -35,7 +35,6 @@ import 'Screens/AuthPage/auth_ui_screen.dart';
 import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'services/notification_service.dart';
-import 'services/notification_service.dart' show firebaseMessagingBackgroundHandler;
 import 'services/local_notification_service.dart';
 import 'services/call_debug_helper.dart';
 import 'services/android_call_action_service.dart';
@@ -114,7 +113,7 @@ Future<void> _requestPermissions() async {
     final locationStatus = await Permission.locationWhenInUse.request();
     print('🔍 DEBUG: Location permission status: $locationStatus');
     
-    // Request notification permission (Android 13+)
+    // Request notification permission (Android 13+ and iOS explicitly)
     if (Platform.isAndroid) {
       print('🤖 ANDROID: Requesting notification permission...');
       final notificationStatus = await Permission.notification.request();
@@ -128,6 +127,21 @@ Future<void> _requestPermissions() async {
         _showNotificationPermissionDialog();
       } else {
         print('❌ ANDROID: Notification permission denied: $notificationStatus');
+      }
+    } else if (Platform.isIOS) {
+      // iOS: explicitly request Firebase Messaging permission so alerts/sounds can be shown
+      final settings = await FirebaseMessaging.instance.requestPermission(
+        alert: true,
+        announcement: false,
+        badge: true,
+        carPlay: false,
+        criticalAlert: true,
+        provisional: false,
+        sound: true,
+      );
+      print('🍎 iOS: Notification permission settings: ${settings.authorizationStatus}');
+      if (settings.authorizationStatus == AuthorizationStatus.denied) {
+        _showNotificationPermissionDialog();
       }
     }
     
@@ -417,6 +431,37 @@ void _handleCallNotificationAction(Map<String, dynamic> data) async {
   }
 }
 
+/// Normalize and detect if a push payload represents an incoming call
+bool _isIncomingCallPayload(Map<String, dynamic> rawData) {
+  try {
+    // Some backends nest custom data inside a 'data' field (iOS/APNS patterns)
+    final Map<String, dynamic> data = Map<String, dynamic>.from(rawData);
+    if (data['data'] is Map) {
+      data.addAll(Map<String, dynamic>.from(data['data'] as Map));
+    }
+
+    final String? action = (data['action'] ?? data['type'] ?? data['event'])?.toString();
+    final String? category = data['category']?.toString();
+    final bool hasCallIdentifiers = data.containsKey('call_id') || data.containsKey('webrtc_room_id');
+
+    // Accept a few common variants used by our system and push providers
+    const possibleActions = {
+      'incoming_call',
+      'call_invite',
+      'call',
+      'voice_call',
+      'video_call',
+    };
+
+    if ((action != null && possibleActions.contains(action)) ||
+        (category != null && category.contains('call')) ||
+        hasCallIdentifiers) {
+      return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
 class _AuthGate extends StatefulWidget {
   @override
   State<_AuthGate> createState() => _AuthGateState();
@@ -646,16 +691,29 @@ class _AuthGateState extends State<_AuthGate> with WidgetsBindingObserver {
           // CRITICAL FIX: Handle push notification actions
           FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
             print('📱 Push notification opened app: ${message.data}');
-            if (message.data['action'] == 'incoming_call') {
-              _handleCallNotificationAction(message.data);
+            final data = message.data;
+            if (_isIncomingCallPayload(data)) {
+              _handleCallNotificationAction(data);
+            }
+          });
+
+          // Handle foreground push to show in-app call prompt immediately
+          FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+            print('📱 Push received in foreground: ${message.data}');
+            final data = message.data;
+            if (_isIncomingCallPayload(data)) {
+              _showIncomingCallPrompt(data);
             }
           });
 
           // Handle push notification when app is launched from TERMINATED state
           FirebaseMessaging.instance.getInitialMessage().then((RemoteMessage? message) {
-            if (message != null && message.data['action'] == 'incoming_call') {
-              print('📱 App launched from terminated state with call notification');
-              _handleCallNotificationAction(message.data);
+            if (message != null) {
+              final data = message.data;
+              if (_isIncomingCallPayload(data)) {
+                print('📱 App launched from terminated state with call notification');
+                _handleCallNotificationAction(data);
+              }
             }
           });
           
@@ -747,6 +805,51 @@ class _AuthGateState extends State<_AuthGate> with WidgetsBindingObserver {
       });
       _didNavigateToMain = false;
     }
+  }
+
+  // Show an in-app prompt for incoming calls in foreground
+  void _showIncomingCallPrompt(Map<String, dynamic> data) {
+    final callerName = data['caller_name'] as String? ?? 'Unknown';
+    final callType = data['call_type'] as String? ?? 'audio';
+
+    // Avoid stacking multiple dialogs
+    if (Get.isDialogOpen == true) return;
+
+    Get.dialog(
+      AlertDialog(
+        title: Text('Incoming ${callType == 'video' ? 'Video' : 'Audio'} Call'),
+        content: Text('from $callerName'),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              // Decline: mark session declined on server and close dialog
+              try {
+                final callId = data['call_id'] as String?;
+                if (callId != null) {
+                  await SupabaseService.client
+                      .from('call_sessions')
+                      .update({'state': 'declined'})
+                      .eq('id', callId);
+                }
+              } catch (e) {
+                print('❌ Failed to mark call declined: $e');
+              }
+              Get.back();
+            },
+            child: const Text('Decline'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Get.back();
+              // Accept: use the same handler we use when tapping the push
+              _handleCallNotificationAction(data);
+            },
+            child: const Text('Accept'),
+          ),
+        ],
+      ),
+      barrierDismissible: false,
+    );
   }
 
   void _showAccountDeactivatedDialog(String userId) {

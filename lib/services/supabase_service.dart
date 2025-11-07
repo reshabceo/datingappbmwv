@@ -248,6 +248,13 @@ class SupabaseService {
     required String userId,
     required Map<String, dynamic> data,
   }) async {
+    // If gender is being updated, also update is_premium accordingly
+    if (data.containsKey('gender')) {
+      final gender = (data['gender'] ?? '').toString();
+      final bool isPremium = gender.toLowerCase() == 'female';
+      data['is_premium'] = isPremium;
+    }
+    
     await client
         .from('profiles')
         .update(data)

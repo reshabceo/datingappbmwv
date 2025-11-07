@@ -60,12 +60,17 @@ class _PremiumIndicatorState extends State<PremiumIndicator> {
     }
 
     return Stack(
+      fit: StackFit.expand,
       children: [
+        // Main content takes full screen
         widget.child,
+        
+        // Premium badge positioned based on the selected position
         Positioned(
-          top: widget.position == PremiumIndicatorPosition.topLeft ? 8.h : 8.h,
-          left: widget.position == PremiumIndicatorPosition.topLeft ? 8.w : null,
-          right: widget.position == PremiumIndicatorPosition.topRight ? 8.w : null,
+          top: _getTopPosition(),
+          left: _getLeftPosition(),
+          right: _getRightPosition(),
+          bottom: _getBottomPosition(),
           child: Container(
             padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
             decoration: BoxDecoration(
@@ -104,6 +109,36 @@ class _PremiumIndicatorState extends State<PremiumIndicator> {
         ),
       ],
     );
+  }
+
+  double? _getTopPosition() {
+    switch (widget.position) {
+      case PremiumIndicatorPosition.topLeft:
+      case PremiumIndicatorPosition.topRight:
+        return 16.h;
+    }
+  }
+
+  double? _getLeftPosition() {
+    switch (widget.position) {
+      case PremiumIndicatorPosition.topLeft:
+        return 16.w;
+      case PremiumIndicatorPosition.topRight:
+        return null;
+    }
+  }
+
+  double? _getRightPosition() {
+    switch (widget.position) {
+      case PremiumIndicatorPosition.topLeft:
+        return null;
+      case PremiumIndicatorPosition.topRight:
+        return 16.w;
+    }
+  }
+
+  double? _getBottomPosition() {
+    return null;
   }
 }
 
@@ -212,7 +247,7 @@ class _PremiumBadgeState extends State<PremiumBadge> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading || !_isPremium) {
-      return SizedBox.shrink();
+      return const SizedBox.shrink();
     }
 
     return Container(

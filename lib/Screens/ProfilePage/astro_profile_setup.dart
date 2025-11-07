@@ -460,6 +460,8 @@ class _AstroProfileSetupState extends State<AstroProfileSetup> {
       }
 
       // Compute zodiac and update profile with birth date, gender and zodiac
+      // Set is_premium based on gender: Female = premium, others = normal
+      final bool isPremium = selectedGender?.toLowerCase() == 'female';
       final zodiac = AstroService.calculateZodiacSign(selectedBirthDate!);
       final response = await SupabaseService.client
           .from('profiles')
@@ -467,6 +469,7 @@ class _AstroProfileSetupState extends State<AstroProfileSetup> {
             'birth_date': selectedBirthDate!.toIso8601String().split('T')[0],
             'gender': selectedGender,
             'zodiac_sign': zodiac,
+            'is_premium': isPremium, // Set premium based on gender
           })
           .eq('id', currentUser.id);
 

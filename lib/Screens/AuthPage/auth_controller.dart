@@ -162,13 +162,58 @@ class AuthController extends GetxController {
     
     print('Checking email: $email');
     try {
-      // Skip the admin-only provider check and go directly to password mode
-      // This avoids the "User not allowed" error
-      print('Email exists, showing password option');
-      isExistingEmail.value = true;
-      isSignupMode.value = false;
-      didProbeEmail.value = true;
-      Get.to(() => AuthScreen(prefillEmail: email, isPasswordMode: true));
+      // Primary probe: check profiles table for email (most reliable and fast)
+      final row = await SupabaseService.client
+          .from('profiles')
+          .select('id')
+          .eq('email', email)
+          .maybeSingle();
+      if (row != null) {
+        print('Email found in profiles, showing password option');
+        isExistingEmail.value = true;
+        isSignupMode.value = false;
+        didProbeEmail.value = true;
+        Get.to(() => AuthScreen(prefillEmail: email, isPasswordMode: true));
+        return;
+      }
+      
+      // Fallback probe: request sign-in OTP without creating a user
+      // Some environments may not allow selecting profiles by email due to RLS
+      try {
+        await SupabaseService.client.auth.signInWithOtp(
+          email: email,
+          shouldCreateUser: false,
+        );
+        print('OTP request succeeded → treat as existing user');
+        isExistingEmail.value = true;
+        isSignupMode.value = false;
+        didProbeEmail.value = true;
+        Get.to(() => AuthScreen(prefillEmail: email, isPasswordMode: true));
+      } on AuthApiException catch (e) {
+        final code = (e.code ?? '').toLowerCase();
+        final msg = (e.message).toLowerCase();
+        print('OTP probe exception - Code: $code, Message: $msg');
+        if (code.contains('user_not_found') || msg.contains('user not found') || msg.contains('no user') || code.contains('invalid_user')) {
+          print('Email not found → go to signup');
+          isExistingEmail.value = false;
+          isSignupMode.value = true;
+          didProbeEmail.value = true;
+          Get.to(() => AuthScreen(prefillEmail: email, isSignupMode: true));
+        } else if (code.contains('over_email_send_rate_limit') || msg.contains('rate limit')) {
+          print('Rate limited → treat as existing');
+          isExistingEmail.value = true;
+          isSignupMode.value = false;
+          didProbeEmail.value = true;
+          Get.to(() => AuthScreen(prefillEmail: email, isPasswordMode: true));
+          Get.snackbar('Please wait', 'Too many attempts. Try again shortly.');
+        } else {
+          print('Unknown OTP probe error → default to signup');
+          isExistingEmail.value = false;
+          isSignupMode.value = true;
+          didProbeEmail.value = true;
+          Get.to(() => AuthScreen(prefillEmail: email, isSignupMode: true));
+        }
+      }
     } on AuthApiException catch (e) {
       final code = (e.code ?? '').toLowerCase();
       final msg = (e.message).toLowerCase();

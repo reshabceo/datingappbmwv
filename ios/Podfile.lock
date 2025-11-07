@@ -160,7 +160,7 @@ PODS:
   - GoogleDataTransport (10.1.0):
     - nanopb (~> 3.30910.0)
     - PromisesObjC (~> 2.4)
-  - GoogleUserMessagingPlatform (3.0.0)
+  - GoogleUserMessagingPlatform (3.1.0)
   - GoogleUtilities/AppDelegateSwizzler (8.1.0):
     - GoogleUtilities/Environment
     - GoogleUtilities/Logger
@@ -376,7 +376,7 @@ SPEC CHECKSUMS:
   GoogleAdsOnDeviceConversion: 2be6297a4f048459e0ae17fad9bfd2844e10cf64
   GoogleAppMeasurement: 700dce7541804bec33db590a5c496b663fbe2539
   GoogleDataTransport: aae35b7ea0c09004c3797d53c8c41f66f219d6a7
-  GoogleUserMessagingPlatform: f8d0cdad3ca835406755d0a69aa634f00e76d576
+  GoogleUserMessagingPlatform: befe603da6501006420c206222acd449bba45a9c
   GoogleUtilities: 00c88b9a86066ef77f0da2fab05f65d7768ed8e1
   image_cropper: 5f162dcf988100dc1513f9c6b7eb42cd6fbf9156
   image_picker_ios: e0ece4aa2a75771a7de3fa735d26d90817041326

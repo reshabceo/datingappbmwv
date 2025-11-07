@@ -53,7 +53,12 @@ class EnhancedDiscoverController extends GetxController {
         selectedGenders.value = List<String>.from(response['preferred_gender'] ?? []);
         minAge.value = response['min_age'] ?? 18;
         maxAge.value = response['max_age'] ?? 100;
-        maxDistance.value = response['max_distance'] ?? 50;
+        final savedDistance = response['max_distance'] ?? 50;
+        
+        // Clamp distance based on premium status
+        final isPremium = await SupabaseService.isPremiumUser();
+        final int maxAllowed = isPremium ? 10726 : 200;
+        maxDistance.value = savedDistance > maxAllowed ? maxAllowed : savedDistance;
       }
     } catch (e) {
       print('Error loading user preferences: $e');
@@ -66,11 +71,21 @@ class EnhancedDiscoverController extends GetxController {
       final currentUserId = SupabaseService.currentUser?.id;
       if (currentUserId == null) return;
 
+      // Clamp distance based on premium status before saving
+      final isPremium = await SupabaseService.isPremiumUser();
+      final int maxAllowed = isPremium ? 10726 : 200;
+      final int distanceToSave = maxDistance.value > maxAllowed ? maxAllowed : maxDistance.value;
+      
+      // Update the value if it was clamped
+      if (maxDistance.value != distanceToSave) {
+        maxDistance.value = distanceToSave;
+      }
+
       await SupabaseService.client.rpc('set_user_preferences', params: {
         'p_preferred_gender': selectedGenders.toList(),
         'p_min_age': minAge.value,
         'p_max_age': maxAge.value,
-        'p_max_distance': maxDistance.value,
+        'p_max_distance': distanceToSave,
       });
 
       // Reload profiles with new preferences
