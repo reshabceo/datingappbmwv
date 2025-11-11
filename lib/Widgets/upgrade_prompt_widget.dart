@@ -39,8 +39,8 @@ class UpgradePromptWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final themeController = Get.find<ThemeController>();
-    
-    // Detect current mode (dating/bff) - EXACT copy from rewind dialog
+
+    // Detect current mode (dating/bff)
     bool isBffMode = false;
     if (Get.isRegistered<DiscoverController>()) {
       try {
@@ -49,7 +49,7 @@ class UpgradePromptWidget extends StatelessWidget {
       } catch (_) {}
     }
 
-    // Pick gradient colors based on mode - EXACT copy from rewind dialog
+    // Background colors matching premium_message_service.dart exactly
     final List<Color> bgColors = isBffMode
         ? [
             themeController.bffPrimaryColor.withValues(alpha: 0.15),
@@ -59,9 +59,13 @@ class UpgradePromptWidget extends StatelessWidget {
             themeController.getAccentColor().withValues(alpha: 0.15),
             themeController.getSecondaryColor().withValues(alpha: 0.15),
           ];
-    final Color borderColor = isBffMode
-        ? themeController.bffPrimaryColor
-        : themeController.getAccentColor();
+
+    // Use first color as solid background (matching premium_message_service style)
+    final Color backgroundColor = bgColors.first;
+
+    // Allow accentColor to override border color
+    final Color borderColor = accentColor ??
+        (isBffMode ? themeController.bffPrimaryColor : themeController.getAccentColor());
     final Color iconColor = isBffMode
         ? themeController.bffPrimaryColor
         : themeController.getAccentColor();
@@ -70,143 +74,167 @@ class UpgradePromptWidget extends StatelessWidget {
         : [themeController.getAccentColor(), themeController.getSecondaryColor()];
 
     return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: EdgeInsets.symmetric(horizontal: 24.w),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: bgColors,
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(22.r),
-            border: Border.all(
-              color: borderColor.withValues(alpha: 0.35),
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: borderColor.withValues(alpha: 0.15),
-                blurRadius: 20,
-                spreadRadius: 2,
+      backgroundColor: backgroundColor,
+      insetPadding: EdgeInsets.zero, // Full-width and full-height
+      child: SizedBox(
+        width: MediaQuery.of(context).size.width,
+        height: MediaQuery.of(context).size.height,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            decoration: BoxDecoration(
+              // Use solid background color matching premium_message_service
+              color: backgroundColor,
+              gradient: null,
+              borderRadius: BorderRadius.zero, // No rounded corners in fullscreen
+              border: Border.all(
+                color: borderColor.withValues(alpha: 0.35),
+                width: 1.5,
               ),
-            ],
-          ),
-          child: SafeArea(
-            child: Padding(
-              padding: EdgeInsets.all(20.w),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Icon container - matching rewind dialog
-                  Container(
-                    padding: EdgeInsets.all(16.w),
-                    decoration: BoxDecoration(
-                      color: iconColor.withValues(alpha: 0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      icon ?? _getIcon(),
-                      size: 32.sp,
-                      color: iconColor,
-                    ),
-                  ),
-                  
-                  SizedBox(height: 16.h),
-                  
-                  // Title
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 18.sp,
-                      fontWeight: FontWeight.bold,
-                      color: themeController.whiteColor,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  
-                  SizedBox(height: 8.h),
-                  
-                  // Message
-                  Text(
-                    message,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 14.sp,
-                      color: themeController.whiteColor.withValues(alpha: 0.8),
-                      height: 1.4,
-                    ),
-                  ),
-                  
-                  SizedBox(height: 20.h),
-                  
-                  // Action buttons - matching rewind dialog
-                  Row(
-                    children: [
-                      if (onDismiss != null) ...[
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: onDismiss,
-                            child: Container(
-                              padding: EdgeInsets.symmetric(vertical: 12.h),
-                              decoration: BoxDecoration(
-                                color: themeController.whiteColor.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(20.r),
-                                border: Border.all(
-                                  color: themeController.whiteColor.withValues(alpha: 0.3),
-                                  width: 1.5,
+              boxShadow: [
+                BoxShadow(
+                  color: borderColor.withValues(alpha: 0.15),
+                  blurRadius: 20,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: SafeArea(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                      child: Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(20.w),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              // Icon container - matching rewind dialog
+                              Container(
+                                padding: EdgeInsets.all(16.w),
+                                decoration: BoxDecoration(
+                                  color: iconColor.withValues(alpha: 0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  icon ?? _getIcon(),
+                                  size: 32.sp,
+                                  color: iconColor,
                                 ),
                               ),
-                              child: Text(
-                                dismissLabel ?? 'Maybe Later',
+                              
+                              SizedBox(height: 16.h),
+                              
+                              // Title
+                              Text(
+                                title,
+                                style: TextStyle(
+                                  fontSize: 18.sp,
+                                  fontWeight: FontWeight.bold,
+                                  color: themeController.whiteColor,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              
+                              SizedBox(height: 8.h),
+                              
+                              // Message
+                              Text(
+                                message,
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  color: themeController.whiteColor,
-                                  fontSize: 15.sp,
-                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14.sp,
+                                  color: themeController.whiteColor.withValues(alpha: 0.8),
+                                  height: 1.4,
                                 ),
                               ),
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: 12.w),
-                      ],
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            if (onUpgrade != null) {
-                              onUpgrade!();
-                            } else {
-                              Get.to(() => SubscriptionScreen());
-                            }
-                          },
-                          child: Container(
-                            padding: EdgeInsets.symmetric(vertical: 12.h),
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(colors: ctaColors),
-                              borderRadius: BorderRadius.circular(20.r),
-                              border: Border.all(
-                                color: borderColor.withValues(alpha: 0.5),
-                                width: 1.5,
+                              
+                              SizedBox(height: 20.h),
+                              
+                              // Action buttons - matching rewind dialog
+                              Row(
+                                children: [
+                                  if (onDismiss != null) ...[
+                                    Expanded(
+                                      child: GestureDetector(
+                                        onTap: onDismiss,
+                                        child: ConstrainedBox(
+                                          constraints: BoxConstraints(minHeight: 52.h), // ensure minimum size
+                                          child: Container(
+                                            alignment: Alignment.center,
+                                            padding: EdgeInsets.symmetric(horizontal: 12.w),
+                                            decoration: BoxDecoration(
+                                              color: themeController.whiteColor.withValues(alpha: 0.1),
+                                              borderRadius: BorderRadius.circular(20.r),
+                                              border: Border.all(
+                                                color: themeController.whiteColor.withValues(alpha: 0.3),
+                                                width: 1.5,
+                                              ),
+                                            ),
+                                            child: Text(
+                                              dismissLabel ?? 'Maybe Later',
+                                              textAlign: TextAlign.center,
+                                              style: TextStyle(
+                                                color: themeController.whiteColor,
+                                                fontSize: 15.sp,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                        ),
+                                        ),
+                                      ),
+                                    ),
+                                    SizedBox(width: 12.w),
+                                  ],
+                                  Expanded(
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        if (onUpgrade != null) {
+                                          onUpgrade!();
+                                        } else {
+                                          Get.to(() => SubscriptionScreen());
+                                        }
+                                      },
+                                      child: ConstrainedBox(
+                                        constraints: BoxConstraints(minHeight: 52.h), // ensure minimum size
+                                        child: Container(
+                                          alignment: Alignment.center,
+                                          padding: EdgeInsets.symmetric(horizontal: 12.w),
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(colors: ctaColors),
+                                            borderRadius: BorderRadius.circular(20.r),
+                                            border: Border.all(
+                                              color: borderColor.withValues(alpha: 0.5),
+                                              width: 1.5,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            action,
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 15.sp,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                            child: Text(
-                              action,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 15.sp,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                            ],
                           ),
                         ),
                       ),
-                    ],
-                  ),
-                ],
+                    ),
+                  );
+                },
               ),
             ),
           ),

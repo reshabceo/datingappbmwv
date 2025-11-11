@@ -407,6 +407,10 @@ class ProfileFormController extends GetxController {
         return;
       }
 
+      // Set is_premium based on gender: Female = premium, Male/Non-binary/Other = normal
+      // Use case-insensitive comparison to handle 'Female', 'female', 'FEMALE', etc.
+      final bool isPremium = selectedGender.value.trim().toLowerCase() == 'female';
+      
       final profileData = {
         'id': user.id,
         'name': nameController.text,
@@ -416,6 +420,7 @@ class ProfileFormController extends GetxController {
         'hobbies': selectedInterests.toList(),
         'image_urls': uploadedImageUrls.toList(),
         'is_active': true,
+        'is_premium': isPremium, // Set premium based on gender: Female = true, others = false
         'birth_date': birthDate.toIso8601String().split('T')[0],
         'zodiac_sign': AstroService.calculateZodiacSign(birthDate),
       };
