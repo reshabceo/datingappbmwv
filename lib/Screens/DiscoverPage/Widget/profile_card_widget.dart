@@ -228,7 +228,7 @@ class _ProfileCardState extends State<ProfileCard>
                                 color: Colors.white, size: 16.sp),
                             SizedBox(width: 4.w),
                             Text(
-                              'SUPER LIKE',
+                              'SUPER LOVE',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 10.sp,

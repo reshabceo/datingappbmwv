@@ -66,7 +66,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '864463518345',
     projectId: 'lovebug-dating-app',
     storageBucket: 'lovebug-dating-app.appspot.com',
-    iosBundleId: 'com.lovebug.app',
+    iosBundleId: 'com.lovebug.lovebug',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
@@ -75,6 +75,6 @@ class DefaultFirebaseOptions {
     messagingSenderId: '864463518345',
     projectId: 'lovebug-dating-app',
     storageBucket: 'lovebug-dating-app.appspot.com',
-    iosBundleId: 'com.lovebug.app',
+    iosBundleId: 'com.lovebug.lovebug',
   );
 }

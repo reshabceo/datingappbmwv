@@ -179,7 +179,7 @@ class ActivityScreen extends StatelessWidget {
 
                         final String displayMessage = hideIdentity
                             ? (activity.type == ActivityType.superLike
-                                ? 'Someone super liked you!'
+                                ? 'Someone super loved you!'
                                 : 'Someone liked your profile')
                             : activity.displayMessage;
 
@@ -503,8 +503,8 @@ class ActivityScreen extends StatelessWidget {
         themeController.blackColor.withValues(alpha: 0.85),
       ];
     } else if (isSuperLike) {
-      title = 'See Your Super Liker';
-      message = 'Someone is really into you! Upgrade to reveal who super liked you and match instantly.';
+      title = 'See Your Super Lover';
+      message = 'Someone is really into you! Upgrade to reveal who super loved you and match instantly.';
       limitType = 'swipe';
       icon = Icons.star_rounded;
       gradient = [

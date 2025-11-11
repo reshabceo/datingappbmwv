@@ -298,8 +298,8 @@ class SuperLikeLimitWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     // Use UpgradePromptWidget but change action to "Buy More" and navigate to SuperLikePurchaseDialog
     return UpgradePromptWidget(
-      title: 'Daily Super Like Limit Reached',
-      message: 'You\'ve used your free super like today. Buy more super likes or upgrade for unlimited super likes!',
+      title: 'Daily Super Love Limit Reached',
+      message: 'You\'ve used your free super love today. Buy more super loves or upgrade for unlimited super loves!',
       action: 'Buy More',
       limitType: 'super_like',
       onUpgrade: () {

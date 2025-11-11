@@ -1,8 +1,3 @@
-plugins {
-    // Add the dependency for the Google services Gradle plugin
-    id("com.google.gms.google-services") version "4.4.4" apply false
-}
-
 allprojects {
     repositories {
         google()
@@ -10,13 +5,30 @@ allprojects {
     }
 }
 
-val newBuildDir: Directory = rootProject.layout.buildDirectory.dir("../../build").get()
+val newBuildDir: Directory =
+    rootProject.layout.buildDirectory
+        .dir("../../build")
+        .get()
 rootProject.layout.buildDirectory.value(newBuildDir)
 
 subprojects {
     val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
+    
+    afterEvaluate {
+        tasks.withType<org.gradle.api.tasks.compile.JavaCompile>().configureEach {
+            options.compilerArgs.addAll(listOf(
+                "-Xlint:-options",      // Suppress Java 8 obsolete warnings
+                "-Xlint:-deprecation",  // Suppress deprecation warnings
+                "-Xlint:-removal",      // Suppress removal warnings
+                "-Xlint:-unchecked"     // Suppress unchecked operation warnings
+            ))
+            sourceCompatibility = JavaVersion.VERSION_11.toString()
+            targetCompatibility = JavaVersion.VERSION_11.toString()
+        }
+    }
 }
+
 subprojects {
     project.evaluationDependsOn(":app")
 }

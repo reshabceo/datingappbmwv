@@ -139,8 +139,8 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 class NotificationService {
   static bool _initialized = false;
   static FirebaseMessaging? _messaging;
-  static const MethodChannel _androidCallActionsChannel = MethodChannel('com.lovebug.app/call_actions');
-  static const MethodChannel _androidNotificationChannel = MethodChannel('com.lovebug.app/notification');
+  static const MethodChannel _androidCallActionsChannel = MethodChannel('com.lovebug.lovebug/call_actions');
+  static const MethodChannel _androidNotificationChannel = MethodChannel('com.lovebug.lovebug/notification');
 
   // Suppression cache to avoid repeated in-app invitations for same call shortly after decline
   static final Map<String, DateTime> _suppressedCallIds = <String, DateTime>{};

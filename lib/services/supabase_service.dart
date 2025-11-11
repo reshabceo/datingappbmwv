@@ -22,7 +22,7 @@ class SupabaseService {
     await client.auth.signInWithOAuth(
       provider,
       // Use app-specific redirect URL for mobile
-      redirectTo: 'com.lovebug.app://login-callback',
+      redirectTo: 'com.lovebug.lovebug://login-callback',
       authScreenLaunchMode: LaunchMode.externalApplication,
     );
   }
@@ -921,7 +921,7 @@ class SupabaseService {
       final canSuperLike = await canPerformAction('super_like');
       if (!canSuperLike) {
         return {
-          'error': 'Daily super like limit reached. Buy more super likes or upgrade.',
+          'error': 'Daily super love limit reached. Buy more super loves or upgrade.',
           'limit_reached': true,
           'action': 'super_like'
         };

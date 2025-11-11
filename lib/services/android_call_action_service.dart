@@ -5,7 +5,7 @@ import 'package:get/get.dart';
 import 'package:lovebug/services/call_listener_service.dart';
 
 class AndroidCallActionService {
-  static const MethodChannel _channel = MethodChannel('com.lovebug.app/call_actions');
+  static const MethodChannel _channel = MethodChannel('com.lovebug.lovebug/call_actions');
   static bool _initialized = false;
 
   static Future<void> initialize() async {

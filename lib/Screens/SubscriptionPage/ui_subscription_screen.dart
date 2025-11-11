@@ -110,7 +110,7 @@ class SubscriptionScreen extends StatelessWidget {
                             ),
                             SizedBox(height: 8.h),
                             Text(
-                              'Unlimited swipes, super likes, calls, media and more',
+                              'Unlimited swipes, super loves, calls, media and more',
                               style: TextStyle(
                                 color: themeController.whiteColor.withValues(alpha: 0.8),
                                 fontSize: 14.sp,
@@ -118,7 +118,7 @@ class SubscriptionScreen extends StatelessWidget {
                             ),
                             SizedBox(height: 16.h),
                             _buildBenefit(icon: Icons.swipe, text: 'Unlimited swipes', themeController: themeController),
-                            _buildBenefit(icon: Icons.star, text: 'Unlimited super likes', themeController: themeController),
+                            _buildBenefit(icon: Icons.star, text: 'Unlimited super loves', themeController: themeController),
                             _buildBenefit(icon: Icons.lock_open, text: 'Send images and audio notes', themeController: themeController),
                             _buildBenefit(icon: Icons.videocam, text: 'Audio and video calls', themeController: themeController),
                             _buildBenefit(icon: Icons.visibility, text: 'See who liked you', themeController: themeController),

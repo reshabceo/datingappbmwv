@@ -275,7 +275,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               ),
             ],
           ),
-          child: Icon(Icons.close_rounded, color: Colors.white, size: 28.sp),
+          child: Center(
+            child: Text('🐝', style: TextStyle(fontSize: 28.sp)),
+          ),
         ),
       ),
       GestureDetector(
@@ -382,8 +384,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               ),
             ],
           ),
-          child:
-              Icon(Icons.favorite_outlined, color: Colors.white, size: 28.sp),
+          child: Center(
+            child: Text('😍', style: TextStyle(fontSize: 28.sp)),
+          ),
         ),
       ),
       _buildMessageMiniButton(),
@@ -408,7 +411,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               ),
             ],
           ),
-          child: Icon(Icons.close_rounded, color: Colors.white, size: 28.sp),
+          child: Center(
+            child: Text('🐝', style: TextStyle(fontSize: 28.sp)),
+          ),
         ),
       ),
       GestureDetector(

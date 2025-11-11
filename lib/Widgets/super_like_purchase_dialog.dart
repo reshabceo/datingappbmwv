@@ -60,7 +60,7 @@ class SuperLikePurchaseDialog extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Stand out with Super Like',
+                    'Stand out with Super Love',
                     style: TextStyle(
                       color: themeController.whiteColor, 
                       fontSize: 18.sp, 
@@ -79,9 +79,9 @@ class SuperLikePurchaseDialog extends StatelessWidget {
                   ),
                   SizedBox(height: 20.h),
                   
-                  // Super Like Packs
+                  // Super Love Packs
                   _buildPackItem(
-                    title: '3 Super Likes',
+                    title: '3 Super Loves',
                     pricePerItem: '₹299.67/ea',
                     totalPrice: '₹899',
                     onTap: () => _buy('super_like_3'),
@@ -90,7 +90,7 @@ class SuperLikePurchaseDialog extends StatelessWidget {
                   SizedBox(height: 12.h),
                   
                   _buildPopularPackItem(
-                    title: '15 Super Likes',
+                    title: '15 Super Loves',
                     pricePerItem: '₹226.60/ea',
                     totalPrice: '₹3,399',
                     onTap: () => _buy('super_like_15'),
@@ -99,7 +99,7 @@ class SuperLikePurchaseDialog extends StatelessWidget {
                   SizedBox(height: 12.h),
                   
                   _buildBestValuePackItem(
-                    title: '30 Super Likes',
+                    title: '30 Super Loves',
                     pricePerItem: '₹173.33/ea',
                     totalPrice: '₹5,200',
                     onTap: () => _buy('super_like_30'),

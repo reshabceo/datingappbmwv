@@ -59,7 +59,7 @@ import FirebaseMessaging
     // Setup MethodChannel to communicate call actions to Flutter
     if let controller = window?.rootViewController as? FlutterViewController {
       callActionChannel = FlutterMethodChannel(
-        name: "com.lovebug.app/call_actions",
+        name: "com.lovebug.lovebug/call_actions",
         binaryMessenger: controller.binaryMessenger
       )
     }

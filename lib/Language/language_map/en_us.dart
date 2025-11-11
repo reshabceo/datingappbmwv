@@ -33,7 +33,7 @@ Map<String, String> enUS = {
   "send_message": "Send Message",
   "keep_browsing": "Keep Browsing",
   "snap_stories": "Snap Stories",
-  "flame_chat": "Flame Chat",
+  "flame_chat": "Fire Love Chat",
   "new_matches": "New Matches",
   "send_message..": "Send message....",
   "type_message": "Type a message...",

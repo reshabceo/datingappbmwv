@@ -29,19 +29,19 @@ class InAppPurchaseService {
     'super_like_3': {
       'price': 299.0,
       'currency': 'INR',
-      'title': '3 Super Likes',
+      'title': '3 Super Loves',
       'description': 'You’re 3x more likely to match!',
     },
     'super_like_15': {
       'price': 3399.0, // 226 each x 15 ≈ 3390 (rounded)
       'currency': 'INR', 
-      'title': '15 Super Likes',
+      'title': '15 Super Loves',
       'description': 'Popular • Save 24%',
     },
     'super_like_30': {
       'price': 5199.0, // 173 each x 30 ≈ 5190 (rounded)
       'currency': 'INR',
-      'title': '30 Super Likes', 
+      'title': '30 Super Loves', 
       'description': 'Best Value • Save 42%',
     },
     'premium_1_month': {
@@ -216,8 +216,8 @@ class InAppPurchaseService {
       });
       
       Get.snackbar(
-        'Super Likes Added! ⭐',
-        'You received $superLikesToAdd super likes',
+        'Super Loves Added! ⭐',
+        'You received $superLikesToAdd super loves',
         backgroundColor: Colors.amber,
         colorText: Colors.white,
       );
@@ -335,7 +335,7 @@ class InAppPurchaseService {
             children: [
               // Title
               Text(
-                'Buy Super Likes',
+                'Buy Super Loves',
                 style: TextStyle(
                   fontSize: 20.sp,
                   fontWeight: FontWeight.bold,

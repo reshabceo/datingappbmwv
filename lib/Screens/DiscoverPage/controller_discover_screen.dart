@@ -1439,7 +1439,7 @@ class DiscoverController extends GetxController {
                                   SizedBox(width: 8.w),
                                   Flexible(
                                     child: Text(
-                                      'Start Flame Chat (5:00)',
+                                      'Start Fire Love Chat (5:00)',
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
@@ -1650,8 +1650,8 @@ class DiscoverController extends GetxController {
           Get.back();
           // TODO: implement super like purchase flow
           Get.snackbar(
-            'Super Likes',
-            'Super like purchase coming soon!',
+            'Super Loves',
+            'Super love purchase coming soon!',
             backgroundColor: Colors.amber,
             colorText: Colors.white,
           );

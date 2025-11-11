@@ -731,7 +731,7 @@ class CallListenerService {
       // Local clearing as backup
       if (Platform.isAndroid) {
         try {
-          final MethodChannel channel = MethodChannel('com.lovebug.app/notification');
+          final MethodChannel channel = MethodChannel('com.lovebug.lovebug/notification');
           await channel.invokeMethod('clearCallNotification');
           print('✅ Android call notification cleared locally after in-app accept');
         } catch (e) {

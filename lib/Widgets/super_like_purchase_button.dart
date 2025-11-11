@@ -37,7 +37,7 @@ class SuperLikePurchaseButton extends StatelessWidget {
             Icon(Icons.star, size: 18.sp),
             SizedBox(width: 8.w),
             Text(
-              'Buy More Super Likes',
+              'Buy More Super Loves',
               style: TextStyle(
                 fontSize: 14.sp,
                 fontWeight: FontWeight.bold,
@@ -61,7 +61,7 @@ class QuickSuperLikePurchaseButtons extends StatelessWidget {
       child: Column(
         children: [
           Text(
-            'Buy Super Likes',
+            'Buy Super Loves',
             style: TextStyle(
               fontSize: 18.sp,
               fontWeight: FontWeight.bold,
@@ -71,18 +71,18 @@ class QuickSuperLikePurchaseButtons extends StatelessWidget {
           
           SizedBox(height: 16.h),
           
-          // 5 Super Likes
+          // 5 Super Loves
           _buildQuickPurchaseButton(
-            title: '5 Super Likes',
+            title: '5 Super Loves',
             price: '₹99',
             onTap: () => InAppPurchaseService.purchaseSuperLikes('super_like_5'),
           ),
           
           SizedBox(height: 8.h),
           
-          // 10 Super Likes (Best Value)
+          // 10 Super Loves (Best Value)
           _buildQuickPurchaseButton(
-            title: '10 Super Likes',
+            title: '10 Super Loves',
             price: '₹179',
             subtitle: 'Best Value',
             isRecommended: true,
@@ -91,9 +91,9 @@ class QuickSuperLikePurchaseButtons extends StatelessWidget {
           
           SizedBox(height: 8.h),
           
-          // 20 Super Likes
+          // 20 Super Loves
           _buildQuickPurchaseButton(
-            title: '20 Super Likes',
+            title: '20 Super Loves',
             price: '₹299',
             subtitle: 'Maximum Impact',
             onTap: () => InAppPurchaseService.purchaseSuperLikes('super_like_20'),

@@ -110,7 +110,7 @@ class Activity {
       case ActivityType.like:
         return '$otherUserName liked your profile';
       case ActivityType.superLike:
-        return '$otherUserName super liked you!';
+        return '$otherUserName super loved you!';
       case ActivityType.match:
         return 'You matched with $otherUserName!';
       case ActivityType.bffMatch:

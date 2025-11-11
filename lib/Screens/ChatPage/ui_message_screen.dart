@@ -1050,8 +1050,8 @@ class _MessageScreenState extends State<MessageScreen> with WidgetsBindingObserv
           : (shouldUpgrade ? Icons.lock_clock : Icons.check_circle_outline);
 
       final String headline = isActive
-          ? 'Flame Chat is live'
-          : 'Flame Chat ended';
+          ? 'Fire Love Chat is live'
+          : 'Fire Love Chat ended';
 
       final String detail = isActive
           ? '${controller.formattedFlameCountdown} remaining'
