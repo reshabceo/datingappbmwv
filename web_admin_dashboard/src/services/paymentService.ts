@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { validateEmail } from '../utils/emailValidation';
 
 const supabaseUrl = 'https://dkcitxzvojvecuvacwsp.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrY2l0eHp2b2p2ZWN1dmFjd3NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcxNDcwMTAsImV4cCI6MjA3MjcyMzAxMH0.0YmJgKVDkdmH6o-IMeT_eeMZEKBUfTuba9XsOruCYYw';
@@ -486,6 +487,13 @@ export class PaymentService {
         const { data: { user } } = await supabase.auth.getUser();
         console.log('🔍 User data:', user?.email);
         if (user?.email) {
+          // Validate email before sending invoice
+          const emailValidation = validateEmail(user.email);
+          if (!emailValidation.valid) {
+            console.warn(`❌ Skipping invoice email - Invalid email: ${user.email} - ${emailValidation.error}`);
+            // Continue without sending email, but log the issue
+            return;
+          }
           const { data: profileData } = await supabase
             .from('profiles')
             .select('name')

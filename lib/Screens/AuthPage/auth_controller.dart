@@ -10,6 +10,7 @@ import '../BottomBarPage/bottombar_screen.dart';
 import '../../services/supabase_service.dart';
 import '../../services/analytics_service.dart';
 import '../../services/notification_service.dart';
+import '../../utils/email_validation.dart';
 import 'email_code_verify_screen.dart';
 import 'auth_ui_screen.dart';
 import '../WelcomePage/welcome_screen.dart';
@@ -57,6 +58,14 @@ class AuthController extends GetxController {
       Get.snackbar('Error', 'Please fill all fields');
       return;
     }
+    
+    // Validate email format and prevent invalid emails
+    final emailValidation = EmailValidation.validateEmail(emailController.text.trim());
+    if (!emailValidation.valid) {
+      Get.snackbar('Invalid Email', emailValidation.error ?? 'Please enter a valid email address');
+      return;
+    }
+    
     if (passwordController.text.length < 6) {
       Get.snackbar('Error', 'Password must be at least 6 characters');
       return;
@@ -256,6 +265,13 @@ class AuthController extends GetxController {
     if (resendSeconds.value > 0) return;
     final email = emailController.text.trim();
     if (email.isEmpty) return;
+    
+    // Validate email before resending
+    final emailValidation = EmailValidation.validateEmail(email);
+    if (!emailValidation.valid) {
+      Get.snackbar('Invalid Email', emailValidation.error ?? 'Please enter a valid email address');
+      return;
+    }
     try {
       await SupabaseService.sendEmailOtp(email);
       _startResendTimer();
@@ -268,6 +284,13 @@ class AuthController extends GetxController {
     final password = passwordController.text.trim();
     if (email.isEmpty || password.isEmpty) {
       Get.snackbar('Error', 'Enter email and password');
+      return;
+    }
+    
+    // Validate email format
+    final emailValidation = EmailValidation.validateEmail(email);
+    if (!emailValidation.valid) {
+      Get.snackbar('Invalid Email', emailValidation.error ?? 'Please enter a valid email address');
       return;
     }
     try {

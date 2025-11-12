@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../../supabaseClient'
+import { validateEmail } from '../../utils/emailValidation'
 
 export default function SignUp() {
   const loc = useLocation()
@@ -15,6 +16,13 @@ export default function SignUp() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!email || !password) return alert('Enter email and password')
+    
+    // Validate email format and prevent invalid emails
+    const emailValidation = validateEmail(email)
+    if (!emailValidation.valid) {
+      return alert(`Invalid email: ${emailValidation.error}`)
+    }
+    
     if (password.length < 6) return alert('Password must be at least 6 characters')
     if (password !== confirm) return alert('Passwords do not match')
     setLoading(true)

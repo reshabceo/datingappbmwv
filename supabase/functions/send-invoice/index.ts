@@ -30,6 +30,53 @@ serve(async (req) => {
     
     console.log('Invoice data:', { orderId, paymentId, amount, planType, userEmail, userName })
 
+    // Validate email before sending
+    if (!userEmail || typeof userEmail !== 'string') {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Invalid email address' 
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
+
+    // Basic email validation
+    const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/
+    if (!emailRegex.test(userEmail.trim().toLowerCase())) {
+      console.warn(`❌ Invalid email format: ${userEmail}`)
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Invalid email format' 
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
+
+    // Check for disposable emails
+    const disposableDomains = ['tempmail.com', 'guerrillamail.com', 'mailinator.com', '10minutemail.com']
+    const emailDomain = userEmail.split('@')[1]?.toLowerCase()
+    if (emailDomain && disposableDomains.some(domain => emailDomain.includes(domain))) {
+      console.warn(`❌ Disposable email detected: ${userEmail}`)
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Disposable email addresses are not allowed' 
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
+
     // Generate beautiful HTML invoice
     const htmlContent = generateInvoiceHTML({
       orderId,

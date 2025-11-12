@@ -2,6 +2,7 @@
 // This service automatically processes welcome emails for OAuth users
 
 import { supabase } from '../supabaseClient'
+import { validateEmail } from '../utils/emailValidation'
 
 export class WelcomeEmailService {
   private static isProcessing = false
@@ -58,6 +59,21 @@ export class WelcomeEmailService {
       // Process each pending email
       for (const emailRecord of pendingEmails) {
         try {
+          // Validate email before sending
+          const emailValidation = validateEmail(emailRecord.email)
+          if (!emailValidation.valid) {
+            console.warn(`Skipping invalid email: ${emailRecord.email} - ${emailValidation.error}`)
+            // Mark as failed to prevent retry
+            await supabase
+              .from('welcome_email_queue')
+              .update({ 
+                sent_at: new Date().toISOString(),
+                error: `Invalid email: ${emailValidation.error}`
+              })
+              .eq('id', emailRecord.id)
+            continue
+          }
+
           await this.sendWelcomeEmail(emailRecord)
           
           // Mark as sent
@@ -100,6 +116,12 @@ export class WelcomeEmailService {
 
   // Manual trigger for testing
   static async triggerWelcomeEmail(userId: string, email: string, name: string, signupMethod: string) {
+    // Validate email before sending
+    const emailValidation = validateEmail(email)
+    if (!emailValidation.valid) {
+      throw new Error(`Invalid email: ${emailValidation.error}`)
+    }
+
     try {
       const response = await fetch('/functions/v1/send-welcome-email', {
         method: 'POST',
