@@ -33,21 +33,26 @@ export default function Home() {
     },
   ]
 
+  const heroImages = {
+    primary: '/assets/home/hero-1.jpg',
+    secondary: '/assets/home/hero-2.jpg'
+  }
+
   const stories = [
     {
-      img: '/assets/d83d12e7-0a5f-4215-a0df-b60f86de7707.JPG',
+      img: '/assets/home/story1.jpg',
       title: 'Adam & Aaliya',
       quote:
         "\"Love Bug helped us find each other when we least expected it. Now we're planning our wedding!\"",
     },
     {
-      img: '/assets/cd2a694f-ba7e-4bc9-acb6-555f0ecc9f71.JPG',
+      img: '/assets/home/story2.jpg',
       title: 'Gurpreet & Simran',
       quote:
         '"We matched on Love Bug and instantly connected. Six months later, we\'re moving in together!"',
     },
     {
-      img: '/assets/986045b9-9a2a-47ed-b970-2cec35b53359.JPG',
+      img: '/assets/home/story3.jpg',
       title: 'Vihaan & Lakshmi',
       quote:
         '"The algorithm is amazing! We have so much in common and couldn\'t be happier together."',
@@ -86,10 +91,24 @@ export default function Home() {
           <div className="flex items-center justify-center mt-8 md:mt-0">
             <div className="w-full max-w-sm sm:max-w-md md:w-[32rem] space-y-3">
               <div className="h-48 sm:h-56 md:h-64 rounded-3xl overflow-hidden shadow-2xl bg-white/10 border border-border-white-10">
-                <img src="/assets/5eab84d3-8fdc-40ac-87cb-1609d42f5228.JPG" alt="Happy couple" className="w-full h-full object-cover" />
+                <img
+                  src={heroImages.primary}
+                  alt="Happy couple"
+                  className="w-full h-full object-cover"
+                  loading="eager"
+                  fetchpriority="high"
+                  decoding="async"
+                  sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, 32rem"
+                />
               </div>
               <div className="h-32 sm:h-40 md:h-48 rounded-3xl overflow-hidden shadow-2xl bg-white/10 border border-border-white-10">
-                <img src="/assets/e211327b-455f-420e-b86e-d890498e4734.JPG" alt="Happy couple" className="w-full h-full object-cover" />
+                <img
+                  src={heroImages.secondary}
+                  alt="Happy couple"
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                  decoding="async"
+                />
               </div>
             </div>
           </div>
@@ -117,7 +136,7 @@ export default function Home() {
           {stories.map((s) => (
             <div key={s.title} className="rounded-2xl overflow-hidden bg-gradient-card-pink border border-pink-30 backdrop-blur-md">
               <div className="h-72 bg-black/20">
-                <img src={s.img} alt={s.title} className="w-full h-full object-cover object-[center_20%]" />
+                <img src={s.img} alt={s.title} className="w-full h-full object-cover object-[center_20%]" loading="lazy" decoding="async" />
               </div>
               <div className="p-5">
                 <div className="font-semibold text-xl mb-2">{s.title}</div>
@@ -154,13 +173,11 @@ export default function Home() {
             </div>
             <div className="flex justify-center">
               <img 
-                src="/assets/c59fc0b8-2284-413f-9ed0-e97cebdddd89.png" 
-                alt="Love Bug app mobile interface" 
+                src="/assets/images/celebration.png" 
+                alt="Love Bug app preview" 
                 className="max-w-[200px] h-auto rounded-xl shadow-2xl"
-                onError={(e) => {
-                  console.log('Image failed to load, trying alternative path');
-                  e.currentTarget.src = '/assets/c59fc0b8-2284-413f-9ed0-e97cebdddd89.png';
-                }}
+                loading="lazy"
+                decoding="async"
               />
             </div>
           </div>

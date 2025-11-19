@@ -1,29 +1,63 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <!-- Google Tag Manager -->
-    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-    })(window,document,'script','dataLayer','GTM-5WRM8D7N');</script>
+    <!-- Google Tag Manager (lazy injected to reduce render-blocking) -->
+    <script>
+      (function(w, d, s, l, i) {
+        w[l] = w[l] || []
+        w[l].push({ 'gtm.start': new Date().getTime(), event: 'gtm.js' })
+
+        function loadGtm() {
+          if (w.__gtmLoaded) return
+          w.__gtmLoaded = true
+          var f = d.getElementsByTagName(s)[0]
+          var j = d.createElement(s)
+          var dl = l !== 'dataLayer' ? '&l=' + l : ''
+          j.async = true
+          j.src = 'https://www.googletagmanager.com/gtm.js?id=' + i + dl
+          f.parentNode.insertBefore(j, f)
+        }
+
+        if ('requestIdleCallback' in w) {
+          w.requestIdleCallback(loadGtm, { timeout: 4000 })
+        } else {
+          w.addEventListener('load', loadGtm, { once: true })
+        }
+      })(window, document, 'script', 'dataLayer', 'GTM-5WRM8D7N')
+    </script>
     <!-- End Google Tag Manager -->
     
     <!-- Google Site Verification -->
     <meta name="google-site-verification" content="MBSiutuR-buFGpDERWLtrDtRXu4DeKpfa0OtriN27qs" />
     
-    <!-- Meta Pixel Code -->
+    <!-- Meta Pixel Code (deferred) -->
     <script>
-    !function(f,b,e,v,n,t,s)
-    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-    n.queue=[];t=b.createElement(e);t.async=!0;
-    t.src=v;s=b.getElementsByTagName(e)[0];
-    s.parentNode.insertBefore(t,s)}(window, document,'script',
-    'https://connect.facebook.net/en_US/fbevents.js');
-    fbq('init', '1720687912654214');
-    fbq('track', 'PageView');
+      (function(w, b, e, v) {
+        function loadPixel() {
+          if (w.fbq) return
+          var n = w.fbq = function() {
+            n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments)
+          }
+          if (!w._fbq) w._fbq = n
+          n.push = n
+          n.loaded = !0
+          n.version = '2.0'
+          n.queue = []
+          var t = b.createElement(e)
+          t.async = !0
+          t.src = v
+          var s = b.getElementsByTagName(e)[0]
+          s.parentNode.insertBefore(t, s)
+          n('init', '1720687912654214')
+          n('track', 'PageView')
+        }
+
+        if ('requestIdleCallback' in w) {
+          w.requestIdleCallback(loadPixel, { timeout: 5000 })
+        } else {
+          w.addEventListener('load', loadPixel, { once: true })
+        }
+      })(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js')
     </script>
     <!-- End Meta Pixel Code -->
     <meta charset="UTF-8" />
@@ -31,6 +65,34 @@
     <title>Love Bug - Find Your Perfect Match</title>
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="shortcut icon" type="image/png" href="/favicon.png" />
+    <link
+      rel="preload"
+      as="image"
+      href="/assets/home/hero-1.jpg"
+      imagesrcset="/assets/home/hero-1.jpg"
+      fetchpriority="high"
+    />
+    <link
+      rel="preload"
+      as="font"
+      href="/assets/fonts/VisbyRoundCF-Regular.otf"
+      type="font/otf"
+      crossorigin="anonymous"
+    />
+    <link
+      rel="preload"
+      as="font"
+      href="/assets/fonts/VisbyRoundCF-Medium.otf"
+      type="font/otf"
+      crossorigin="anonymous"
+    />
+    <link
+      rel="preload"
+      as="font"
+      href="/assets/fonts/VisbyRoundCF-Bold.otf"
+      type="font/otf"
+      crossorigin="anonymous"
+    />
   </head>
   <body>
     <!-- Google Tag Manager (noscript) -->

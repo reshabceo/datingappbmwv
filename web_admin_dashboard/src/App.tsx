@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, Suspense, lazy } from 'react'
 import { Routes, Route, Link, useLocation } from 'react-router-dom'
 
 // GTM tracking for page views
@@ -9,59 +9,72 @@ declare global {
   }
 }
 import { WelcomeEmailService } from './services/welcomeEmailService'
-import Login from './pages/Login'
-import Profiles from './pages/Profiles'
-import Home from './pages/Home'
-import ProfileDetail from './pages/ProfileDetail'
-import PhoneOtp from './pages/Auth/PhoneOtp'
-import MagicLinkVerify from './pages/Auth/MagicLinkVerify'
-import SignUp from './pages/Auth/SignUp'
-import SignIn from './pages/Auth/SignIn'
-import EmailCodeVerify from './pages/Auth/EmailCodeVerify'
-import Stories from './pages/Stories'
-import StoryViewer from './components/StoryViewer'
-import StoryDetail from './pages/StoryDetail'
-import ProfileEdit from './pages/ProfileEdit'
-import Plans from './pages/Plans'
-import PremiumPlans from './pages/PremiumPlans'
-import PaymentTest from './pages/PaymentTest'
-import OrderHistory from './pages/OrderHistory'
-import PaymentSuccess from './pages/PaymentSuccess'
-import InvoiceTest from './pages/InvoiceTest'
-import PDFTest from './pages/PDFTest'
-import AdminSubscriptions from './pages/AdminSubscriptions'
 import { useAuth } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Footer from './components/Footer'
 import RequireProfile from './components/RequireProfile'
-import PremiumStatusWidget from './components/PremiumStatusWidget'
-import Step1Gender from './pages/ProfileSetup/Step1Gender'
-import Step2Basic from './pages/ProfileSetup/Step2Basic'
-import Step3Photos from './pages/ProfileSetup/Step3Photos'
-import Step4Bio from './pages/ProfileSetup/Step4Bio'
-import Step5Interests from './pages/ProfileSetup/Step5Interests'
-import Step6Location from './pages/ProfileSetup/Step6Location'
-import AdminEmbed from './pages/AdminEmbed'
-import AdminDashboard from './pages/AdminDashboard'
-import CommunityGuidelines from './pages/CommunityGuidelines'
-import SafetyTips from './pages/SafetyTips'
-import CookiePolicy from './pages/CookiePolicy'
-import ContactUs from './pages/ContactUs'
-import AboutUs from './pages/AboutUs'
-import VerificationScreen from './pages/VerificationScreen'
-import AdminVerification from './pages/AdminVerification'
-import Accessibility from './pages/Accessibility'
-import PrivacyPolicy from './pages/PrivacyPolicy'
-import TermsOfService from './pages/TermsOfService'
-import RefundPolicy from './pages/RefundPolicy'
-import Careers from './pages/Careers'
-import Press from './pages/Press'
-import Blog from './pages/Blog'
-import EarlyAccessThankYou from './pages/EarlyAccessThankYou'
-import SubscriptionPlansAdmin from './pages/admin/SubscriptionPlansAdmin'
-import OffersAdmin from './pages/admin/OffersAdmin'
-import ReportsManagement from './admin-components/ReportsManagement'
+import StoryViewer from './components/StoryViewer'
 import { Toaster } from 'sonner'
+
+const Login = lazy(() => import('./pages/Login'))
+const Profiles = lazy(() => import('./pages/Profiles'))
+const Home = lazy(() => import('./pages/Home'))
+const ProfileDetail = lazy(() => import('./pages/ProfileDetail'))
+const PhoneOtp = lazy(() => import('./pages/Auth/PhoneOtp'))
+const MagicLinkVerify = lazy(() => import('./pages/Auth/MagicLinkVerify'))
+const SignUp = lazy(() => import('./pages/Auth/SignUp'))
+const SignIn = lazy(() => import('./pages/Auth/SignIn'))
+const EmailCodeVerify = lazy(() => import('./pages/Auth/EmailCodeVerify'))
+const Stories = lazy(() => import('./pages/Stories'))
+const StoryDetail = lazy(() => import('./pages/StoryDetail'))
+const ProfileEdit = lazy(() => import('./pages/ProfileEdit'))
+const Plans = lazy(() => import('./pages/Plans'))
+const PremiumPlans = lazy(() => import('./pages/PremiumPlans'))
+const PaymentTest = lazy(() => import('./pages/PaymentTest'))
+const OrderHistory = lazy(() => import('./pages/OrderHistory'))
+const PaymentSuccess = lazy(() => import('./pages/PaymentSuccess'))
+const InvoiceTest = lazy(() => import('./pages/InvoiceTest'))
+const PDFTest = lazy(() => import('./pages/PDFTest'))
+const AdminSubscriptions = lazy(() => import('./pages/AdminSubscriptions'))
+const Step1Gender = lazy(() => import('./pages/ProfileSetup/Step1Gender'))
+const Step2Basic = lazy(() => import('./pages/ProfileSetup/Step2Basic'))
+const Step3Photos = lazy(() => import('./pages/ProfileSetup/Step3Photos'))
+const Step4Bio = lazy(() => import('./pages/ProfileSetup/Step4Bio'))
+const Step5Interests = lazy(() => import('./pages/ProfileSetup/Step5Interests'))
+const Step6Location = lazy(() => import('./pages/ProfileSetup/Step6Location'))
+const AdminEmbed = lazy(() => import('./pages/AdminEmbed'))
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
+const CommunityGuidelines = lazy(() => import('./pages/CommunityGuidelines'))
+const SafetyTips = lazy(() => import('./pages/SafetyTips'))
+const CookiePolicy = lazy(() => import('./pages/CookiePolicy'))
+const ContactUs = lazy(() => import('./pages/ContactUs'))
+const AboutUs = lazy(() => import('./pages/AboutUs'))
+const VerificationScreen = lazy(() => import('./pages/VerificationScreen'))
+const AdminVerification = lazy(() => import('./pages/AdminVerification'))
+const Accessibility = lazy(() => import('./pages/Accessibility'))
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'))
+const TermsOfService = lazy(() => import('./pages/TermsOfService'))
+const RefundPolicy = lazy(() => import('./pages/RefundPolicy'))
+const Careers = lazy(() => import('./pages/Careers'))
+const Press = lazy(() => import('./pages/Press'))
+const Blog = lazy(() => import('./pages/Blog'))
+const EarlyAccessThankYou = lazy(() => import('./pages/EarlyAccessThankYou'))
+const SubscriptionPlansAdmin = lazy(() => import('./pages/admin/SubscriptionPlansAdmin'))
+const OffersAdmin = lazy(() => import('./pages/admin/OffersAdmin'))
+const ReportsManagement = lazy(() => import('./admin-components/ReportsManagement'))
+const PremiumStatusWidget = lazy(() => import('./components/PremiumStatusWidget'))
+
+const PageLoader = () => (
+  <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-gradient-to-b from-[#05020e] to-[#140524] text-white">
+    <img
+      src="/assets/5347d249-47bc-4b25-8053-83255e59a1f0.png"
+      alt="Love Bug"
+      className="h-12 w-auto animate-bounce"
+      loading="lazy"
+    />
+    <p className="text-base font-semibold tracking-wide">Finding your perfect match…</p>
+  </div>
+)
 
 export default function App() {
   const { user, signOut } = useAuth()
@@ -69,12 +82,35 @@ export default function App() {
   const isAdminRoute = location.pathname.startsWith('/admin')
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
-  // Initialize welcome email service
+  // Initialize welcome email service without blocking initial render
   useEffect(() => {
-    WelcomeEmailService.startProcessing()
+    let idleId: number | null = null
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+    const startService = () => {
+      WelcomeEmailService.startProcessing()
+    }
+
+    const win = typeof window !== 'undefined'
+      ? (window as Window & {
+          requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number
+          cancelIdleCallback?: (handle: number) => void
+        })
+      : null
+
+    if (win?.requestIdleCallback) {
+      idleId = win.requestIdleCallback(() => startService(), { timeout: 4000 })
+    } else {
+      timeoutId = setTimeout(startService, 2000)
+    }
     
-    // Cleanup on unmount
     return () => {
+      if (idleId !== null && win?.cancelIdleCallback) {
+        win.cancelIdleCallback(idleId)
+      }
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
       WelcomeEmailService.stopProcessing()
     }
   }, [])
@@ -115,11 +151,12 @@ export default function App() {
           }
         }}
       />
-      {!isAdminRoute && (
+      <Suspense fallback={<PageLoader />}>
+        {!isAdminRoute && (
         <header className="sticky top-0 z-50 bg-gradient-card-pink backdrop-blur border-b border-pink-30">
         <div className="w-full px-4 sm:px-6 md:px-8 xl:px-12 py-3 flex items-center justify-between">
           <Link to="/" className="flex items-center space-x-2">
-            <img src="/assets/5347d249-47bc-4b25-8053-83255e59a1f0.png" alt="Love Bug Logo" className="h-10 sm:h-12 w-auto" />
+            <img src="/assets/images/logolight.png" alt="Love Bug Logo" className="h-10 sm:h-12 w-auto" loading="lazy" decoding="async" />
           </Link>
           
           {/* Desktop Navigation */}
@@ -246,7 +283,7 @@ export default function App() {
           </div>
         )}
       </header>
-      )}
+        )}
 
       <Routes>
         {/* Admin routes - no header/footer */}
@@ -267,7 +304,9 @@ export default function App() {
         <Route path="/*" element={
           <>
             <main className="w-full px-4 sm:px-6 md:px-8 xl:px-12 py-4">
-              <PremiumStatusWidget />
+              <Suspense fallback={null}>
+                <PremiumStatusWidget />
+              </Suspense>
               <Routes>
                 <Route path="/" element={<Home />} />
                 <Route path="/login" element={<Login />} />
@@ -315,6 +354,7 @@ export default function App() {
           </>
         } />
       </Routes>
+      </Suspense>
     </div>
   )
 }

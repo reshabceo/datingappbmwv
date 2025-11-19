@@ -149,5 +149,3 @@ export class WelcomeEmailService {
   }
 }
 
-// Auto-start the service when the module is imported
-WelcomeEmailService.startProcessing()
