@@ -74,6 +74,37 @@ export default function TermsOfService() {
           </ul>
         </div>
 
+        {/* Community Guidelines and Content Moderation */}
+        <div className="mb-12">
+          <h2 className="text-3xl font-bold mb-6 text-light-pink">COMMUNITY GUIDELINES AND CONTENT MODERATION</h2>
+          
+          <h3 className="text-xl font-semibold mb-4 text-white">Prohibited Content</h3>
+          <p className="text-light-white leading-relaxed mb-6">
+            Users are prohibited from posting, sharing, or transmitting content that:
+          </p>
+          <ul className="space-y-2 text-light-white mb-6">
+            <li>• Contains hate speech, harassment, or threats</li>
+            <li>• Is sexually explicit or pornographic</li>
+            <li>• Promotes illegal activities</li>
+            <li>• Violates intellectual property rights</li>
+            <li>• Contains spam, scams, or fraudulent information</li>
+            <li>• Impersonates another person or entity</li>
+          </ul>
+
+          <h3 className="text-xl font-semibold mb-4 text-white">Moderation Process</h3>
+          <ol className="list-decimal list-inside space-y-3 text-light-white mb-6">
+            <li><strong>Automatic Filtering:</strong> All content is automatically scanned for prohibited material</li>
+            <li><strong>User Reporting:</strong> Users can report violations through in-app tools</li>
+            <li><strong>Review Process:</strong> Reports are reviewed by our moderation team within 24 hours</li>
+            <li><strong>Enforcement:</strong> Violations may result in content removal, account suspension, or permanent ban</li>
+          </ol>
+
+          <h3 className="text-xl font-semibold mb-4 text-white">Appeals Process</h3>
+          <p className="text-light-white leading-relaxed">
+            Users who believe their content was incorrectly removed or their account was unfairly suspended may contact support to appeal the decision.
+          </p>
+        </div>
+
         {/* User Responsibilities */}
         <div className="mb-12">
           <h2 className="text-3xl font-bold mb-6 text-light-pink">User Responsibilities</h2>

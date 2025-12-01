@@ -120,6 +120,62 @@ export default function PrivacyPolicy() {
           </ul>
         </div>
 
+        {/* Content Moderation and User Safety */}
+        <div className="mb-12">
+          <h2 className="text-3xl font-bold mb-6 text-light-pink">CONTENT MODERATION AND USER SAFETY</h2>
+          
+          <h3 className="text-xl font-semibold mb-4 text-white">Automatic Content Filtering</h3>
+          <p className="text-light-white leading-relaxed mb-6">
+            We employ automated content filtering systems to detect and filter objectionable content, including but not limited to:
+          </p>
+          <ul className="space-y-2 text-light-white mb-6">
+            <li>• Inappropriate language or profanity</li>
+            <li>• Spam or fraudulent content</li>
+            <li>• Harassment or abusive behavior</li>
+            <li>• Fake profiles or misleading information</li>
+          </ul>
+
+          <h3 className="text-xl font-semibold mb-4 text-white">User Reporting</h3>
+          <p className="text-light-white leading-relaxed mb-6">
+            Users can report inappropriate content or behavior through in-app reporting tools available on:
+          </p>
+          <ul className="space-y-2 text-light-white mb-6">
+            <li>• User profiles</li>
+            <li>• Chat conversations</li>
+            <li>• Stories and other user-generated content</li>
+          </ul>
+
+          <h3 className="text-xl font-semibold mb-4 text-white">Moderation Response Time</h3>
+          <p className="text-light-white leading-relaxed mb-6">
+            All reported content is reviewed by our moderation team and acted upon within 24 hours. Actions may include:
+          </p>
+          <ul className="space-y-2 text-light-white mb-6">
+            <li>• Removing objectionable content</li>
+            <li>• Warning or suspending offending accounts</li>
+            <li>• Permanently banning repeat offenders</li>
+          </ul>
+
+          <h3 className="text-xl font-semibold mb-4 text-white">User Blocking</h3>
+          <p className="text-light-white leading-relaxed mb-6">
+            Users can block other users to prevent further contact. Blocked users will:
+          </p>
+          <ul className="space-y-2 text-light-white mb-6">
+            <li>• Not appear in your discover feed</li>
+            <li>• Not be able to send you messages</li>
+            <li>• Not be able to see your profile</li>
+          </ul>
+
+          <h3 className="text-xl font-semibold mb-4 text-white">Data Retention</h3>
+          <p className="text-light-white leading-relaxed">
+            When you report or block a user, we retain this information to:
+          </p>
+          <ul className="space-y-2 text-light-white">
+            <li>• Prevent future interactions</li>
+            <li>• Improve our moderation systems</li>
+            <li>• Comply with legal obligations</li>
+          </ul>
+        </div>
+
         {/* Your Rights */}
         <div className="mb-12">
           <h2 className="text-3xl font-bold mb-6 text-light-pink">WHAT ARE YOUR RIGHTS?</h2>
