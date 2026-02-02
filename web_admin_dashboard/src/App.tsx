@@ -63,6 +63,7 @@ const SubscriptionPlansAdmin = lazy(() => import('./pages/admin/SubscriptionPlan
 const OffersAdmin = lazy(() => import('./pages/admin/OffersAdmin'))
 const ReportsManagement = lazy(() => import('./admin-components/ReportsManagement'))
 const PremiumStatusWidget = lazy(() => import('./components/PremiumStatusWidget'))
+const CSAEPolicy = lazy(() => import('./pages/CSAEPolicy'))
 
 const PageLoader = () => (
   <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-gradient-to-b from-[#05020e] to-[#140524] text-white">
@@ -348,6 +349,7 @@ export default function App() {
                 <Route path="/press" element={<Press />} />
                 <Route path="/blog" element={<Blog />} />
                 <Route path="/thank-you" element={<EarlyAccessThankYou />} />
+                <Route path="/csae-policy" element={<CSAEPolicy />} />
               </Routes>
             </main>
             <Footer />

@@ -23,6 +23,7 @@ export default function Footer() {
           <ul className="space-y-2 text-sm">
             <li><a href="/safety-tips">Safety Tips</a></li>
             <li><a href="/contact-us">Contact Us</a></li>
+            <li><a href="/csae-policy">CSAE Policy</a></li>
             <li><a href="/community-guidelines">Community Guidelines</a></li>
           </ul>
         </div>
