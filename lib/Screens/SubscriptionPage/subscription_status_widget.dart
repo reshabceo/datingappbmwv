@@ -51,22 +51,6 @@ class SubscriptionStatusWidget extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
-                  if (controller.isPremiumActive)
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 2.h),
-                      decoration: BoxDecoration(
-                        color: Colors.green,
-                        borderRadius: BorderRadius.circular(8.r),
-                      ),
-                      child: Text(
-                        '${controller.daysRemaining} days left',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 10.sp,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
                 ],
               ),
               

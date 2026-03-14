@@ -1512,7 +1512,7 @@ class _MessageScreenState extends State<MessageScreen> with WidgetsBindingObserv
                         isDestructive: true,
                         onTap: () {
                           Get.back();
-                          Get.snackbar('Info', 'Block functionality coming soon');
+                          _blockUser();
                         },
                       ),
                       
@@ -2012,6 +2012,122 @@ class _MessageScreenState extends State<MessageScreen> with WidgetsBindingObserv
       Get.snackbar(
         'Error', 
         'Failed to report user: $e',
+        backgroundColor: themeController.blackColor,
+        colorText: themeController.whiteColor,
+        duration: Duration(seconds: 3),
+      );
+    }
+  }
+
+  Future<void> _blockUser() async {
+    try {
+      // Get the other user's ID
+      final otherUserId = await _getOtherUserId();
+      if (otherUserId == null) {
+        Get.snackbar('Error', 'Could not find user to block');
+        return;
+      }
+
+      // Show confirmation dialog
+      final confirmed = await Get.dialog<bool>(
+        AlertDialog(
+          backgroundColor: themeController.blackColor,
+          title: TextConstant(
+            title: 'Block User',
+            color: themeController.whiteColor,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+          content: TextConstant(
+            title: 'Are you sure you want to block this user? You will no longer see their messages or profile, and they won\'t be able to contact you.',
+            color: themeController.whiteColor.withOpacity(0.8),
+            fontSize: 14,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Get.back(result: false),
+              child: TextConstant(
+                title: 'Cancel',
+                color: themeController.greyColor,
+                fontSize: 14,
+              ),
+            ),
+            TextButton(
+              onPressed: () => Get.back(result: true),
+              child: TextConstant(
+                title: 'Block',
+                color: Colors.red,
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed != true) return;
+
+      // Show loading indicator
+      Get.dialog(
+        Center(
+          child: Container(
+            padding: EdgeInsets.all(20.w),
+            decoration: BoxDecoration(
+              color: themeController.blackColor,
+              borderRadius: BorderRadius.circular(10.r),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(
+                  color: themeController.getAccentColor(),
+                ),
+                heightBox(10.h.toInt()),
+                TextConstant(
+                  title: 'Blocking user...',
+                  color: themeController.whiteColor,
+                  fontSize: 14,
+                ),
+              ],
+            ),
+          ),
+        ),
+        barrierDismissible: false,
+      );
+
+      // Insert into blocked_users table
+      await SupabaseService.client.from('blocked_users').insert({
+        'blocker_id': SupabaseService.currentUser?.id,
+        'blocked_id': otherUserId,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      // Also unmatch the user
+      await SupabaseService.client
+          .from('matches')
+          .update({'status': 'unmatched'})
+          .eq('id', widget.matchId);
+
+      // Close loading dialog
+      Get.back();
+
+      print('✅ DEBUG: User blocked successfully');
+      Get.snackbar(
+        'User Blocked',
+        'User has been blocked and unmatched',
+        backgroundColor: themeController.blackColor,
+        colorText: themeController.whiteColor,
+        duration: Duration(seconds: 2),
+      );
+
+      // Navigate back to chat list
+      Get.back();
+    } catch (e) {
+      print('❌ DEBUG: Error blocking user: $e');
+      Get.back(); // Close loading dialog
+      Get.snackbar(
+        'Error',
+        'Failed to block user: $e',
         backgroundColor: themeController.blackColor,
         colorText: themeController.whiteColor,
         duration: Duration(seconds: 3),

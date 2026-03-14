@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
-import '../services/in_app_purchase_service.dart';
+import '../services/payment_service.dart';
+import '../services/supabase_service.dart';
+import 'super_like_purchase_dialog.dart';
+import 'package:lovebug/Common/widget_constant.dart';
 
 class SuperLikePurchaseButton extends StatelessWidget {
   final VoidCallback? onPurchaseSuccess;
@@ -19,7 +22,7 @@ class SuperLikePurchaseButton extends StatelessWidget {
       margin: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
       child: ElevatedButton(
         onPressed: () {
-          InAppPurchaseService.showSuperLikePurchaseDialog();
+          Get.dialog(const SuperLikePurchaseDialog(), barrierDismissible: true);
         },
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.amber.shade600,
@@ -73,30 +76,30 @@ class QuickSuperLikePurchaseButtons extends StatelessWidget {
           
           // 5 Super Loves
           _buildQuickPurchaseButton(
-            title: '5 Super Loves',
+            title: '3 Super Loves',
             price: '₹99',
-            onTap: () => InAppPurchaseService.purchaseSuperLikes('super_like_5'),
+            onTap: () => _purchaseSuperLikes('super_like_5'),
           ),
           
           SizedBox(height: 8.h),
           
           // 10 Super Loves (Best Value)
           _buildQuickPurchaseButton(
-            title: '10 Super Loves',
+            title: '15 Super Loves',
             price: '₹179',
-            subtitle: 'Best Value',
+            subtitle: 'Popular Choice',
             isRecommended: true,
-            onTap: () => InAppPurchaseService.purchaseSuperLikes('super_like_10'),
+            onTap: () => _purchaseSuperLikes('super_like_10'),
           ),
           
           SizedBox(height: 8.h),
           
           // 20 Super Loves
           _buildQuickPurchaseButton(
-            title: '20 Super Loves',
+            title: '30 Super Loves',
             price: '₹299',
-            subtitle: 'Maximum Impact',
-            onTap: () => InAppPurchaseService.purchaseSuperLikes('super_like_20'),
+            subtitle: 'Best Value',
+            onTap: () => _purchaseSuperLikes('super_like_20'),
           ),
         ],
       ),
@@ -206,5 +209,19 @@ class QuickSuperLikePurchaseButtons extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  void _purchaseSuperLikes(String packageKey) async {
+    final user = SupabaseService.currentUser;
+    if (user != null) {
+      await PaymentService.initiatePayment(
+        planType: packageKey,
+        userEmail: user.email ?? '',
+        userName: user.userMetadata?['name'] ?? 'User',
+        userPhone: user.phone,
+      );
+    } else {
+      showCustomSnackBar(title: 'error'.tr, message: 'please_login_to_purchase'.tr, isError: true);
+    }
   }
 }

@@ -1,16 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
-import '../../services/in_app_purchase_service.dart';
+import '../../services/payment_service.dart';
+import '../../services/supabase_service.dart';
 import '../../ThemeController/theme_controller.dart';
 import 'dart:ui';
 
 class SubscriptionScreen extends StatelessWidget {
   const SubscriptionScreen({super.key});
 
+  void _purchaseSubscription(String planId) async {
+    final user = SupabaseService.currentUser;
+    if (user != null) {
+      await PaymentService.initiatePayment(
+        planType: planId,
+        userEmail: user.email ?? '',
+        userName: user.userMetadata?['name'] ?? 'User',
+        userPhone: user.phone,
+      );
+    } else {
+      Get.snackbar('Error', 'Please login to purchase');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    InAppPurchaseService.initialize();
     final themeController = Get.find<ThemeController>();
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -124,31 +138,32 @@ class SubscriptionScreen extends StatelessWidget {
                             _buildBenefit(icon: Icons.visibility, text: 'See who liked you', themeController: themeController),
                             SizedBox(height: 20.h),
                             _buildPlan(
-                              title: '1 Month',
-                              price: '₹2000',
+                               title: '1 Month',
+                              price: '₹1,500',
                               subtitle: 'Billed monthly',
-                              onTap: () => InAppPurchaseService.purchasePremium('premium_1_month'),
+                              onTap: () => _purchaseSubscription('1_month'),
                               themeController: themeController,
                             ),
                             _buildPlan(
-                              title: '3 Months',
-                              price: '₹3000',
+                               title: '3 Months',
+                              price: '₹2,250',
                               subtitle: 'Billed every 3 months',
-                              onTap: () => InAppPurchaseService.purchasePremium('premium_3_months'),
+                              onTap: () => _purchaseSubscription('3_month'),
                               themeController: themeController,
                             ),
                             _buildPlan(
-                              title: '6 Months',
-                              price: '₹5000',
+                               title: '6 Months',
+                              price: '₹3,600',
                               subtitle: 'Billed every 6 months',
-                              onTap: () => InAppPurchaseService.purchasePremium('premium_6_months'),
+                              onTap: () => _purchaseSubscription('6_month'),
                               themeController: themeController,
                             ),
                             const Spacer(),
                             Text(
-                              'Payments are processed securely via App Store / Google Play.',
+                              'Payments are processed securely via Cashfree.',
                               style: TextStyle(color: themeController.whiteColor.withValues(alpha: 0.6), fontSize: 12.sp),
                             ),
+
                           ],
                         ),
                       ),

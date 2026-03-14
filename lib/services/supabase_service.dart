@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_config.dart';
 import 'push_notification_service.dart';
+import 'content_filter_service.dart';
 
 class SupabaseService {
   static SupabaseClient get client => Supabase.instance.client;
@@ -17,13 +18,16 @@ class SupabaseService {
     );
   }
   
-  // OAuth provider sign-in - using app-specific redirect
+  // OAuth provider sign-in - using in-app browser (SFSafariViewController on iOS)
+  // This ensures authentication happens within the app, not in external browser
   static Future<void> signInWithProvider(OAuthProvider provider) async {
     await client.auth.signInWithOAuth(
       provider,
       // Use app-specific redirect URL for mobile
       redirectTo: 'com.lovebug.lovebug://login-callback',
-      authScreenLaunchMode: LaunchMode.externalApplication,
+      // Use inAppWebView to ensure it opens in-app browser (SFSafariViewController on iOS)
+      // This is required by Apple App Store guidelines
+      authScreenLaunchMode: LaunchMode.inAppWebView, // Forces in-app browser on all platforms
     );
   }
   
@@ -123,7 +127,7 @@ class SupabaseService {
     int? limit,
     int? offset,
   }) async {
-    var query = client
+    dynamic query = client
         .from('profiles')
         .select();
 
@@ -131,21 +135,16 @@ class SupabaseService {
       query = query.neq('id', currentUser!.id);
     }
 
-    // Note: Supabase Dart doesn't allow arbitrary SQL in lt on columns easily; we'll filter client-side for now
-    // For now, we'll load all profiles and handle pagination client-side
-    final response = await query;
-    final allProfiles = (response as List).cast<Map<String, dynamic>>();
-    
-    // Apply client-side pagination
-    if (offset != null && limit != null) {
+    if (offset != null) {
       final start = offset;
-      final end = offset + limit;
-      return allProfiles.skip(start).take(limit).toList();
+      final end = offset + (limit ?? 50) - 1;
+      query = query.range(start, end);
     } else if (limit != null) {
-      return allProfiles.take(limit).toList();
+      query = query.limit(limit);
     }
-    
-    return allProfiles;
+
+    final response = await query;
+    return (response as List).cast<Map<String, dynamic>>();
   }
   
   static Future<Map<String, dynamic>?> getProfile(String userId) async {
@@ -303,6 +302,42 @@ class SupabaseService {
   }) async {
     return await client.auth.verifyOTP(type: OtpType.sms, token: token, phone: phone);
   }
+
+  // Update user email
+  static Future<UserResponse> updateUserEmail(String newEmail) async {
+    try {
+      final response = await client.auth.updateUser(
+        UserAttributes(email: newEmail),
+      );
+      
+      // Also update email in profiles table
+      final userId = currentUser?.id;
+      if (userId != null) {
+        await client
+            .from('profiles')
+            .update({'email': newEmail})
+            .eq('id', userId);
+      }
+      
+      return response;
+    } catch (e) {
+      print('Error updating email: $e');
+      rethrow;
+    }
+  }
+
+  // Update user password
+  static Future<UserResponse> updateUserPassword(String newPassword) async {
+    try {
+      final response = await client.auth.updateUser(
+        UserAttributes(password: newPassword),
+      );
+      return response;
+    } catch (e) {
+      print('Error updating password: $e');
+      rethrow;
+    }
+  }
   
   // Swipes and Matches
   static Future<void> insertSwipe({
@@ -415,7 +450,7 @@ class SupabaseService {
     if (uid == null) return [];
     
     try {
-      print('🔍 DEBUG: Calling get_profiles_with_super_likes for user: $uid');
+      print('🔍 DEBUG: Calling get_profiles_with_super_likes_v2 for user: $uid');
       final params = {
         'p_user_id': uid,
         'p_limit': 20,
@@ -432,7 +467,7 @@ class SupabaseService {
         print('📍 DEBUG: Location filtering disabled - showing all profiles');
       }
       
-      final response = await client.rpc('get_profiles_with_super_likes', params: params);
+      final response = await client.rpc('get_profiles_with_super_likes_v2', params: params);
       print('🔍 DEBUG: RPC response: $response');
       final result = (response as List).cast<Map<String, dynamic>>();
       print('🔍 DEBUG: Parsed result count: ${result.length}');
@@ -464,24 +499,171 @@ class SupabaseService {
   // Get BFF profiles (mode-specific)
   static Future<List<Map<String, dynamic>>> getBffProfiles() async {
     final uid = currentUser?.id;
-    if (uid == null) return [];
+    if (uid == null) {
+      print('⚠️ DEBUG: No user ID, returning empty BFF profiles');
+      return [];
+    }
     
     try {
       print('🔍 DEBUG: Calling get_bff_profiles for user: $uid');
       final response = await client.rpc('get_bff_profiles', params: {
         'p_user_id': uid,
       });
+      print('🔍 DEBUG: BFF RPC response type: ${response.runtimeType}');
       print('🔍 DEBUG: BFF RPC response: $response');
+      
+      if (response == null) {
+        print('⚠️ DEBUG: BFF RPC returned null');
+        return [];
+      }
+      
       final result = (response as List).cast<Map<String, dynamic>>();
       print('🔍 DEBUG: BFF Parsed result count: ${result.length}');
-      for (int i = 0; i < result.length && i < 3; i++) {
-        print('🔍 DEBUG: BFF Profile $i: ${result[i]}');
+      
+      // If we got results, return them immediately
+      if (result.isNotEmpty) {
+        print('✅ DEBUG: Successfully fetched ${result.length} BFF profiles from RPC');
+        for (int i = 0; i < result.length && i < 3; i++) {
+          print('🔍 DEBUG: BFF Profile $i: ${result[i]}');
+        }
+        return result;
       }
-      return result;
-    } catch (e) {
-      print('Error fetching BFF profiles: $e');
-      // Return empty list instead of fallback to avoid showing dating profiles in BFF mode
-      print('🔍 DEBUG: Returning empty list for BFF profiles due to error');
+      
+      // Only try fallback if RPC returned empty
+      if (result.isEmpty) {
+        print('⚠️ DEBUG: No BFF profiles found from RPC. Trying fallback query...');
+        
+        // Fallback: Query profiles directly checking both bff_enabled and mode_preferences
+        try {
+          // Get excluded user IDs (already interacted/matched)
+          final excludedIds = <String>{};
+          try {
+            final interactions = await client
+                .from('bff_interactions')
+                .select('target_user_id')
+                .eq('user_id', uid);
+            for (var interaction in interactions) {
+              excludedIds.add((interaction['target_user_id'] ?? '').toString());
+            }
+            
+            final matches = await client
+                .from('bff_matches')
+                .select('user_id_1, user_id_2')
+                .or('user_id_1.eq.$uid,user_id_2.eq.$uid')
+                .filter('status', 'in', '(${['matched', 'active'].map((s) => '"$s"').join(',')})');
+            for (var match in matches) {
+              final id1 = (match['user_id_1'] ?? '').toString();
+              final id2 = (match['user_id_2'] ?? '').toString();
+              excludedIds.add(id1 == uid ? id2 : id1);
+            }
+          } catch (_) {}
+          
+          // Query profiles with BFF enabled (use bff_enabled column only)
+          // Select only columns that exist (removed: interests, bio, intent)
+          var fallbackResponse = await client
+              .from('profiles')
+              .select('id, name, age, photos, image_urls, location, description, hobbies, gender, latitude, longitude, created_at, bff_enabled')
+              .neq('id', uid)
+              .eq('bff_enabled', true)
+              .limit(20);
+          
+          print('🔍 DEBUG: Fallback query found ${fallbackResponse.length} profiles with BFF enabled');
+          
+          // Filter out excluded IDs
+          final filtered = fallbackResponse
+              .where((p) => !excludedIds.contains((p['id'] ?? '').toString()))
+              .toList();
+          
+          print('🔍 DEBUG: After filtering excluded IDs: ${filtered.length} profiles');
+          
+          if (filtered.isNotEmpty) {
+            print('✅ DEBUG: Using fallback query results');
+            return filtered.cast<Map<String, dynamic>>();
+          }
+        } catch (fallbackError) {
+          print('⚠️ DEBUG: Fallback query also failed: $fallbackError');
+        }
+        
+        print('⚠️ DEBUG: No BFF profiles found. Possible reasons:');
+        print('  1. No profiles have bff_enabled = true');
+        print('  2. No profiles have mode_preferences->>\'bff\' = \'true\'');
+        print('  3. All profiles already interacted with');
+        print('  4. Database function might have different requirements');
+        
+        // Try to check how many profiles have BFF enabled
+        try {
+          final checkResponse = await client
+              .from('profiles')
+              .select('id, name, bff_enabled, mode_preferences')
+              .neq('id', uid)
+              .limit(5);
+          print('🔍 DEBUG: Sample profiles BFF status:');
+          for (var profile in checkResponse) {
+            print('  - ${profile['name']}: bff_enabled=${profile['bff_enabled']}, mode_prefs=${profile['mode_preferences']}');
+          }
+        } catch (checkError) {
+          print('⚠️ DEBUG: Could not check profile BFF status: $checkError');
+        }
+      }
+      
+      // Return empty result if RPC returned empty and fallback also failed
+      return [];
+    } catch (e, stackTrace) {
+      print('❌ Error fetching BFF profiles from RPC: $e');
+      print('❌ Stack trace: $stackTrace');
+      print('🔄 DEBUG: Trying fallback query after RPC error...');
+      
+      // Try fallback query if RPC fails
+      try {
+        // Get excluded user IDs
+        final excludedIds = <String>{};
+        try {
+          final interactions = await client
+              .from('bff_interactions')
+              .select('target_user_id')
+              .eq('user_id', uid);
+          for (var interaction in interactions) {
+            excludedIds.add((interaction['target_user_id'] ?? '').toString());
+          }
+          
+          final matches = await client
+              .from('bff_matches')
+              .select('user_id_1, user_id_2')
+              .or('user_id_1.eq.$uid,user_id_2.eq.$uid')
+              .filter('status', 'in', '(${['matched', 'active'].map((s) => '"$s"').join(',')})');
+          for (var match in matches) {
+            final id1 = (match['user_id_1'] ?? '').toString();
+            final id2 = (match['user_id_2'] ?? '').toString();
+            excludedIds.add(id1 == uid ? id2 : id1);
+          }
+        } catch (_) {}
+        
+        // Query profiles with BFF enabled
+        var fallbackResponse = await client
+            .from('profiles')
+            .select('id, name, age, photos, image_urls, location, description, hobbies, gender, latitude, longitude, created_at, bff_enabled')
+            .neq('id', uid)
+            .eq('bff_enabled', true)
+            .limit(20);
+        
+        print('🔍 DEBUG: Fallback query found ${fallbackResponse.length} profiles with BFF enabled');
+        
+        // Filter out excluded IDs
+        final filtered = fallbackResponse
+            .where((p) => !excludedIds.contains((p['id'] ?? '').toString()))
+            .toList();
+        
+        print('🔍 DEBUG: After filtering excluded IDs: ${filtered.length} profiles');
+        
+        if (filtered.isNotEmpty) {
+          print('✅ DEBUG: Using fallback query results after RPC error');
+          return filtered.cast<Map<String, dynamic>>();
+        }
+      } catch (fallbackError) {
+        print('❌ Fallback query also failed: $fallbackError');
+      }
+      
+      print('🔍 DEBUG: Returning empty list for BFF profiles - both RPC and fallback failed');
       return [];
     }
   }
@@ -511,13 +693,24 @@ class SupabaseService {
     
     try {
       print('🔍 DEBUG: Updating mode preferences for user: $uid');
-      await client.from('profiles').update({
+      final updateData = <String, dynamic>{
         'mode_preferences': modePreferences,
-        'bff_enabled_at': modePreferences['bff'] == true ? DateTime.now().toIso8601String() : null,
-      }).eq('id', uid);
-      print('✅ Mode preferences updated successfully');
+      };
+      
+      // Set bff_enabled flag based on mode preferences
+      if (modePreferences['bff'] == true) {
+        updateData['bff_enabled'] = true;
+        updateData['bff_enabled_at'] = DateTime.now().toIso8601String();
+      } else {
+        updateData['bff_enabled'] = false;
+        updateData['bff_enabled_at'] = null;
+      }
+      
+      await client.from('profiles').update(updateData).eq('id', uid);
+      print('✅ Mode preferences updated successfully - bff_enabled: ${updateData['bff_enabled']}');
     } catch (e) {
       print('Error updating mode preferences: $e');
+      rethrow;
     }
   }
 
@@ -863,6 +1056,37 @@ class SupabaseService {
     String? storyUserName,
     bool bypassFreemium = false,
   }) async {
+    // Filter content for objectionable material
+    final filteredContent = ContentFilterService.filterContent(content);
+    if (filteredContent == null) {
+      throw Exception('Message contains inappropriate content and cannot be sent.');
+    }
+    
+    // Auto-flag for review if content is suspicious
+    if (ContentFilterService.shouldFlagForReview(content)) {
+      // Get the other user's ID to report
+      try {
+        final match = await getMatchById(matchId);
+        if (match != null) {
+          final currentUserId = currentUser?.id;
+          final otherUserId = match['user_id_1'] == currentUserId 
+              ? match['user_id_2'] 
+              : match['user_id_1'];
+          if (otherUserId != null) {
+            await ContentFilterService.reportContent(
+              reportedUserId: otherUserId.toString(),
+              contentType: 'message',
+              contentId: matchId,
+              reason: 'Suspicious content detected',
+              description: 'Automatically flagged for review',
+            );
+          }
+        }
+      } catch (e) {
+        print('Error auto-flagging content: $e');
+      }
+    }
+    
     if (!bypassFreemium) {
       final premium = await isPremiumUser();
       if (!premium) {
@@ -876,14 +1100,14 @@ class SupabaseService {
     await client.from('messages').insert({
       'match_id': matchId,
       'sender_id': currentUser?.id,
-      'content': content,
+      'content': filteredContent, // Use filtered content
       'story_id': storyId,
       'is_story_reply': storyId != null,
       'story_user_name': storyUserName,
     });
 
     // Send push notification to the recipient
-    await _sendMessageNotification(matchId, content);
+    await _sendMessageNotification(matchId, filteredContent);
   }
 
   static Future<void> sendSystemMessage({
@@ -1299,6 +1523,141 @@ class SupabaseService {
         'is_expired': false,
         'remaining_hours': 0.0,
       };
+    }
+  }
+
+  // =============================================================================
+  // CHAT-FIRST DATING FEATURE - Profile Unlocking
+  // =============================================================================
+
+  /// Check if a profile is unlocked for the current user (chat-first feature)
+  static Future<bool> isProfileUnlocked(String profileId) async {
+    try {
+      final currentUserId = currentUser?.id;
+      if (currentUserId == null || profileId.isEmpty) return false;
+
+      final response = await client.rpc('is_profile_unlocked', params: {
+        'p_viewer_id': currentUserId,
+        'p_profile_id': profileId,
+      });
+
+      return response == true;
+    } catch (e) {
+      print('Error checking profile unlock status: $e');
+      // If function doesn't exist yet, return false (locked by default)
+      return false;
+    }
+  }
+
+  /// Get conversation count and unlock status for a profile
+  static Future<Map<String, dynamic>> getProfileUnlockStatus(String profileId, String? matchId) async {
+    try {
+      final currentUserId = currentUser?.id;
+      if (currentUserId == null || profileId.isEmpty) {
+        return {
+          'is_unlocked': false,
+          'message_count': 0,
+          'messages_needed': 10,
+        };
+      }
+
+      final response = await client
+          .from('profile_unlocks')
+          .select('is_unlocked, message_count')
+          .eq('viewer_id', currentUserId)
+          .eq('profile_id', profileId)
+          .maybeSingle();
+
+      if (response == null) {
+        return {
+          'is_unlocked': false,
+          'message_count': 0,
+          'messages_needed': 10,
+        };
+      }
+
+      return {
+        'is_unlocked': response['is_unlocked'] ?? false,
+        'message_count': response['message_count'] ?? 0,
+        'messages_needed': 10,
+      };
+    } catch (e) {
+      print('Error getting profile unlock status: $e');
+      return {
+        'is_unlocked': false,
+        'message_count': 0,
+        'messages_needed': 10,
+      };
+    }
+  }
+
+  /// Increment conversation count (called automatically when messages are sent)
+  /// This is handled by database trigger, but we expose it for manual calls if needed
+  static Future<Map<String, dynamic>> incrementConversationCount(String profileId, String matchId) async {
+    try {
+      final currentUserId = currentUser?.id;
+      if (currentUserId == null || profileId.isEmpty || matchId.isEmpty) {
+        return {
+          'message_count': 0,
+          'is_unlocked': false,
+          'unlocked_now': false,
+        };
+      }
+
+      final response = await client.rpc('increment_conversation_count', params: {
+        'p_viewer_id': currentUserId,
+        'p_profile_id': profileId,
+        'p_match_id': matchId,
+      });
+
+      return Map<String, dynamic>.from(response);
+    } catch (e) {
+      print('Error incrementing conversation count: $e');
+      return {
+        'message_count': 0,
+        'is_unlocked': false,
+        'unlocked_now': false,
+      };
+    }
+  }
+
+  /// Get unlock status for multiple profiles at once (for batch checking)
+  static Future<Map<String, Map<String, dynamic>>> getBatchUnlockStatus(List<String> profileIds) async {
+    try {
+      final currentUserId = currentUser?.id;
+      if (currentUserId == null || profileIds.isEmpty) return {};
+
+      final response = await client
+          .from('profile_unlocks')
+          .select('profile_id, is_unlocked, message_count')
+          .eq('viewer_id', currentUserId)
+          .inFilter('profile_id', profileIds);
+
+      final Map<String, Map<String, dynamic>> result = {};
+      for (final row in response) {
+        final profileId = row['profile_id'].toString();
+        result[profileId] = {
+          'is_unlocked': row['is_unlocked'] ?? false,
+          'message_count': row['message_count'] ?? 0,
+          'messages_needed': 10,
+        };
+      }
+
+      // Add entries for profiles that don't have unlock records yet
+      for (final profileId in profileIds) {
+        if (!result.containsKey(profileId)) {
+          result[profileId] = {
+            'is_unlocked': false,
+            'message_count': 0,
+            'messages_needed': 10,
+          };
+        }
+      }
+
+      return result;
+    } catch (e) {
+      print('Error getting batch unlock status: $e');
+      return {};
     }
   }
 

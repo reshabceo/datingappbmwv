@@ -36,7 +36,7 @@ serve(async (req) => {
   try {
     const body = await req.json();
     const matchId = body.matchId || body.match_id;
-    
+
     if (!matchId) {
       throw new Error('Match ID is required');
     }
@@ -51,43 +51,31 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get match data from database (works for both dating and BFF matches)
-    let { data: matchData, error: matchError } = await supabase
-      .rpc('generate_match_insights_unified', { p_match_id: matchId });
-
-    // If unified function fails, try the original function
-    if (matchError || !matchData || matchData.error) {
-      console.log('Unified function failed, trying original function...');
-      const { data: fallbackData, error: fallbackError } = await supabase
-        .rpc('generate_match_insights', { p_match_id: matchId });
-      
-      if (!fallbackError && fallbackData && !fallbackData.error) {
-        matchData = fallbackData;
-        matchError = null;
-        console.log('Original function succeeded');
-      }
-    }
+    // Get match data from database
+    console.log(`🔍 DEBUG: Calling generate_match_insights_v5 for match: ${matchId}`);
+    const { data: matchData, error: matchError } = await supabase
+      .rpc('generate_match_insights_v5', { p_match_id: matchId });
 
     if (matchError) {
-      console.error('Database error:', matchError);
-      throw new Error('Failed to fetch match data');
-    }
-
-    if (!matchData || matchData.error) {
-      throw new Error(matchData?.error || 'Match data not found');
+      console.error('❌ Database RPC error:', matchError);
+      throw new Error(`Database error: ${matchError.message || JSON.stringify(matchError)}`);
     }
 
     const { user1, user2 } = matchData as MatchData;
+    console.log(`✅ Participant data fetched: P1=${user1.name} (${user1.zodiac_sign}), P2=${user2.name} (${user2.zodiac_sign})`);
 
     // Generate Astrological Compatibility
+    const sign1 = (user1.zodiac_sign || 'unknown').toLowerCase();
+    const sign2 = (user2.zodiac_sign || 'unknown').toLowerCase();
+
     const compatibilityPrompt = `
 Generate astrological compatibility analysis for two people who just matched on a dating app:
 
-Person 1: ${user1.name}, ${user1.zodiac_sign} ${ZODIAC_EMOJIS[user1.zodiac_sign] || '⭐'}, Age: ${user1.age}, Gender: ${user1.gender}
+Person 1: ${user1.name}, ${sign1} ${ZODIAC_EMOJIS[sign1] || '⭐'}, Age: ${user1.age}, Gender: ${user1.gender}
 Hobbies: ${user1.hobbies?.join(', ') || 'Not specified'}
 Location: ${user1.location || 'Not specified'}
 
-Person 2: ${user2.name}, ${user2.zodiac_sign} ${ZODIAC_EMOJIS[user2.zodiac_sign] || '⭐'}, Age: ${user2.age}, Gender: ${user2.gender}
+Person 2: ${user2.name}, ${sign2} ${ZODIAC_EMOJIS[sign2] || '⭐'}, Age: ${user2.age}, Gender: ${user2.gender}
 Hobbies: ${user2.hobbies?.join(', ') || 'Not specified'}
 Location: ${user2.location || 'Not specified'}
 
@@ -146,11 +134,18 @@ Make questions fun, flirty, and conversation-starting. Avoid generic questions a
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         messages: [
-          { role: 'system', content: 'You are an expert astrologist and relationship counselor. Provide romantic, positive compatibility analysis.' },
-          { role: 'user', content: compatibilityPrompt }
+          {
+            role: 'system',
+            content: 'You are an expert astrologist and relationship counselor. Your goal is to provide highly unique, specific, and varied compatibility analysis. Avoid generic or repetitive phrases. Every match should feel like a deep, custom interpretation.'
+          },
+          {
+            role: 'user',
+            content: compatibilityPrompt + "\n\nIMPORTANT: Use highly specific language. Do NOT use generic opening phrases like 'Your stars show...' or 'There is a beautiful resonance...'. Instead, dive deep into how their unique combination of traits and signs creates a one-of-a-kind dynamic."
+          }
         ],
+        response_format: { type: "json_object" },
         max_tokens: 1000,
-        temperature: 0.7
+        temperature: 0.9
       }),
     });
 
@@ -164,15 +159,20 @@ Make questions fun, flirty, and conversation-starting. Avoid generic questions a
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         messages: [
-          { role: 'system', content: 'You are a dating expert who creates engaging, personalized conversation starters.' },
+          { role: 'system', content: 'You are a dating expert who creates engaging, personalized conversation starters based on user profiles. Always return data in the requested JSON format.' },
           { role: 'user', content: iceBreakerPrompt }
         ],
+        response_format: { type: "json_object" },
         max_tokens: 800,
         temperature: 0.8
       }),
     });
 
     if (!compatibilityResponse.ok || !iceBreakerResponse.ok) {
+      console.error('OpenAI Error:', {
+        compatibility: compatibilityResponse.status,
+        icebreaker: iceBreakerResponse.status
+      });
       throw new Error('OpenAI API call failed');
     }
 
@@ -181,72 +181,113 @@ Make questions fun, flirty, and conversation-starting. Avoid generic questions a
 
     let astroCompatibility, iceBreakers;
 
+    const parseAIResponse = (content: string) => {
+      try {
+        // Clean markdown code blocks if present
+        const cleaned = content.replace(/```json\n?|```/g, '').trim();
+        return JSON.parse(cleaned);
+      } catch (e) {
+        console.error('Failed to parse AI response:', content);
+        throw e;
+      }
+    };
+
     try {
-      astroCompatibility = JSON.parse(compatibilityData.choices[0].message.content);
+      astroCompatibility = parseAIResponse(compatibilityData.choices[0].message.content);
     } catch (e) {
       console.error('Error parsing compatibility response:', e);
       astroCompatibility = {
-        compatibility_score: 75,
-        summary: `You two have great potential together! Your ${user1.zodiac_sign} and ${user2.zodiac_sign} signs complement each other beautifully.`,
-        strengths: ["Good communication", "Shared values", "Complementary personalities"],
-        challenges: ["Different approaches to life"],
-        romantic_outlook: "Strong romantic potential with great chemistry",
-        communication_style: "You communicate well together and understand each other",
-        advice: "Take time to understand each other's perspectives and enjoy the journey together"
+        compatibility_score: 80 + Math.floor(Math.random() * 15),
+        summary: `Your ${user1.zodiac_sign} and ${user2.zodiac_sign} signs show a beautiful natural resonance. There's a strong foundation for a meaningful connection here.`,
+        strengths: ["Natural Understanding", "Emotional Resonance", "Shared Perspective"],
+        challenges: ["Communication Nuances"],
+        romantic_outlook: "High romantic potential with a focus on deep emotional sharing.",
+        communication_style: "Intuitive and supportive, finding harmony in shared silence as much as conversation.",
+        advice: "Focus on your shared values and give each other space to grow individually while nurturing your bond."
       };
     }
 
     try {
-      iceBreakers = JSON.parse(iceBreakerData.choices[0].message.content);
+      const parsedIceBreakers = parseAIResponse(iceBreakerData.choices[0].message.content);
+      // Handle both { "ice_breakers": [...] } and direct array responses
+      iceBreakers = Array.isArray(parsedIceBreakers) ? parsedIceBreakers : (parsedIceBreakers.ice_breakers || parsedIceBreakers.questions || []);
     } catch (e) {
       console.error('Error parsing ice breaker response:', e);
       iceBreakers = [
         {
-          question: "What's the most adventurous thing you've done recently?",
-          category: "general",
-          reasoning: "Opens up conversation about experiences"
-        },
-        {
-          question: "I see we both enjoy similar hobbies - which one brings you the most joy?",
-          category: "hobbies", 
+          question: `I noticed you both enjoy ${user1.hobbies?.[0] || 'exploring new things'} - what's your favorite local spot?`,
+          category: "hobbies",
           reasoning: "Focuses on shared interests"
         },
         {
-          question: "What's your favorite way to spend a weekend?",
+          question: "If we were to plan an ideal first outing, would you prefer something adventurous or more relaxed?",
           category: "lifestyle",
-          reasoning: "General lifestyle question to get to know each other"
+          reasoning: "Helps understand dynamic"
+        },
+        {
+          question: "What's one thing that always makes you smile when you have a busy week?",
+          category: "general",
+          reasoning: "Encourages positive sharing"
         }
       ];
     }
-
-    // Save to database
+    // Final defensive validation to ensure we never return null for these keys
+    if (!astroCompatibility) {
+      console.warn('⚠️ astroCompatibility was null, using emergency fallback');
+      astroCompatibility = {
+        compatibility_score: 85,
+        summary: "Your zodiac signs create a natural harmony that promises a strong connection.",
+        strengths: ["Mutual Understanding", "Shared Goals"],
+        challenges: ["Minor Communication Differences"],
+        romantic_outlook: "High potential for a lasting and fulfilling relationship.",
+        communication_style: "Direct, honest, and supportive.",
+        advice: "Be open with your feelings and enjoy the journey together."
+      };
+    }
+    
+    if (!iceBreakers || iceBreakers.length === 0) {
+      console.warn('⚠️ iceBreakers was empty or null, using emergency fallback');
+      iceBreakers = [
+        { question: "What's the most adventurous thing you've ever done?", category: "general", reasoning: "Good ice breaker" },
+        { question: "What are you most passionate about lately?", category: "general", reasoning: "Deep connection" },
+        { question: "If you could travel anywhere tomorrow, where would you go?", category: "general", reasoning: "Fun topic" }
+      ];
+    }
+    
+    // Save to database with explicit onConflict to handle existing insights
     const { error: saveError } = await supabase
       .from('match_enhancements')
       .upsert({
         match_id: matchId,
         astro_compatibility: astroCompatibility,
-        ice_breakers: iceBreakers
+        ice_breakers: iceBreakers,
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
+      }, {
+        onConflict: 'match_id'
       });
 
     if (saveError) {
       console.error('Error saving to database:', saveError);
-      // Don't throw error, just log it
     }
 
-    return new Response(JSON.stringify({
+    const responseData = {
       success: true,
-      astroCompatibility,
-      iceBreakers,
-      matchId
-    }), {
+      astro_compatibility: astroCompatibility,
+      ice_breakers: iceBreakers,
+      match_id: matchId
+    };
+
+    console.log('📤 Sending response:', JSON.stringify(responseData));
+
+    return new Response(JSON.stringify(responseData), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error) {
     console.error('Error in generate-match-insights:', error);
-    return new Response(JSON.stringify({ 
+    return new Response(JSON.stringify({
       error: error.message,
-      success: false 
+      success: false
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

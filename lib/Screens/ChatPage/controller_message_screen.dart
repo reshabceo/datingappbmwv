@@ -9,6 +9,7 @@ import '../../services/analytics_service.dart';
 import '../../shared_prefrence_helper.dart';
 import '../../widgets/upgrade_prompt_widget.dart';
 import '../../Screens/SubscriptionPage/ui_subscription_screen.dart';
+import 'package:lovebug/Common/widget_constant.dart';
 import '../../models/audio_message.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -120,7 +121,7 @@ class MessageController extends GetxController {
       if (e.message.contains('Daily message limit reached')) {
         _showMessageLimitDialog();
       } else {
-        Get.snackbar('Send failed', e.message);
+        showCustomSnackBar(title: 'send_failed'.tr, message: e.message, isError: true);
       }
       print('DEBUG: Send failed with Postgres error: ${e.message}');
     } catch (e) {
@@ -128,7 +129,7 @@ class MessageController extends GetxController {
       if (e.toString().contains('Daily message limit reached')) {
         _showMessageLimitDialog();
       } else {
-        Get.snackbar('Send failed', 'Please try again');
+        showCustomSnackBar(title: 'send_failed'.tr, message: 'please_try_again'.tr, isError: true);
       }
       print('DEBUG: Send failed with error: $e');
     }
@@ -710,7 +711,7 @@ String? _selectionKeyForItem(dynamic item) {
       clearSelection();
     } catch (e) {
       print('❌ Error deleting messages: $e');
-      Get.snackbar('Error', 'Failed to delete messages');
+      showCustomSnackBar(title: 'error'.tr, message: 'failed_to_delete_messages'.tr, isError: true);
     }
   }
 
@@ -834,69 +835,54 @@ String? _selectionKeyForItem(dynamic item) {
     return -1;
   }
 
-  void scrollToBottom() {
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (!scrollController.hasClients) {
-        return;
-      }
+  void scrollToBottom({bool animate = true}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!scrollController.hasClients) return;
+      
+      // Avoid attaching to multiple list views simultaneously
+      if (scrollController.positions.length != 1) return;
 
-      // Avoid attaching to multiple list views simultaneously (can happen during rebuilds)
-      if (scrollController.positions.length != 1) {
-        return;
+      final position = scrollController.position.maxScrollExtent;
+      if (animate) {
+        scrollController.animateTo(
+          position,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      } else {
+        scrollController.jumpTo(position);
       }
-
-      final position = scrollController.positions.first;
-      scrollController.animateTo(
-        position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
     });
   }
 
   void _updateAllSortedMessages() {
-    // Combine text and audio messages
-    final allMessages = <dynamic>[];
-    allMessages.addAll(messages);
-    allMessages.addAll(audioMessages);
-    
-    print('🔊 DEBUG: _updateAllSortedMessages - Text: ${messages.length}, Audio: ${audioMessages.length}, Total: ${allMessages.length}');
-    
-    // Sort by timestamp
-    allMessages.sort((a, b) {
-      DateTime aTime, bTime;
-      if (a is Message) {
-        aTime = a.timestamp;
-      } else if (a is AudioMessage) {
-        aTime = a.createdAt;
+    final merged = <dynamic>[];
+    int msgIdx = 0;
+    int audioIdx = 0;
+
+    // O(N) Merge sort of two already-sorted lists
+    while (msgIdx < messages.length || audioIdx < audioMessages.length) {
+      if (msgIdx < messages.length && audioIdx < audioMessages.length) {
+        final msg = messages[msgIdx];
+        final audio = audioMessages[audioIdx];
+        
+        if (msg.timestamp.isBefore(audio.createdAt)) {
+          merged.add(msg);
+          msgIdx++;
+        } else {
+          merged.add(audio);
+          audioIdx++;
+        }
+      } else if (msgIdx < messages.length) {
+        merged.add(messages[msgIdx]);
+        msgIdx++;
       } else {
-        return 0;
-      }
-      
-      if (b is Message) {
-        bTime = b.timestamp;
-      } else if (b is AudioMessage) {
-        bTime = b.createdAt;
-      } else {
-        return 0;
-      }
-      
-      return aTime.compareTo(bTime);
-    });
-    
-    // Debug: Print the sorted order
-    print('🔍 DEBUG: _updateAllSortedMessages - Final sorted order:');
-    for (int i = 0; i < allMessages.length; i++) {
-      final msg = allMessages[i];
-      if (msg is Message) {
-        print('  $i: TEXT "${msg.text}" at ${msg.timestamp}');
-      } else if (msg is AudioMessage) {
-        print('  $i: AUDIO at ${msg.createdAt}');
+        merged.add(audioMessages[audioIdx]);
+        audioIdx++;
       }
     }
     
-    allSortedMessages.assignAll(allMessages);
-    print('🔍 DEBUG: Updated allSortedMessages with ${allMessages.length} total messages');
+    allSortedMessages.assignAll(merged);
   }
 
   // Audio message methods

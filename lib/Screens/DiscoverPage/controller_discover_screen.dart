@@ -8,6 +8,7 @@ import 'package:lovebug/Screens/SubscriptionPage/ui_subscription_screen.dart';
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:lovebug/services/geocoding_service.dart';
 import 'dart:math' as math;
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:geolocator/geolocator.dart';
@@ -16,8 +17,13 @@ import 'package:lovebug/services/location_service.dart';
 import 'package:collection/collection.dart';
 import '../ChatPage/controller_chat_screen.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
+import 'package:lovebug/services/payment_service.dart';
+import 'package:lovebug/Common/widget_constant.dart';
 
 class DiscoverController extends GetxController {
+  // Cache for geocoded locations to avoid redundant Nominatim API calls
+  static final Map<String, String> _locationCache = {};
+
   // Feature flags
   static const bool useSupabaseProfiles = true;
 
@@ -76,7 +82,8 @@ class DiscoverController extends GetxController {
   final RxInt minAge = 18.obs;
   final RxInt maxAge = 99.obs;
   final RxString gender = 'Everyone'.obs; // Male, Female, Non-binary, Everyone
-  final RxDouble maxDistanceKm = 100.0.obs;
+  final RxDouble maxDistanceKm = 50.0.obs;
+  final RxBool isPremium = false.obs;
   final RxString intent = 'Everyone'.obs; // legacy single intent
   final RxSet<String> selectedIntents = <String>{}.obs; // Casual, Serious, Just Chatting
 
@@ -171,9 +178,21 @@ class DiscoverController extends GetxController {
     super.onInit();
     // Ensure current auth user has a profile row in DB
     SupabaseService.ensureCurrentUserProfile();
+    _checkPremiumStatus();
     _loadModeFromPrefs();
     _loadFiltersFromPrefs(); // This is now async but we don't await it here
     _ensureLocationThenLoad();
+  }
+
+  Future<void> _checkPremiumStatus() async {
+    // Check both profile flag and active subscription status
+    final isProfilePremium = await SupabaseService.isPremiumUser();
+    if (isProfilePremium) {
+      isPremium.value = true;
+    } else {
+      isPremium.value = await PaymentService.hasActiveSubscription();
+    }
+    print('👑 DEBUG: Premium status updated: ${isPremium.value}');
   }
 
   // Mode management
@@ -223,10 +242,12 @@ class DiscoverController extends GetxController {
   }
 
   // Method to refresh profiles when switching modes
-  Future<void> refreshProfilesForMode(String mode) async {
-    print('🔄🔄 DEBUG: refreshProfilesForMode($mode) STARTED');
-    print('🔄 DEBUG: Setting isPreloading = true');
-    isPreloading.value = true;
+  Future<void> refreshProfilesForMode(String mode, {bool isFallback = false}) async {
+    if (!isFallback) {
+      print('🔄🔄 DEBUG: refreshProfilesForMode($mode) STARTED');
+      print('🔄 DEBUG: Setting isPreloading = true');
+      isPreloading.value = true;
+    }
     
     // Show loading indicator immediately
     update();
@@ -252,33 +273,32 @@ class DiscoverController extends GetxController {
               : null,
         );
         print('🔍 DEBUG: getProfilesWithSuperLikes() returned ${rows.length} profiles');
-        if (_userLat != null && _userLon != null && maxDistanceKm.value > 0) {
-          print('📍 DEBUG: Location filter applied - Lat: $_userLat, Lon: $_userLon, Max: ${maxDistanceKm.value} km');
-        }
       }
-      
-      // If no profiles found, show "no more profiles" state
-      if (rows.isEmpty) {
-        print('⚠️⚠️ DEBUG: NO PROFILES FOUND for $mode mode');
-        print('🔄 DEBUG: Clearing profiles list');
-        profiles.clear();
-        // Also clear cached list for this mode so stale cards don't resurface
-        if (mode == 'bff') {
-          print('🔄 DEBUG: Clearing bffProfiles cache');
-          bffProfiles.clear();
-        } else {
-          print('🔄 DEBUG: Clearing datingProfiles cache');
-          datingProfiles.clear();
+        if (rows.isEmpty) {
+          if (!isFallback) {
+            print('⚠️ DEBUG: Initial search returned EMPTY. Triggering automatic fallback...');
+            await refreshProfilesForMode(mode, isFallback: true);
+            return;
+          }
+          
+          // If we are already in fallback and still have nothing, try Guaranteed Discovery for Dating
+          if (mode == 'dating') {
+             print('🚨🚨 DEBUG: No profiles even in fallback. Triggering Guaranteed Discovery...');
+             // Proceed to the discovery section below by NOT returning
+          } else {
+             print('⚠️⚠️ DEBUG: NO PROFILES FOUND for $mode mode');
+             profiles.clear();
+             if (mode == 'bff') bffProfiles.clear(); else datingProfiles.clear();
+             currentIndex.value = 0;
+             isPreloading.value = false;
+             isInitialLoading.value = false;
+             update();
+             return;
+          }
         }
-        currentIndex.value = 0;
-        print('🔄 DEBUG: Setting isPreloading = false (empty result)');
-        isPreloading.value = false;
-        update(); // Force UI update to show empty state
-        print('🔄🔄 DEBUG: refreshProfilesForMode($mode) ENDED (empty)');
-        return;
-      }
       
       // Process and filter profiles
+      print('🔍 DEBUG: Processing ${rows.length} raw rows for $mode mode');
       final List<Profile> loaded = rows
           .where((r) {
             final id = (r['id'] ?? '').toString();
@@ -289,16 +309,45 @@ class DiscoverController extends GetxController {
           })
           .where((r) {
             final age = (r['age'] ?? 0) as int;
-            if (age < minAge.value || age > maxAge.value) return false;
-            if (gender.value != 'Everyone') {
+            final isAgeMatch = age >= minAge.value && age <= maxAge.value;
+            if (!isAgeMatch) {
+              print('🔍 DEBUG: Filtered out ${r['name']} due to age: $age (Filter: ${minAge.value}-${maxAge.value})');
+            }
+
+            bool isGenderMatch = true;
+            if (gender.value != 'Everyone' && !isFallback) {
               final g = (r['gender'] ?? '').toString();
-              if (g.isNotEmpty && g.toLowerCase() != gender.value.toLowerCase()) return false;
+              
+              // Standardize comparison
+              final targetGender = gender.value.toLowerCase().trim();
+              final profileGender = g.toLowerCase().trim();
+              
+              isGenderMatch = profileGender.isNotEmpty && profileGender == targetGender;
+              
+              // 🤝 BFF MODE LENIENCY: If in BFF mode, be less strict about gender 
+              // (allow if either is empty OR if profiles are missing)
+              if (mode == 'bff') {
+                if (profileGender.isEmpty) {
+                  print('🔍 DEBUG: BFF Mode - Allowing ${r['name']} with empty gender');
+                  isGenderMatch = true;
+                }
+              }
+              
+              if (!isGenderMatch) {
+                print('🔍 DEBUG: Filtered out ${r['name']} due to gender: "$g" (Filter: "${gender.value}")');
+              }
             }
-            if (selectedIntents.isNotEmpty) {
+
+            bool isIntentMatch = true;
+            if (selectedIntents.isNotEmpty && !isFallback) {
               final i = (r['intent'] ?? '').toString();
-              if (i.isNotEmpty && !selectedIntents.map((e) => e.toLowerCase()).contains(i.toLowerCase())) return false;
+              isIntentMatch = i.isNotEmpty && selectedIntents.map((e) => e.toLowerCase()).contains(i.toLowerCase());
+              if (!isIntentMatch) {
+                print('🔍 DEBUG: Filtered out ${r['name']} due to intent: "$i" (Filter: $selectedIntents)');
+              }
             }
-            return true;
+            
+            return isAgeMatch && isGenderMatch && isIntentMatch;
           })
           .where((r) {
             if (_userLat == null || _userLon == null || maxDistanceKm.value <= 0) return true;
@@ -315,13 +364,35 @@ class DiscoverController extends GetxController {
             
             // Calculate distance
             String distance = 'Unknown distance';
+            final lat = (r['latitude'] as num?)?.toDouble();
+            final lon = (r['longitude'] as num?)?.toDouble();
+            
             if (_userLat != null && _userLon != null) {
-              final lat = (r['latitude'] as num?)?.toDouble();
-              final lon = (r['longitude'] as num?)?.toDouble();
               if (lat != null && lon != null) {
                 final d = _haversineKm(_userLat!, _userLon!, lat, lon);
                 distance = '${d.round()} miles away';
               }
+            }
+
+            // Determine display location
+            String displayLocation = (r['location'] ?? '').toString();
+            // If location is empty or looks like coordinates, try to use cache or geocode
+            if (displayLocation.isEmpty || displayLocation.contains(',')) {
+               if (lat != null && lon != null) {
+                 final cacheKey = '${lat.toStringAsFixed(4)},${lon.toStringAsFixed(4)}';
+                 if (_locationCache.containsKey(cacheKey)) {
+                   displayLocation = _locationCache[cacheKey]!;
+                 } else {
+                   // Start background geocoding
+                   GeocodingService.getReadableLocation(lat, lon).then((resolved) {
+                     if (resolved != '$lat, $lon') {
+                       _locationCache[cacheKey] = resolved;
+                       // We don't necessarily need to trigger a full refresh here to avoid jumping UI,
+                       // but the next time this profile is rendered/accessed it will be correct.
+                     }
+                   });
+                 }
+               }
             }
             
             return Profile(
@@ -330,11 +401,14 @@ class DiscoverController extends GetxController {
               age: (r['age'] ?? 0) as int,
               imageUrl: photos.isNotEmpty ? photos.first : '',
               photos: photos,
-              location: (r['location'] ?? '').toString(),
+              location: displayLocation,
               distance: distance,
               description: (r['description'] ?? '').toString(),
+              intent: (r['intent'] ?? '').toString(),
               hobbies: _asStringList(r['hobbies']),
               isSuperLiked: (r['is_super_liked'] ?? false) as bool,
+              isUnlocked: (r['is_unlocked'] ?? false) as bool,
+              conversationMessageCount: (r['conversation_message_count'] ?? 0) as int,
             );
           })
           .toList();
@@ -351,11 +425,84 @@ class DiscoverController extends GetxController {
           .where((p) => !seenIds.contains(p.id) && !passedIds.contains(p.id) && !likedIds.contains(p.id))
           .toList();
 
+      print('🔍 DEBUG: refreshProfilesForMode - Raw: ${rows.length}, Validated: ${displayable.length}, SessionFiltered: ${sessionFiltered.length}');
+      
+      // Fallback: If too few profiles are found after filtering, automatically retry with relaxed filters
+      // REMOVED rows.isNotEmpty check to allow fallback even if first query returned nothing
+      if (sessionFiltered.length < 3 && !isFallback) {
+        print('⚠️⚠️ DEBUG: No or very few profiles found (${sessionFiltered.length}). Triggering automatic fallback (ignoring gender/intent filters)...');
+        await refreshProfilesForMode(mode, isFallback: true);
+        return;
+      }
+
+      // Second-stage Fallback: Guaranteed Discovery
+      if (sessionFiltered.length < 2 && mode == 'dating') {
+         print('🚨🚨 DEBUG: Guaranteed Discovery Fallback for Dating. Loading all profiles...');
+         try {
+           final allRows = await SupabaseService.getProfiles(limit: 50);
+           final List<Profile> allLoaded = allRows.map((r) {
+              final images = r['photos'] as List? ?? r['image_urls'] as List? ?? [];
+              
+              // Handle geocoding for fallback profiles
+              String displayLocation = (r['location'] ?? '').toString();
+              final lat = (r['latitude'] as num?)?.toDouble();
+              final lon = (r['longitude'] as num?)?.toDouble();
+              
+              if (displayLocation.isEmpty || displayLocation.contains(',')) {
+                if (lat != null && lon != null) {
+                  final cacheKey = '${lat.toStringAsFixed(4)},${lon.toStringAsFixed(4)}';
+                  if (_locationCache.containsKey(cacheKey)) {
+                    displayLocation = _locationCache[cacheKey]!;
+                  } else {
+                    GeocodingService.getReadableLocation(lat, lon).then((resolved) {
+                      if (resolved != '$lat, $lon') {
+                        _locationCache[cacheKey] = resolved;
+                      }
+                    });
+                  }
+                }
+              }
+
+              return Profile(
+                id: (r['id'] ?? '').toString(),
+                name: (r['name'] ?? '').toString(),
+                age: (r['age'] ?? 0) as int,
+                photos: images.map((e) => e.toString()).toList(),
+                imageUrl: images.isNotEmpty ? images.first.toString() : '',
+                location: displayLocation,
+                distance: 'Nearby',
+                description: (r['description'] ?? '').toString(),
+                hobbies: (r['hobbies'] as List? ?? []).map((e) => e.toString()).toList(),
+              );
+           }).toList();
+
+           final List<Profile> filteredPool = allLoaded.where((p) {
+              return p.id != currentUserId && 
+                     !seenIds.contains(p.id) && 
+                     !passedIds.contains(p.id) && 
+                     !likedIds.contains(p.id) &&
+                     p.name.isNotEmpty && 
+                     p.photos.isNotEmpty;
+           }).toList();
+           
+           if (filteredPool.isNotEmpty) {
+             sessionFiltered.addAll(filteredPool.take(15));
+             print('✅ DEBUG: Injected ${filteredPool.length} profiles from guaranteed discovery pool');
+           }
+         } catch (e) {
+           print('❌ DEBUG: Guaranteed Discovery failed: $e');
+         }
+      }
+
       // Update profiles list with fresh data - optimized loading order
       profiles.value = sessionFiltered;
       currentIndex.value = 0;
       overlayIndex.value = 0; // keep neon overlay in sync on initial load
       deckVersion.value++; // force deck rebuild with fresh data
+      
+      // Stop initial loading spinner once data is processed
+      isInitialLoading.value = false;
+      isPreloading.value = false;
       
       // Update cached profiles for the new mode (FIXED: Use displayable instead of loaded)
       if (mode == 'bff') {
@@ -400,6 +547,7 @@ class DiscoverController extends GetxController {
       print('❌ Error refreshing profiles for mode $mode: $e');
     } finally {
       isPreloading.value = false;
+      isInitialLoading.value = false; // <--- FIX: Ensure loading screen disappears
       update(); // Force UI update
     }
   }
@@ -475,6 +623,14 @@ class DiscoverController extends GetxController {
       }
       
       maxDistanceKm.value = SharedPreferenceHelper.getInt(_kDistanceKey, defaultValue: 100).toDouble();
+      
+      // Clamp distance based on premium status on load
+      final double currentMaxAllowed = isPremium.value ? 10726.0 : 200.0;
+      if (maxDistanceKm.value > currentMaxAllowed) {
+        maxDistanceKm.value = currentMaxAllowed;
+        await SharedPreferenceHelper.setInt(_kDistanceKey, currentMaxAllowed.round());
+      }
+      
       final intents = SharedPreferenceHelper.getStringList(_kIntentsKey, defaultValue: []);
       selectedIntents.value = intents.toSet();
     } catch (e) {
@@ -494,6 +650,12 @@ class DiscoverController extends GetxController {
 
 
   Future<void> saveFilters() async {
+    // Clamp distance based on premium status before saving
+    final double maxAllowed = isPremium.value ? 10726.0 : 200.0;
+    if (maxDistanceKm.value > maxAllowed) {
+      maxDistanceKm.value = maxAllowed;
+    }
+
     await SharedPreferenceHelper.setInt(_kMinAgeKey, minAge.value);
     await SharedPreferenceHelper.setInt(_kMaxAgeKey, maxAge.value);
     await SharedPreferenceHelper.setString(_kGenderKey, gender.value);
@@ -621,220 +783,8 @@ class DiscoverController extends GetxController {
   double? _userLon;
 
   Future<void> _loadActiveProfiles() async {
-    try {
-      print('📥📥 DEBUG: _loadActiveProfiles() CALLED for ${currentMode.value} mode');
-      print('📥 DEBUG: Setting isPreloading = true');
-      isPreloading.value = true;
-      final currentUserId = SupabaseService.currentUser?.id;
-      final Set<String> excludedIds = await _loadExcludedUserIds();
-      
-      // Load profiles based on current mode
-      List<Map<String, dynamic>> rows;
-      if (currentMode.value == 'bff') {
-        print('🔍 DEBUG: _loadActiveProfiles calling getBffProfiles()...');
-        rows = await SupabaseService.getBffProfiles();
-        print('🔍 DEBUG: _loadActiveProfiles getBffProfiles() returned ${rows.length} profiles');
-      } else {
-        print('🔍 DEBUG: _loadActiveProfiles calling getProfilesWithSuperLikes()...');
-        rows = await SupabaseService.getProfilesWithSuperLikes();
-        print('🔍 DEBUG: _loadActiveProfiles getProfilesWithSuperLikes() returned ${rows.length} profiles');
-      }
-      
-      // Handle empty results for BOTH modes
-      if (rows.isEmpty) {
-        print('⚠️⚠️ DEBUG: _loadActiveProfiles NO PROFILES for ${currentMode.value}');
-        print('📥 DEBUG: Clearing profiles list');
-        profiles.clear();
-        // Also clear cached list to prevent stale cards
-        if (currentMode.value == 'bff') {
-          print('📥 DEBUG: Clearing bffProfiles cache');
-          bffProfiles.clear();
-        } else {
-          print('📥 DEBUG: Clearing datingProfiles cache');
-          datingProfiles.clear();
-        }
-        currentIndex.value = 0;
-        print('📥 DEBUG: Setting isPreloading = false (empty result)');
-        isPreloading.value = false;
-        // CRITICAL: End initial loading so UI can show empty state instead of spinner
-        if (isInitialLoading.value) {
-          isInitialLoading.value = false;
-          print('🔄 DEBUG: Set isInitialLoading = false (empty result)');
-        }
-        update();
-        print('📥📥 DEBUG: _loadActiveProfiles() ENDED (empty)');
-        return;
-      }
-
-      // Debug: Log all profiles being processed
-      print('🔍 DEBUG: Total profiles fetched: ${rows.length}');
-      for (final r in rows) {
-        final name = (r['name'] ?? '').toString();
-        if (name.toLowerCase().contains('ashley')) {
-          print('🔍 DEBUG: Found Ashley in raw data:');
-          print('  - Name: $name');
-          print('  - photos field: ${r['photos']} (type: ${r['photos'].runtimeType})');
-          print('  - image_urls field: ${r['image_urls']} (type: ${r['image_urls'].runtimeType})');
-        }
-      }
-      
-      final loaded = rows
-          .where((r) {
-            final id = (r['id'] ?? '').toString();
-            if (id.isEmpty) return false;
-            if (currentUserId != null && id == currentUserId) return false;
-            if (excludedIds.contains(id)) return false;
-            return true;
-          })
-          .where((r) {
-            final age = (r['age'] ?? 0) as int;
-            if (age < minAge.value || age > maxAge.value) return false;
-            if (gender.value != 'Everyone') {
-              final g = (r['gender'] ?? '').toString();
-              if (g.isNotEmpty && g.toLowerCase() != gender.value.toLowerCase()) return false;
-            }
-            // Intent matching is optional in MVP until schema holds it; skip if not present
-            if (selectedIntents.isNotEmpty) {
-              final i = (r['intent'] ?? '').toString();
-              if (i.isNotEmpty && !selectedIntents.map((e) => e.toLowerCase()).contains(i.toLowerCase())) return false;
-            }
-            return true;
-          })
-          .where((r) {
-            if (_userLat == null || _userLon == null || maxDistanceKm.value <= 0) return true;
-            final lat = (r['latitude'] as num?)?.toDouble();
-            final lon = (r['longitude'] as num?)?.toDouble();
-            if (lat == null || lon == null) return true;
-            final d = _haversineKm(_userLat!, _userLon!, lat, lon);
-            return d <= maxDistanceKm.value;
-          })
-          .map((r) {
-            // photos/image_urls support - Check image_urls FIRST (current field)
-            List<String> photos = _asStringList(r['image_urls']);
-            if (photos.isEmpty) photos = _asStringList(r['photos']);
-            // Sanitize - drop empties
-            photos = photos.where((u) => (u is String) && u.toString().trim().isNotEmpty).toList();
-            
-            // Add fallback image if no photos available
-            if (photos.isEmpty) {
-              photos = ['https://picsum.photos/seed/${r['id']}/800/1200'];
-              print('🖼️ No photos found for ${r['name']}, using fallback image');
-            }
-            
-            final isSuperLiked = (r['is_super_liked'] ?? false) as bool;
-            print('🔍 Profile: ${(r['name'] ?? '').toString()} - isSuperLiked: $isSuperLiked');
-            
-            return Profile(
-              id: (r['id'] ?? '').toString(),
-              name: (r['name'] ?? '').toString(),
-              age: (r['age'] ?? 0) as int,
-              imageUrl: photos.isNotEmpty ? photos.first : _firstImageUrl(null),
-              photos: photos,
-              location: (r['location'] ?? '').toString(),
-              distance: '',
-              description: (r['bio'] ?? r['description'] ?? '').toString(),
-              hobbies: _asStringList(r['interests'] ?? r['hobbies'] ?? []),
-              isVerified: true,
-              isActiveNow: true,
-              isSuperLiked: isSuperLiked,
-            );
-          })
-          .toList();
-      
-      // Validate and filter profiles before assigning (also exclude self)
-      final uid = SupabaseService.currentUser?.id;
-      final validProfiles = loaded.where((profile) => 
-        profile.name.isNotEmpty && 
-        profile.id.isNotEmpty && 
-        profile.imageUrl.isNotEmpty &&
-        (uid == null || profile.id != uid)
-      ).toList();
-      
-      // DEBUG: Log all loaded profiles
-      print('🔍 DEBUG: Raw loaded profiles: ${loaded.length}');
-      for (int i = 0; i < loaded.length; i++) {
-        final profile = loaded[i];
-        print('  Profile $i: ID=${profile.id}, Name="${profile.name}", Age=${profile.age}, Image=${profile.imageUrl}');
-      }
-      
-      print('🔍 DEBUG: Valid profiles after filtering: ${validProfiles.length}');
-      for (int i = 0; i < validProfiles.length; i++) {
-        final profile = validProfiles[i];
-        print('  Valid Profile $i: ID=${profile.id}, Name="${profile.name}", Age=${profile.age}');
-      }
-      
-      // Session de-dupe: filter out anything we've already seen/swiped this session
-      final filteredBySession = validProfiles
-          .where((p) => !seenIds.contains(p.id) && !passedIds.contains(p.id) && !likedIds.contains(p.id))
-          .toList();
-
-      // Strong de-dupe within this batch AND against existing deck
-      final Set<String> idsSeenThisBatch = <String>{};
-      final Set<String> existingIdsInDeck = profiles.map((p) => p.id).toSet();
-      final List<Profile> uniqueFiltered = [];
-      for (final p in filteredBySession) {
-        if (idsSeenThisBatch.contains(p.id)) continue; // intra-batch duplicate
-        if (existingIdsInDeck.contains(p.id)) continue; // already in current deck
-        idsSeenThisBatch.add(p.id);
-        uniqueFiltered.add(p);
-      }
-
-      // IMPORTANT: Maintain database order - superlikes should be first
-      // The database already sorted them correctly, so preserve that order
-      // Split into superlikes and non-superlikes to ensure correct order
-      final List<Profile> superLikedProfiles = [];
-      final List<Profile> regularProfiles = [];
-      for (final p in uniqueFiltered) {
-        if (p.isSuperLiked) {
-          superLikedProfiles.add(p);
-        } else {
-          regularProfiles.add(p);
-        }
-      }
-      
-      // Combine: superlikes first, then regular profiles (maintaining their order)
-      final List<Profile> orderedProfiles = [...superLikedProfiles, ...regularProfiles];
-      
-      print('🔍 DEBUG: After ordering - Superlikes: ${superLikedProfiles.length}, Regular: ${regularProfiles.length}');
-      if (superLikedProfiles.isNotEmpty) {
-        print('🔍 DEBUG: First superlike profile: ${superLikedProfiles.first.name} (ID: ${superLikedProfiles.first.id})');
-      }
-
-      // Preload profiles and trigger background loading
-      profiles.assignAll(orderedProfiles);
-      preloadedCount.value = uniqueFiltered.length;
-      isPreloading.value = false;
-
-      // Try to reach a stable initial deck size before first render
-      if (isInitialLoading.value && currentMode.value == 'dating' && profiles.length < _minInitialDeckCount) {
-        try {
-          await _preloadNextBatch();
-        } catch (_) {}
-      }
-
-      deckVersion.value++; // deck content changed – trigger CardSwiper rebuild
-
-      // CRITICAL: Mark initial loading complete once we have a result
-      if (isInitialLoading.value) {
-        isInitialLoading.value = false;
-        print('🔄 DEBUG: Set isInitialLoading = false; profiles loaded: ${profiles.length}');
-      }
-      
-      // Cache profiles by mode
-      if (currentMode.value == 'bff') {
-        bffProfiles.value = List.from(uniqueFiltered);
-      } else {
-        datingProfiles.value = List.from(uniqueFiltered);
-      }
-      
-      print('✅ Loaded ${validProfiles.length} valid profiles for ${currentMode.value} mode');
-      
-      // Start background preloading of next batch
-      _preloadNextBatch();
-      
-    } catch (_) {
-      // fallback to embedded dummy list; no-op
-    }
+    print('📥📥 DEBUG: _loadActiveProfiles() proxying to refreshProfilesForMode(${currentMode.value})');
+    await refreshProfilesForMode(currentMode.value);
   }
 
   // Load IDs to exclude from Discover: any pair with current user where status pending or matched
@@ -937,40 +887,42 @@ class DiscoverController extends GetxController {
   // Match functionality
   Future<bool> onSwipeLeft(Profile profile) async {
     print('🚫 SWIPE LEFT: ${profile.name} (ID: ${profile.id})');
-    // Track swipe action
-    await AnalyticsService.trackSwipe('pass', profile.id);
-    // Record pass (deck removal deferred to UI)
-    final ok = await _handleSwipe(profile, action: 'pass', deferRemoval: true);
-    if (ok) {
-      passedIds.add(profile.id);
-      seenIds.add(profile.id);
-    }
-    return ok;
+    passedIds.add(profile.id);
+    seenIds.add(profile.id);
+    _processSwipeInBackground(profile, 'pass');
+    return true;
   }
 
   Future<bool> onSwipeRight(Profile profile) async {
     print('❤️ SWIPE RIGHT: ${profile.name} (ID: ${profile.id})');
-    // Track swipe action
-    await AnalyticsService.trackSwipe('like', profile.id);
-    // Like via server-side RPC (deck removal deferred to UI)
-    final ok = await _handleSwipe(profile, action: 'like', deferRemoval: true);
-    if (ok) {
-      likedIds.add(profile.id);
-      seenIds.add(profile.id);
-    }
-    return ok;
+    likedIds.add(profile.id);
+    seenIds.add(profile.id);
+    _processSwipeInBackground(profile, 'like');
+    return true;
   }
 
   Future<bool> onSuperLike(Profile profile) async {
     print('⭐ SUPER LIKE: ${profile.name} (ID: ${profile.id})');
-    // Track swipe action
-    await AnalyticsService.trackSwipe('super_like', profile.id);
-    final ok = await _handleSwipe(profile, action: 'super_like', deferRemoval: true);
-    if (ok) {
-      likedIds.add(profile.id);
-      seenIds.add(profile.id);
+    likedIds.add(profile.id);
+    seenIds.add(profile.id);
+    _processSwipeInBackground(profile, 'super_like');
+    return true;
+  }
+
+  Future<void> _processSwipeInBackground(Profile profile, String action) async {
+    try {
+      await AnalyticsService.trackSwipe(action, profile.id);
+      final ok = await _handleSwipe(profile, action: action, deferRemoval: true);
+      if (!ok) {
+        // If limit reached or error, undo the visual swipe
+        undoLastSwipe();
+        if (action == 'pass') passedIds.remove(profile.id);
+        else likedIds.remove(profile.id);
+        seenIds.remove(profile.id);
+      }
+    } catch (e) {
+      print('Error processing swipe in background: $e');
     }
-    return ok;
   }
 
   void _moveToNextCard() {
@@ -1649,11 +1601,9 @@ class DiscoverController extends GetxController {
         onBuyMore: () {
           Get.back();
           // TODO: implement super like purchase flow
-          Get.snackbar(
-            'Super Loves',
-            'Super love purchase coming soon!',
-            backgroundColor: Colors.amber,
-            colorText: Colors.white,
+          showCustomSnackBar(
+            title: 'super_loves'.tr,
+            message: 'super_love_purchase_coming_soon'.tr,
           );
         },
         onDismiss: () => Get.back(),
@@ -1740,6 +1690,10 @@ class Profile {
   final bool isPremium;
   final String? gender;
   final String? matchId;
+  final String? intent; // User's intent/tag
+  final bool isUnlocked; // Chat-first feature: profile unlocked after conversation
+  bool get isLocked => !isUnlocked;
+  final int conversationMessageCount; // Number of messages exchanged
 
   Profile({
     required this.id,
@@ -1757,6 +1711,9 @@ class Profile {
     this.isPremium = false,
     this.gender,
     this.matchId,
+    this.intent,
+    this.isUnlocked = false,
+    this.conversationMessageCount = 0,
   });
 }
 

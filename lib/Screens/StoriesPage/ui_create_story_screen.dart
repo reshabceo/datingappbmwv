@@ -7,6 +7,7 @@ import 'package:lovebug/Common/widget_constant.dart';
 import 'package:lovebug/ThemeController/theme_controller.dart';
 import 'package:lovebug/services/supabase_service.dart';
 import 'package:lovebug/services/analytics_service.dart';
+import 'package:lovebug/services/content_filter_service.dart';
 import 'package:lovebug/Screens/StoriesPage/controller_stories_screen.dart';
 import 'package:lovebug/Screens/StoriesPage/ui_instagram_story_viewer.dart';
 
@@ -119,7 +120,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       final uid = SupabaseService.currentUser?.id;
       if (uid == null) {
         print('❌ DEBUG: No user ID found');
-        Get.snackbar('Login required', 'Please sign in to add a story');
+        Get.snackbar('Login required', 'Please sign in to add a chronicle');
         setState(() {
           _isUploading = false;
         });
@@ -127,20 +128,30 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       }
 
       final text = _textController.text.trim();
-      print('🔄 DEBUG: Story text: "$text"');
+      print('🔄 DEBUG: Chronicle text: "$text"');
+      
+      // Filter content for objectionable material
+      final filteredText = ContentFilterService.filterContent(text);
+      if (filteredText == null && text.isNotEmpty) {
+        Get.snackbar('Error', 'Chronicle content contains inappropriate material and cannot be posted.');
+        setState(() {
+          _isUploading = false;
+        });
+        return;
+      }
       
       // Show immediate feedback
       Get.snackbar(
-        'Uploading Story...',
-        'Please wait while we upload your story',
+        'Uploading Chronicle...',
+        'Please wait while we upload your chronicle',
         backgroundColor: themeController.lightPinkColor,
         colorText: Colors.white,
         duration: Duration(seconds: 1),
       );
       
-      // Perform the upload with timeout
+      // Perform the upload with timeout - pass filtered text
       await Future.any([
-        _performUpload(uid, text),
+        _performUpload(uid, filteredText ?? text), // Use filtered text or original if null
         Future.delayed(Duration(seconds: 30), () {
           throw Exception('Upload timeout - please check your connection and try again');
         }),
@@ -148,16 +159,16 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       
       // Show success message
       Get.snackbar(
-        'Story Posted! 📸',
-        'Your story is live for 24 hours',
+        'Chronicle Posted! 📸',
+        'Your chronicle is live for 24 hours',
         backgroundColor: themeController.lightPinkColor,
         colorText: Colors.white,
         duration: Duration(seconds: 2),
       );
       
-      // Navigate to story viewer to show the posted story
+      // Navigate to chronicle viewer to show the posted chronicle
       try {
-        // Find the current user's story group index
+        // Find the current user's chronicle group index
         final currentUserId = SupabaseService.currentUser?.id;
         if (currentUserId != null) {
           int userStoryIndex = 0;
@@ -168,29 +179,29 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
             }
           }
           
-          print('✅ DEBUG: Navigating to story viewer at index: $userStoryIndex');
+          print('✅ DEBUG: Navigating to chronicle viewer at index: $userStoryIndex');
           Get.offAll(() => InstagramStoryViewer(
             storyGroups: storiesController.storyGroups,
             initialIndex: userStoryIndex,
             isUploading: false,
           ));
         } else {
-          // Fallback: go back to stories screen
-          Get.back(); // Exit create story screen
+          // Fallback: go back to chronicles screen
+          Get.back(); // Exit create chronicle screen
           Get.back(); // Exit camera screen
         }
       } catch (e) {
-        print('❌ DEBUG: Error navigating to story viewer: $e');
-        // Fallback: go back to stories screen
-        Get.back(); // Exit create story screen
+        print('❌ DEBUG: Error navigating to chronicle viewer: $e');
+        // Fallback: go back to chronicles screen
+        Get.back(); // Exit create chronicle screen
         Get.back(); // Exit camera screen
       }
       
     } catch (e) {
-      print('❌ DEBUG: Error uploading story: $e');
+      print('❌ DEBUG: Error uploading chronicle: $e');
       print('❌ DEBUG: Error type: ${e.runtimeType}');
       
-      String errorMessage = 'Could not upload story. Please try again.';
+      String errorMessage = 'Could not upload chronicle. Please try again.';
       if (e.toString().contains('timeout')) {
         errorMessage = 'Upload timed out. Please check your connection and try again.';
       } else if (e.toString().contains('Connection reset')) {
@@ -212,7 +223,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   }
 
 
-  Future<void> _performUpload(String uid, String text) async {
+  Future<void> _performUpload(String uid, String? text) async {
     // If this is a local image, we need to upload it first
     String imageUrl = '';
     if (widget.isLocalImage) {
@@ -269,8 +280,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     
     final expiresAt = DateTime.now().add(const Duration(hours: 24)).toIso8601String();
     
-    // Insert story with text content with retry logic
-    print('🔄 DEBUG: Inserting story with content: "$text"');
+    // Insert chronicle with text content with retry logic
+    print('🔄 DEBUG: Inserting chronicle with content: "${text ?? ""}"');
     int retryCount = 0;
     const maxRetries = 3;
     
@@ -280,7 +291,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
           SupabaseService.client.from('stories').insert({
             'user_id': uid,
             'media_url': imageUrl,
-            'content': text.isNotEmpty ? text : null,
+            'content': text != null && text.isNotEmpty ? text : null,
             'expires_at': expiresAt,
           }).select().single(),
           Future.delayed(Duration(seconds: 15), () {
@@ -288,25 +299,25 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
           }),
         ]);
         
-        print('✅ DEBUG: Story inserted successfully: ${result['id']}');
+        print('✅ DEBUG: Chronicle inserted successfully: ${result['id']}');
         
-        // Track story posted analytics
+        // Track chronicle posted analytics
         await AnalyticsService.trackStoryPosted(
           result['id'].toString(),
           'image',
         );
         
-        // Reload stories to include the new story
+        // Reload chronicles to include the new chronicle
         await storiesController.loadStories();
         
-        print('✅ DEBUG: Story upload completed successfully');
+        print('✅ DEBUG: Chronicle upload completed successfully');
         break; // Success, exit retry loop
       } catch (e) {
         retryCount++;
         print('❌ DEBUG: Database insert attempt $retryCount failed: $e');
         
         if (retryCount >= maxRetries) {
-          throw Exception('Failed to save story after $maxRetries attempts: $e');
+          throw Exception('Failed to save chronicle after $maxRetries attempts: $e');
         }
         
         // Wait before retry
@@ -327,7 +338,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
           onPressed: () => Get.back(),
         ),
         title: TextConstant(
-          title: 'Add to Story',
+          title: 'Add to Chronicle',
           color: Colors.white,
           fontSize: 18,
           fontWeight: FontWeight.w600,
@@ -438,7 +449,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                           ),
                           SizedBox(width: 8.w),
                           TextConstant(
-                            title: 'Preparing story...',
+                            title: 'Preparing chronicle...',
                             color: Colors.white,
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
@@ -473,7 +484,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                         fontWeight: FontWeight.w500,
                       ),
                       decoration: InputDecoration(
-                        hintText: "Add a message to your story...",
+                        hintText: "Add a message to your chronicle...",
                         hintStyle: TextStyle(
                           color: Colors.black.withValues(alpha: 0.6), // Black hint text
                           fontSize: 16.sp,
@@ -522,7 +533,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                                 ),
                                 SizedBox(width: 12.w),
                                 TextConstant(
-                                  title: 'Posting Story...',
+                                  title: 'Posting Chronicle...',
                                   color: Colors.white,
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
@@ -530,7 +541,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
                               ],
                             )
                           : TextConstant(
-                              title: 'Share Story',
+                              title: 'Share Chronicle',
                               color: Colors.white,
                               fontSize: 16,
                               fontWeight: FontWeight.w600,

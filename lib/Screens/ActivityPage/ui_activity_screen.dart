@@ -17,471 +17,719 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 class ActivityScreen extends StatelessWidget {
   ActivityScreen({super.key});
 
-  final ActivityController controller = Get.put(ActivityController());
-  final ThemeController themeController = Get.find<ThemeController>();
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: themeController.blackColor,
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: Container(
-              width: Get.width,
-              height: Get.height,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    themeController.blackColor,
-                    themeController.bgGradient1,
-                    themeController.blackColor,
-                  ],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
+    // Initialize controller and theme safely
+    ActivityController? controller;
+    ThemeController? themeController;
+    
+    try {
+      controller = Get.put(ActivityController());
+      themeController = Get.find<ThemeController>();
+    } catch (e) {
+      print('❌ Error initializing ActivityScreen: $e');
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, color: Colors.white, size: 48),
+                SizedBox(height: 16),
+                Text(
+                  'Error loading Activity screen',
+                  style: TextStyle(color: Colors.white, fontSize: 16),
                 ),
-              ),
-              child: screenPadding(
-                customPadding: EdgeInsets.fromLTRB(15.w, 20.h, 15.w, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: () => Get.back(),
+                  child: Text('Go Back'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final theme = themeController!;
+    final ctrl = controller!;
+
+    return Scaffold(
+      backgroundColor: theme.blackColor,
+      body: SafeArea(
+        child: Container(
+          width: Get.width,
+          height: Get.height,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                theme.blackColor,
+                theme.bgGradient1,
+                theme.blackColor,
+              ],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+          ),
+          child: Column(
+            children: [
+              // Header
+              Padding(
+                padding: EdgeInsets.fromLTRB(15.w, 20.h, 15.w, 16.h),
+                child: Row(
                   children: [
-                    heightBox(35),
                     TextConstant(
                       fontSize: 24,
                       title: 'activity'.tr,
                       fontWeight: FontWeight.bold,
-                      color: themeController.whiteColor,
+                      color: theme.whiteColor,
                     ),
-                    heightBox(16),
-                    
-                    // Potential Matches Notification Bar - Only for free users with matches
-                    Obx(() {
-                      if (controller.isPremium.value || controller.potentialMatchesCount.value == 0) {
-                        return SizedBox.shrink();
-                      }
-                      return Column(
-                        children: [
-                          _buildPotentialMatchesBar(),
-                          heightBox(16),
-                        ],
-                      );
-                    }),
-                    
-                    // Ghost Mode Card - Always visible
-                    _buildGhostModeCard(),
-                    
-                    heightBox(16),
-                    Expanded(
-                  child: Obx(() {
-                  // Loading
-                  if (controller.isLoading.value &&
-                      controller.activities.isEmpty) {
-                    return Center(
-                      child: CircularProgressIndicator(
-                        color: themeController.lightPinkColor,
-                      ),
-                    );
-                  }
-
-                  // Error
-                  if (controller.hasError.value) {
+                  ],
+                ),
+              ),
+              
+              // Potential Matches Bar
+              Obx(() {
+                if (ctrl.isPremium.value || ctrl.potentialMatchesCount.value == 0) {
+                  return SizedBox.shrink();
+                }
+                return Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 15.w),
+                  child: Column(
+                    children: [
+                      _buildPotentialMatchesBar(ctrl, theme),
+                      SizedBox(height: 16.h),
+                    ],
+                  ),
+                );
+              }),
+              
+              // Ghost Mode Card
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 15.w),
+                child: _buildGhostModeCard(ctrl, theme),
+              ),
+              
+              SizedBox(height: 16.h),
+              
+              // Activities List
+              Expanded(
+                child: Obx(() {
+                  // Loading state
+                  if (ctrl.isLoading.value && ctrl.activities.isEmpty) {
                     return Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(
-                            Icons.error_outline,
-                            size: 48.sp,
-                            color: themeController.lightPinkColor,
+                          CircularProgressIndicator(
+                            color: theme.lightPinkColor,
                           ),
-                          heightBox(16),
+                          SizedBox(height: 16.h),
                           TextConstant(
-                            title: 'Failed to load activities',
+                            title: 'Loading activities...',
                             fontSize: 14,
-                            color: themeController.whiteColor,
-                          ),
-                          heightBox(16),
-                          ElevatedButton(
-                            onPressed: () => controller.loadActivities(),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor:
-                                  themeController.lightPinkColor,
-                            ),
-                            child: const Text('Retry'),
+                            color: theme.whiteColor.withValues(alpha: 0.7),
                           ),
                         ],
                       ),
                     );
                   }
 
-                  // Empty
-                  if (controller.activities.isEmpty) {
+                  // Error state
+                  if (ctrl.hasError.value) {
                     return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            LucideIcons.inbox,
-                            size: 48.sp,
-                            color: themeController.whiteColor
-                                .withValues(alpha: 0.5),
-                          ),
-                          heightBox(16),
-                          TextConstant(
-                            title: 'No activities yet',
-                            fontSize: 16,
-                            color: themeController.whiteColor
-                                .withValues(alpha: 0.7),
-                          ),
-                          heightBox(8),
-                          TextConstant(
-                            title:
-                                'Start swiping to see who likes you!',
-                            fontSize: 12,
-                            color: themeController.whiteColor
-                                .withValues(alpha: 0.5),
-                          ),
-                        ],
+                      child: Padding(
+                        padding: EdgeInsets.all(20.w),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              size: 48.sp,
+                              color: theme.lightPinkColor,
+                            ),
+                            SizedBox(height: 16.h),
+                            TextConstant(
+                              title: 'Failed to load activities',
+                              fontSize: 14,
+                              color: theme.whiteColor,
+                            ),
+                            SizedBox(height: 16.h),
+                            ElevatedButton(
+                              onPressed: () => ctrl.loadActivities(),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: theme.lightPinkColor,
+                              ),
+                              child: const Text('Retry'),
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   }
 
-                  // List
-                  return RefreshIndicator(
-                    onRefresh: controller.refresh,
-                    color: themeController.lightPinkColor,
-                    child: ListView.separated(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: EdgeInsets.only(bottom: 160.h), // Space for floating button to prevent overlap
-                      itemCount: controller.activities.length,
-                      separatorBuilder: (context, index) => heightBox(10),
-                      itemBuilder: (context, index) {
-                        final activity = controller.activities[index];
-                        // Use blue gradient for BFF activities, pink/purple for dating activities
-                        final isBffActivity = activity.type.toString().contains('bff');
-                        final backgroundColor = isBffActivity
-                            ? themeController.bffPrimaryColor.withValues(alpha: 0.2)
-                            : (index % 2 != 0
-                                ? themeController.lightPinkColor.withValues(alpha: 0.2)
-                                : themeController.purpleColor.withValues(alpha: 0.2));
-                        final iconColor = isBffActivity
-                            ? themeController.bffPrimaryColor
-                            : (index % 2 != 0
-                                ? themeController.lightPinkColor
-                                : themeController.purpleColor);
-
-                        // Check if activity should be blurred for free users
-                        final bool hideIdentity = !controller.isPremium.value &&
-                            (activity.type == ActivityType.like || activity.type == ActivityType.superLike);
-                        final bool shouldBlur = !controller.isPremium.value &&
-                            (activity.type == ActivityType.premiumMessage || hideIdentity);
-
-                        final String displayMessage = hideIdentity
-                            ? (activity.type == ActivityType.superLike
-                                ? 'Someone super loved you!'
-                                : 'Someone liked your profile')
-                            : activity.displayMessage;
-
-                        final String? displayPhoto = activity.otherUserPhoto;
-
-                        final String blurredActivityType = () {
-                          switch (activity.type) {
-                            case ActivityType.superLike:
-                              return 'super_like';
-                            case ActivityType.premiumMessage:
-                            case ActivityType.message:
-                            case ActivityType.bffMessage:
-                              return 'message';
-                            case ActivityType.match:
-                            case ActivityType.bffMatch:
-                              return 'match';
-                            case ActivityType.storyReply:
-                              return 'message';
-                            case ActivityType.like:
-                            default:
-                              return 'like';
-                          }
-                        }();
-                        
-                        final VoidCallback handleTap = shouldBlur
-                            ? () => _showUpgradePrompt(activity)
-                            : () => controller.onActivityTap(activity);
-
-                        Widget activityWidget = LayoutBuilder(
-                          builder: (context, constraints) {
-                            print('✅ DEBUG: Activity card - type: ${activity.type}, shouldBlur: $shouldBlur');
-                            print('✅ DEBUG: Activity card constraints: width=${constraints.maxWidth}, height=${constraints.maxHeight}');
-                            return InkWell(
-                              onTap: () {
-                                print('✅ DEBUG: Activity card tapped - type: ${activity.type}, shouldBlur: $shouldBlur');
-                                handleTap();
-                              },
-                          child: Container(
-                                width: Get.width,
-                                decoration: BoxDecoration(
-                                  gradient: isBffActivity
-                                      ? LinearGradient(
-                                          colors: [
-                                            themeController.bffPrimaryColor.withValues(alpha: 0.15),
-                                            themeController.bffSecondaryColor.withValues(alpha: 0.1),
-                                          ],
-                                          begin: Alignment.topLeft,
-                                          end: Alignment.bottomRight,
-                                        )
-                                      : null,
-                                  color: isBffActivity
-                                      ? null
-                                      : themeController.lightPinkColor.withValues(alpha: 0.15),
-                                  border: Border.all(
-                                    color: isBffActivity
-                                        ? themeController.bffPrimaryColor.withValues(alpha: 0.3)
-                                        : themeController.lightPinkColor.withValues(alpha: 0.3),
-                                    width: 1.w,
-                                  ),
-                                  borderRadius: BorderRadius.circular(16.r),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: isBffActivity
-                                          ? themeController.bffPrimaryColor.withValues(alpha: 0.2)
-                                          : themeController.lightPinkColor.withValues(alpha: 0.2),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                padding: EdgeInsets.all(12.w),
-                                child: Row(
-                                  children: [
-                                    // Profile photo
-                                    Container(
-                                      width: 40.h,
-                                      height: 40.h,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: backgroundColor,
-                                        image: displayPhoto != null && displayPhoto.isNotEmpty
-                                            ? DecorationImage(
-                                                image: NetworkImage(displayPhoto),
-                                                fit: BoxFit.cover,
-                                              )
-                                            : null,
-                                      ),
-                                      child: (displayPhoto == null || displayPhoto.isEmpty)
-                                          ? Icon(
-                                              Icons.person,
-                                              color: iconColor,
-                                              size: 20.sp,
-                                            )
-                                          : null,
-                                    ),
-                                    widthBox(12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            displayMessage,
-                                            style: TextStyle(
-                                              color: themeController
-                                                  .whiteColor,
-                                              fontSize: 13.sp,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          heightBox(4),
-                                          Text(
-                                            activity.timeAgo,
-                                            style: TextStyle(
-                                              color: themeController
-                                                  .whiteColor
-                                                  .withValues(alpha: 0.6),
-                                              fontSize: 11.sp,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    widthBox(8),
-                                    Icon(
-                                      activity.icon,
-                                      color: iconColor,
-                                      size: 20.sp,
-                                    ),
-                                    widthBox(8),
-                                    if (activity.isUnread)
-                                      Container(
-                                        width: 8.h,
-                                        height: 8.h,
-                                        decoration: BoxDecoration(
-                                          color: themeController
-                                              .lightPinkColor,
-                                          shape: BoxShape.circle,
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                            );
-                        
-                        // Wrap with blurring for free users - using same structure as normal notification
-                        if (shouldBlur) {
-                          print('✅ DEBUG: Creating blurred notification - type: ${activity.type}');
-                          final blurredWidget = InkWell(
-                            onTap: handleTap,
-                            child: Container(
-                              width: Get.width,
+                  // Empty state
+                  if (ctrl.activities.isEmpty) {
+                    return SingleChildScrollView(
+                      child: Padding(
+                        padding: EdgeInsets.all(20.w),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(height: 40.h),
+                            Container(
+                              padding: EdgeInsets.all(24.w),
                               decoration: BoxDecoration(
-                                gradient: isBffActivity
-                                    ? LinearGradient(
-                                        colors: [
-                                          themeController.bffPrimaryColor.withValues(alpha: 0.15),
-                                          themeController.bffSecondaryColor.withValues(alpha: 0.1),
-                                        ],
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                      )
-                                    : null,
-                                color: isBffActivity
-                                    ? null
-                                    : themeController.lightPinkColor.withValues(alpha: 0.15),
-                                border: Border.all(
-                                  color: isBffActivity
-                                      ? themeController.bffPrimaryColor.withValues(alpha: 0.3)
-                                      : themeController.lightPinkColor.withValues(alpha: 0.3),
-                                  width: 1.w,
+                                color: theme.lightPinkColor.withValues(alpha: 0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                LucideIcons.bell,
+                                size: 64.sp,
+                                color: theme.lightPinkColor,
+                              ),
+                            ),
+                            SizedBox(height: 24.h),
+                            TextConstant(
+                              title: 'No activities yet',
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: theme.whiteColor,
+                            ),
+                            SizedBox(height: 8.h),
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 32.w),
+                              child: TextConstant(
+                                title: 'Start swiping to see who likes you!',
+                                fontSize: 14,
+                                color: theme.whiteColor.withValues(alpha: 0.7),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                            SizedBox(height: 32.h),
+                            // Tips section
+                            Container(
+                              margin: EdgeInsets.symmetric(horizontal: 20.w),
+                              padding: EdgeInsets.all(20.w),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    theme.lightPinkColor.withValues(alpha: 0.15),
+                                    theme.purpleColor.withValues(alpha: 0.1),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
                                 ),
                                 borderRadius: BorderRadius.circular(16.r),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: isBffActivity
-                                        ? themeController.bffPrimaryColor.withValues(alpha: 0.2)
-                                        : themeController.lightPinkColor.withValues(alpha: 0.2),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
+                                border: Border.all(
+                                  color: theme.lightPinkColor.withValues(alpha: 0.3),
+                                  width: 1.w,
+                                ),
                               ),
-                              padding: EdgeInsets.all(12.w),
-                              child: Row(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  // Blurred profile photo - show actual photo with blur
-                                  Container(
-                                    width: 40.h,
-                                    height: 40.h,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: backgroundColor,
-                                      image: displayPhoto != null && displayPhoto.isNotEmpty
-                                          ? DecorationImage(
-                                              image: NetworkImage(displayPhoto),
-                                              fit: BoxFit.cover,
-                                            )
-                                          : null,
-                                    ),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(20.h),
-                                      child: displayPhoto != null && displayPhoto.isNotEmpty
-                                          ? BackdropFilter(
-                                              filter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
-                                              child: Container(
-                                                color: Colors.black.withOpacity(0.2),
-                                              ),
-                                            )
-                                          : Container(
-                                              color: Colors.black.withOpacity(0.3),
-                                              child: Icon(
-                                                Icons.person,
-                                                color: iconColor.withValues(alpha: 0.5),
-                                                size: 20.sp,
-                                              ),
-                                            ),
-                                    ),
-                                  ),
-                                  widthBox(12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          displayMessage,
-                                          style: TextStyle(
-                                            color: themeController.whiteColor,
-                                            fontSize: 13.sp,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        heightBox(4),
-                                        Text(
-                                          'Upgrade to see who it is',
-                                          style: TextStyle(
-                                            color: themeController.whiteColor.withValues(alpha: 0.6),
-                                            fontSize: 11.sp,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  widthBox(8),
-                                  Icon(
-                                    activity.icon,
-                                    color: iconColor,
-                                    size: 20.sp,
-                                  ),
-                                  widthBox(8),
-                                  if (activity.isUnread)
-                                    Container(
-                                      width: 8.h,
-                                      height: 8.h,
-                                      decoration: BoxDecoration(
-                                        color: themeController.lightPinkColor,
-                                        shape: BoxShape.circle,
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        LucideIcons.lightbulb,
+                                        color: theme.lightPinkColor,
+                                        size: 20.sp,
                                       ),
-                                    ),
+                                      SizedBox(width: 8.w),
+                                      TextConstant(
+                                        title: 'Tips to get more activity',
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: theme.whiteColor,
+                                      ),
+                                    ],
+                                  ),
+                                  SizedBox(height: 16.h),
+                                  _buildTipItem(
+                                    theme: theme,
+                                    icon: LucideIcons.heart,
+                                    text: 'Swipe right on profiles you like',
+                                  ),
+                                  SizedBox(height: 12.h),
+                                  _buildTipItem(
+                                    theme: theme,
+                                    icon: LucideIcons.star,
+                                    text: 'Use Super Likes to stand out',
+                                  ),
+                                  SizedBox(height: 12.h),
+                                  _buildTipItem(
+                                    theme: theme,
+                                    icon: LucideIcons.messageCircle,
+                                    text: 'Start conversations with your matches',
+                                  ),
                                 ],
                               ),
                             ),
-                          );
-                          
-                          // Wrap blurred widget with Slidable
-                          return _buildSlidableActivity(
-                            activity: activity,
-                            child: blurredWidget,
-                          );
-                        }
-                        
-                        print('✅ DEBUG: Returning unwrapped activityWidget - type: ${activity.type}');
-                        
-                        // Wrap with Slidable for swipe-to-delete
-                        return _buildSlidableActivity(
-                          activity: activity,
-                          child: activityWidget,
-                        );
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+
+                  // Activities list
+                  return RefreshIndicator(
+                    onRefresh: ctrl.refresh,
+                    color: theme.lightPinkColor,
+                    child: ListView.separated(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: EdgeInsets.fromLTRB(15.w, 0, 15.w, 100.h),
+                      itemCount: ctrl.activities.length,
+                      separatorBuilder: (context, index) => SizedBox(height: 10.h),
+                      itemBuilder: (context, index) {
+                        final activity = ctrl.activities[index];
+                        return _buildActivityCard(activity, index, ctrl, theme);
                       },
                     ),
                   );
                 }),
-                  ),
-                  ],
-                ),
               ),
-            ),
+            ],
           ),
-          // Floating Clear All Button - positioned above bottom nav bar
-          _buildClearAllButton(),
-        ],
+        ),
       ),
+      floatingActionButton: Obx(() {
+        if (ctrl.activities.isEmpty) {
+          return SizedBox.shrink();
+        }
+        return FloatingActionButton(
+          onPressed: () => _showClearAllConfirmation(ctrl, theme),
+          backgroundColor: theme.lightPinkColor,
+          mini: true,
+          child: Icon(
+            LucideIcons.trash2,
+            color: theme.whiteColor,
+            size: 20.sp,
+          ),
+        );
+      }),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
-  void _showUpgradePrompt(Activity activity) {
+  Widget _buildActivityCard(Activity activity, int index, ActivityController controller, ThemeController theme) {
+    final isBffActivity = activity.type.toString().contains('bff');
+    final backgroundColor = isBffActivity
+        ? theme.bffPrimaryColor.withValues(alpha: 0.2)
+        : (index % 2 != 0
+            ? theme.lightPinkColor.withValues(alpha: 0.2)
+            : theme.purpleColor.withValues(alpha: 0.2));
+    final iconColor = isBffActivity
+        ? theme.bffPrimaryColor
+        : (index % 2 != 0
+            ? theme.lightPinkColor
+            : theme.purpleColor);
+
+    final bool hideIdentity = !controller.isPremium.value &&
+        (activity.type == ActivityType.like || activity.type == ActivityType.superLike);
+    final bool shouldBlur = !controller.isPremium.value &&
+        (activity.type == ActivityType.premiumMessage || hideIdentity);
+
+    final String displayMessage = hideIdentity
+        ? (activity.type == ActivityType.superLike
+            ? 'Someone super loved you!'
+            : 'Someone liked your profile')
+        : activity.displayMessage;
+
+    final String? displayPhoto = activity.otherUserPhoto;
+
+    final VoidCallback handleTap = shouldBlur
+        ? () => _showUpgradePrompt(activity, theme)
+        : () => controller.onActivityTap(activity);
+
+    Widget card = InkWell(
+      onTap: handleTap,
+      child: Container(
+        width: Get.width,
+        decoration: BoxDecoration(
+          gradient: isBffActivity
+              ? LinearGradient(
+                  colors: [
+                    theme.bffPrimaryColor.withValues(alpha: 0.15),
+                    theme.bffSecondaryColor.withValues(alpha: 0.1),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          color: isBffActivity
+              ? null
+              : theme.lightPinkColor.withValues(alpha: 0.15),
+          border: Border.all(
+            color: isBffActivity
+                ? theme.bffPrimaryColor.withValues(alpha: 0.3)
+                : theme.lightPinkColor.withValues(alpha: 0.3),
+            width: 1.w,
+          ),
+          borderRadius: BorderRadius.circular(16.r),
+          boxShadow: [
+            BoxShadow(
+              color: isBffActivity
+                  ? theme.bffPrimaryColor.withValues(alpha: 0.2)
+                  : theme.lightPinkColor.withValues(alpha: 0.2),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        padding: EdgeInsets.all(12.w),
+        child: Row(
+          children: [
+            // Profile photo
+            Container(
+              width: 40.h,
+              height: 40.h,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: backgroundColor,
+                image: displayPhoto != null && displayPhoto.isNotEmpty
+                    ? DecorationImage(
+                        image: NetworkImage(displayPhoto),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
+              ),
+              child: (displayPhoto == null || displayPhoto.isEmpty)
+                  ? Icon(
+                      Icons.person,
+                      color: iconColor,
+                      size: 20.sp,
+                    )
+                  : (shouldBlur
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(20.h),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
+                            child: Container(
+                              color: Colors.black.withOpacity(0.2),
+                            ),
+                          ),
+                        )
+                      : null),
+            ),
+            SizedBox(width: 12.w),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    displayMessage,
+                    style: TextStyle(
+                      color: theme.whiteColor,
+                      fontSize: 13.sp,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  SizedBox(height: 4.h),
+                  Text(
+                    shouldBlur ? 'Upgrade to see who it is' : activity.timeAgo,
+                    style: TextStyle(
+                      color: theme.whiteColor.withValues(alpha: 0.6),
+                      fontSize: 11.sp,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(width: 8.w),
+            Icon(
+              activity.icon,
+              color: iconColor,
+              size: 20.sp,
+            ),
+            SizedBox(width: 8.w),
+            if (activity.isUnread)
+              Container(
+                width: 8.h,
+                height: 8.h,
+                decoration: BoxDecoration(
+                  color: theme.lightPinkColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+
+    return Slidable(
+      key: ValueKey('slidable_${activity.id}'),
+      endActionPane: ActionPane(
+        motion: const BehindMotion(),
+        extentRatio: 0.25,
+        children: [
+          CustomSlidableAction(
+            backgroundColor: Colors.transparent,
+            onPressed: (context) async {
+              final confirmed = await _showDeleteConfirmDialog(activity, theme);
+              if (confirmed && context.mounted) {
+                Slidable.of(context)?.close();
+              }
+            },
+            flex: 1,
+            child: Container(
+              decoration: BoxDecoration(
+                color: theme.lightPinkColor,
+                borderRadius: BorderRadius.only(
+                  topRight: Radius.circular(16.r),
+                  bottomRight: Radius.circular(16.r),
+                ),
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                LucideIcons.trash2,
+                color: theme.whiteColor,
+                size: 22.sp,
+              ),
+            ),
+          ),
+        ],
+      ),
+      child: card,
+    );
+  }
+
+  Widget _buildPotentialMatchesBar(ActivityController controller, ThemeController theme) {
+    return Obx(() {
+      final count = controller.potentialMatchesCount.value;
+      final lastPhoto = controller.lastLikerPhoto.value;
+      
+      if (count == 0 || controller.isPremium.value) {
+        return SizedBox.shrink();
+      }
+      
+      final remainingCount = count > 1 ? count - 1 : 0;
+      
+      return InkWell(
+        onTap: () => Get.to(() => SubscriptionScreen()),
+        child: Container(
+          width: Get.width,
+          padding: EdgeInsets.all(16.w),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                theme.lightPinkColor.withValues(alpha: 0.3),
+                theme.purpleColor.withValues(alpha: 0.2),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16.r),
+            border: Border.all(
+              color: theme.lightPinkColor.withValues(alpha: 0.4),
+              width: 1.w,
+            ),
+          ),
+          child: Row(
+            children: [
+              Stack(
+                children: [
+                  Container(
+                    width: 56.w,
+                    height: 56.w,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: theme.whiteColor.withValues(alpha: 0.1),
+                    ),
+                    child: lastPhoto.isNotEmpty
+                        ? ClipOval(
+                            child: ImageFiltered(
+                              imageFilter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                              child: Image.network(
+                                lastPhoto,
+                                width: 56.w,
+                                height: 56.w,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Icon(
+                                    Icons.person,
+                                    color: theme.whiteColor.withValues(alpha: 0.5),
+                                    size: 28.sp,
+                                  );
+                                },
+                              ),
+                            ),
+                          )
+                        : Icon(
+                            Icons.person,
+                            color: theme.whiteColor.withValues(alpha: 0.5),
+                            size: 28.sp,
+                          ),
+                  ),
+                  if (remainingCount > 0)
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 24.w,
+                        height: 24.w,
+                        decoration: BoxDecoration(
+                          color: theme.lightPinkColor,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: theme.blackColor,
+                            width: 2.w,
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '+$remainingCount',
+                            style: TextStyle(
+                              color: theme.whiteColor,
+                              fontSize: 10.sp,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              SizedBox(width: 16.w),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'You have $count potential match${count > 1 ? 'es' : ''}',
+                      style: TextStyle(
+                        color: theme.whiteColor,
+                        fontSize: 15.sp,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 4.h),
+                    TextConstant(
+                      title: 'upgrade_to_view_who_all',
+                      fontSize: 12,
+                      color: theme.whiteColor.withValues(alpha: 0.7),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                LucideIcons.chevronRight,
+                color: theme.whiteColor.withValues(alpha: 0.7),
+                size: 20.sp,
+              ),
+            ],
+          ),
+        ),
+      );
+    });
+  }
+  
+  Widget _buildGhostModeCard(ActivityController controller, ThemeController theme) {
+    return Obx(() {
+      final isActive = controller.isGhostModeActive.value;
+      final timeRemaining = controller.getGhostModeTimeRemaining();
+      
+      return Container(
+        width: Get.width,
+        padding: EdgeInsets.all(16.w),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              theme.purpleColor.withValues(alpha: 0.3),
+              theme.purpleColor.withValues(alpha: 0.2),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16.r),
+          border: Border.all(
+            color: theme.purpleColor.withValues(alpha: 0.4),
+            width: 1.w,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48.w,
+              height: 48.w,
+              decoration: BoxDecoration(
+                color: theme.purpleColor.withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                LucideIcons.ghost,
+                color: theme.whiteColor,
+                size: 24.sp,
+              ),
+            ),
+            SizedBox(width: 16.w),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextConstant(
+                    title: 'ghost_mode',
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: theme.whiteColor,
+                  ),
+                  SizedBox(height: 4.h),
+                  TextConstant(
+                    title: 'become_hours',
+                    fontSize: 12,
+                    color: theme.whiteColor.withValues(alpha: 0.7),
+                  ),
+                  if (isActive && timeRemaining.isNotEmpty) ...[
+                    SizedBox(height: 4.h),
+                    Text(
+                      timeRemaining,
+                      style: TextStyle(
+                        fontSize: 11.sp,
+                        color: theme.whiteColor.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Switch(
+              value: isActive,
+              onChanged: (value) => controller.toggleGhostMode(),
+              activeColor: theme.purpleColor,
+              inactiveThumbColor: theme.whiteColor.withValues(alpha: 0.5),
+              inactiveTrackColor: theme.whiteColor.withValues(alpha: 0.2),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  Widget _buildTipItem({required ThemeController theme, required IconData icon, required String text}) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          color: theme.lightPinkColor.withValues(alpha: 0.8),
+          size: 16.sp,
+        ),
+        SizedBox(width: 12.w),
+        Expanded(
+          child: TextConstant(
+            title: text,
+            fontSize: 13,
+            color: theme.whiteColor.withValues(alpha: 0.8),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showUpgradePrompt(Activity activity, ThemeController theme) {
     final bool isSuperLike = activity.type == ActivityType.superLike;
     final bool isLike = activity.type == ActivityType.like;
     final bool isPremiumMessage = activity.type == ActivityType.premiumMessage;
@@ -498,9 +746,9 @@ class ActivityScreen extends StatelessWidget {
       limitType = 'message';
       icon = Icons.forum_rounded;
       gradient = [
-        themeController.purpleColor.withValues(alpha: 0.2),
-        themeController.lightPinkColor.withValues(alpha: 0.25),
-        themeController.blackColor.withValues(alpha: 0.85),
+        theme.purpleColor.withValues(alpha: 0.2),
+        theme.lightPinkColor.withValues(alpha: 0.25),
+        theme.blackColor.withValues(alpha: 0.85),
       ];
     } else if (isSuperLike) {
       title = 'See Your Super Lover';
@@ -508,9 +756,9 @@ class ActivityScreen extends StatelessWidget {
       limitType = 'swipe';
       icon = Icons.star_rounded;
       gradient = [
-        themeController.lightPinkColor.withValues(alpha: 0.2),
-        themeController.purpleColor.withValues(alpha: 0.25),
-        themeController.blackColor.withValues(alpha: 0.85),
+        theme.lightPinkColor.withValues(alpha: 0.2),
+        theme.purpleColor.withValues(alpha: 0.25),
+        theme.blackColor.withValues(alpha: 0.85),
       ];
     } else if (isLike) {
       title = 'See Who Liked You';
@@ -518,9 +766,9 @@ class ActivityScreen extends StatelessWidget {
       limitType = 'swipe';
       icon = Icons.favorite_rounded;
       gradient = [
-        themeController.lightPinkColor.withValues(alpha: 0.2),
-        themeController.purpleColor.withValues(alpha: 0.2),
-        themeController.blackColor.withValues(alpha: 0.85),
+        theme.lightPinkColor.withValues(alpha: 0.2),
+        theme.purpleColor.withValues(alpha: 0.2),
+        theme.blackColor.withValues(alpha: 0.85),
       ];
     } else {
       title = 'Premium Feature';
@@ -528,9 +776,9 @@ class ActivityScreen extends StatelessWidget {
       limitType = 'swipe';
       icon = Icons.lock_outline;
       gradient = [
-        themeController.lightPinkColor.withValues(alpha: 0.2),
-        themeController.purpleColor.withValues(alpha: 0.2),
-        themeController.blackColor.withValues(alpha: 0.85),
+        theme.lightPinkColor.withValues(alpha: 0.2),
+        theme.purpleColor.withValues(alpha: 0.2),
+        theme.blackColor.withValues(alpha: 0.85),
       ];
     }
 
@@ -557,668 +805,161 @@ class ActivityScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPotentialMatchesBar() {
-    return Obx(() {
-      final count = controller.potentialMatchesCount.value;
-      final lastPhoto = controller.lastLikerPhoto.value;
-      
-      // Only show if count > 0 and user is free
-      if (count == 0 || controller.isPremium.value) {
-        return SizedBox.shrink();
-      }
-      
-      final remainingCount = count > 1 ? count - 1 : 0;
-      
-      return InkWell(
-        onTap: () {
-          // Navigate to subscription screen
-          Get.to(() => SubscriptionScreen());
-        },
-        child: Container(
-          width: Get.width,
-          padding: EdgeInsets.all(16.w),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                themeController.lightPinkColor.withValues(alpha: 0.3),
-                themeController.purpleColor.withValues(alpha: 0.2),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(16.r),
-            border: Border.all(
-              color: themeController.lightPinkColor.withValues(alpha: 0.4),
-              width: 1.w,
-            ),
-          ),
-          child: Row(
-            children: [
-              // Profile picture with blur effect
-              Stack(
-                children: [
-                  Container(
-                    width: 56.w,
-                    height: 56.w,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: themeController.whiteColor.withValues(alpha: 0.1),
-                    ),
-                    child: lastPhoto.isNotEmpty
-                        ? ClipOval(
-                            child: ImageFiltered(
-                              imageFilter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                              child: Image.network(
-                                lastPhoto,
-                                width: 56.w,
-                                height: 56.w,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Icon(
-                                    Icons.person,
-                                    color: themeController.whiteColor.withValues(alpha: 0.5),
-                                    size: 28.sp,
-                                  );
-                                },
-                              ),
-                            ),
-                          )
-                        : Icon(
-                            Icons.person,
-                            color: themeController.whiteColor.withValues(alpha: 0.5),
-                            size: 28.sp,
-                          ),
-                  ),
-                  // +X badge
-                  if (remainingCount > 0)
-                    Positioned(
-                      right: 0,
-                      bottom: 0,
-                      child: Container(
-                        width: 24.w,
-                        height: 24.w,
-                        decoration: BoxDecoration(
-                          color: themeController.lightPinkColor,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: themeController.blackColor,
-                            width: 2.w,
-                          ),
-                        ),
-                        child: Center(
-                          child: Text(
-                            '+$remainingCount',
-                            style: TextStyle(
-                              color: themeController.whiteColor,
-                              fontSize: 10.sp,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              widthBox(16),
-              
-              // Text section
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'you_have_potential_matches'.tr.replaceAll('{count}', count.toString()),
-                      style: TextStyle(
-                        color: themeController.whiteColor,
-                        fontSize: 15.sp,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    heightBox(4),
-                    TextConstant(
-                      title: 'upgrade_to_view_who_all',
-                      fontSize: 12,
-                      color: themeController.whiteColor.withValues(alpha: 0.7),
-                    ),
-                  ],
-                ),
-              ),
-              
-              // Arrow icon
-              Icon(
-                LucideIcons.chevronRight,
-                color: themeController.whiteColor.withValues(alpha: 0.7),
-                size: 20.sp,
-              ),
-            ],
-          ),
-        ),
-      );
-    });
-  }
-  
-  Widget _buildGhostModeCard() {
-    return Obx(() {
-      final isActive = controller.isGhostModeActive.value;
-      final timeRemaining = controller.getGhostModeTimeRemaining();
-      
-      return Container(
-        width: Get.width,
-        padding: EdgeInsets.all(16.w),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              themeController.purpleColor.withValues(alpha: 0.3),
-              themeController.purpleColor.withValues(alpha: 0.2),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(16.r),
-          border: Border.all(
-            color: themeController.purpleColor.withValues(alpha: 0.4),
-            width: 1.w,
-          ),
-        ),
-        child: Row(
-          children: [
-            // Ghost icon container
-            Container(
-              width: 48.w,
-              height: 48.w,
-              decoration: BoxDecoration(
-                color: themeController.purpleColor.withValues(alpha: 0.2),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                LucideIcons.ghost,
-                color: themeController.whiteColor,
-                size: 24.sp,
-              ),
-            ),
-            widthBox(16),
-            
-            // Text section
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextConstant(
-                    title: 'ghost_mode',
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: themeController.whiteColor,
-                  ),
-                  heightBox(4),
-                  TextConstant(
-                    title: 'become_hours',
-                    fontSize: 12,
-                    color: themeController.whiteColor.withValues(alpha: 0.7),
-                  ),
-                  if (isActive && timeRemaining.isNotEmpty) ...[
-                    heightBox(4),
-                    Text(
-                      timeRemaining,
-                      style: TextStyle(
-                        fontSize: 11.sp,
-                        color: themeController.whiteColor.withValues(alpha: 0.6),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            
-            // Toggle switch
-            Switch(
-              value: isActive,
-              onChanged: (value) {
-                controller.toggleGhostMode();
-              },
-              activeColor: themeController.purpleColor,
-              inactiveThumbColor: themeController.whiteColor.withValues(alpha: 0.5),
-              inactiveTrackColor: themeController.whiteColor.withValues(alpha: 0.2),
-            ),
-          ],
-        ),
-      );
-    });
-  }
-  
-  Widget _buildSlidableActivity({required Activity activity, required Widget child}) {
-    return Slidable(
-      key: ValueKey('slidable_${activity.id}'),
-      groupTag: 'activity_list', // Ensures only one Slidable can be open at a time - must be same String for all
-      closeOnScroll: true,
-      endActionPane: ActionPane(
-        motion: const BehindMotion(),
-        extentRatio: 0.25,
-        children: [
-          CustomSlidableAction(
-            backgroundColor: Colors.transparent,
-            onPressed: (context) async {
-              final confirmed = await _showDeleteConfirmDialog(activity);
-              if (confirmed && context.mounted) {
-                Slidable.of(context)?.close();
-              }
-            },
-            padding: EdgeInsets.zero,
-            flex: 1,
-            child: Container(
-              width: double.infinity,
-              height: double.infinity,
-              decoration: BoxDecoration(
-                color: themeController.lightPinkColor,
-                borderRadius: BorderRadius.only(
-                  topRight: Radius.circular(16.r), // Match card's border radius exactly
-                  bottomRight: Radius.circular(16.r),
-                ),
-              ),
-              alignment: Alignment.center,
-              child: Icon(
-                LucideIcons.trash2,
-                color: themeController.whiteColor,
-                size: 22.sp,
-              ),
-            ),
-          ),
-        ],
-      ),
-      child: child,
-    );
-  }
-  
-  Widget _buildClearAllButton() {
-    return Obx(() {
-      // Only show if there are activities
-      if (controller.activities.isEmpty) {
-        return SizedBox.shrink();
-      }
-      
-      return Positioned(
-        bottom: 70.h, // Right above bottom nav bar (70.h)
-        left: 0,
-        right: 0,
-        child: SafeArea(
-          bottom: false, // Don't add extra bottom padding
-          child: Center(
-            child: InkWell(
-              onTap: () => _showClearAllConfirmation(),
-              borderRadius: BorderRadius.circular(30.r), // Circular
-              child: Container(
-                width: 50.w, // Smaller circular size
-                height: 50.w, // Same as width for perfect circle
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      themeController.getAccentColor(),
-                      themeController.getSecondaryColor(),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  shape: BoxShape.circle, // Circular shape
-                  boxShadow: [
-                    BoxShadow(
-                      color: themeController.getAccentColor().withValues(alpha: 0.4),
-                      blurRadius: 12,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  LucideIcons.trash2,
-                  color: themeController.whiteColor,
-                  size: 20.sp,
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-    });
-  }
-  
-  void _showClearAllConfirmation() {
-    // Detect current mode (dating/bff) for styling
-    bool isBffMode = false;
-    if (Get.isRegistered<DiscoverController>()) {
-      try {
-        final d = Get.find<DiscoverController>();
-        isBffMode = (d.currentMode.value == 'bff');
-      } catch (_) {}
-    }
-
-    // Pick gradient colors based on mode
-    final List<Color> bgColors = isBffMode
-        ? [
-            themeController.bffPrimaryColor.withValues(alpha: 0.15),
-            themeController.bffSecondaryColor.withValues(alpha: 0.15),
-          ]
-        : [
-            themeController.getAccentColor().withValues(alpha: 0.15),
-            themeController.getSecondaryColor().withValues(alpha: 0.15),
-          ];
-    final Color borderColor = isBffMode
-        ? themeController.bffPrimaryColor
-        : themeController.getAccentColor();
-    final Color iconColor = isBffMode
-        ? themeController.bffPrimaryColor
-        : themeController.getAccentColor();
-    final List<Color> ctaColors = isBffMode
-        ? [themeController.bffPrimaryColor, themeController.bffSecondaryColor]
-        : [themeController.getAccentColor(), themeController.getSecondaryColor()];
-
+  void _showClearAllConfirmation(ActivityController controller, ThemeController theme) {
     Get.dialog(
       Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: EdgeInsets.symmetric(horizontal: 24.w),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: bgColors,
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+        backgroundColor: theme.blackColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20.r),
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(20.w),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.warning_rounded,
+                size: 32.sp,
+                color: theme.lightPinkColor,
               ),
-              borderRadius: BorderRadius.circular(22.r),
-              border: Border.all(
-                color: borderColor.withValues(alpha: 0.35),
-                width: 1.5,
+              SizedBox(height: 16.h),
+              TextConstant(
+                title: 'Clear all activities?',
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: theme.whiteColor,
+                textAlign: TextAlign.center,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: borderColor.withValues(alpha: 0.15),
-                  blurRadius: 20,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: SafeArea(
-              child: Padding(
-                padding: EdgeInsets.all(20.w),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Warning icon in circular container
-                    Container(
-                      padding: EdgeInsets.all(16.w),
-                      decoration: BoxDecoration(
-                        color: iconColor.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.warning_rounded,
-                        size: 32.sp,
-                        color: iconColor,
-                      ),
-                    ),
-                    heightBox(16),
-                    // Title
-                    TextConstant(
-                      title: 'clear_all_activities',
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: themeController.whiteColor,
-                      textAlign: TextAlign.center,
-                    ),
-                    heightBox(8),
-                    // Message with proper text overflow handling - wrapped with constraints
-                    Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 8.w),
+              SizedBox(height: 8.h),
+              TextConstant(
+                title: 'This will remove all activities from your feed',
+                fontSize: 14,
+                color: theme.whiteColor.withValues(alpha: 0.8),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 20.h),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Get.back(),
                       child: TextConstant(
-                        title: 'clear_all_activities_message',
+                        title: 'Cancel',
+                        color: theme.greyColor,
                         fontSize: 14,
-                        color: themeController.whiteColor.withValues(alpha: 0.8),
-                        textAlign: TextAlign.center,
-                        softWrap: true,
-                        maxLines: 3,
                       ),
                     ),
-                    SizedBox(height: 20.h),
-                    // Action buttons
-                    Row(
-                      children: [
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () => Get.back(),
-                            child: Container(
-                              padding: EdgeInsets.symmetric(vertical: 12.h),
-                              decoration: BoxDecoration(
-                                color: themeController.whiteColor.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(20.r),
-                                border: Border.all(
-                                  color: themeController.whiteColor.withValues(alpha: 0.3),
-                                  width: 1.5,
-                                ),
-                              ),
-                              child: TextConstant(
-                                title: 'cancel',
-                                textAlign: TextAlign.center,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: themeController.whiteColor,
-                              ),
-                            ),
-                          ),
-                        ),
-                        widthBox(12),
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () {
-                              Get.back();
-                              controller.clearAllActivities();
-                              Get.snackbar(
-                                'Cleared',
-                                'All activities cleared',
-                                backgroundColor: themeController.lightPinkColor.withValues(alpha: 0.9),
-                                colorText: themeController.whiteColor,
-                                duration: Duration(seconds: 2),
-                              );
-                            },
-                            child: Container(
-                              padding: EdgeInsets.symmetric(vertical: 12.h),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(colors: ctaColors),
-                                borderRadius: BorderRadius.circular(20.r),
-                                border: Border.all(
-                                  color: borderColor.withValues(alpha: 0.5),
-                                  width: 1.5,
-                                ),
-                              ),
-                              child: TextConstant(
-                                title: 'clear',
-                                textAlign: TextAlign.center,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: themeController.whiteColor,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                  ),
+                  SizedBox(width: 12.w),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Get.back();
+                        controller.clearAllActivities();
+                        Get.snackbar(
+                          'Cleared',
+                          'All activities cleared',
+                          backgroundColor: theme.lightPinkColor.withValues(alpha: 0.9),
+                          colorText: theme.whiteColor,
+                          duration: Duration(seconds: 2),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: theme.lightPinkColor,
+                      ),
+                      child: TextConstant(
+                        title: 'Clear',
+                        color: theme.whiteColor,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ),
+            ],
           ),
         ),
       ),
-      barrierDismissible: true,
     );
   }
 
-  Future<bool> _showDeleteConfirmDialog(Activity activity) async {
-    // Detect current mode (dating/bff) for styling
-    bool isBffMode = false;
-    if (Get.isRegistered<DiscoverController>()) {
-      try {
-        final d = Get.find<DiscoverController>();
-        isBffMode = (d.currentMode.value == 'bff');
-      } catch (_) {}
-    }
-
-    // Pick gradient colors based on mode
-    final List<Color> bgColors = isBffMode
-        ? [
-            themeController.bffPrimaryColor.withValues(alpha: 0.15),
-            themeController.bffSecondaryColor.withValues(alpha: 0.15),
-          ]
-        : [
-            themeController.getAccentColor().withValues(alpha: 0.15),
-            themeController.getSecondaryColor().withValues(alpha: 0.15),
-          ];
-    final Color borderColor = isBffMode
-        ? themeController.bffPrimaryColor
-        : themeController.getAccentColor();
-    final Color iconColor = isBffMode
-        ? themeController.bffPrimaryColor
-        : themeController.getAccentColor();
-    final List<Color> ctaColors = isBffMode
-        ? [themeController.bffPrimaryColor, themeController.bffSecondaryColor]
-        : [themeController.getAccentColor(), themeController.getSecondaryColor()];
-
+  Future<bool> _showDeleteConfirmDialog(Activity activity, ThemeController theme) async {
     final confirmed = await Get.dialog<bool>(
       Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: EdgeInsets.symmetric(horizontal: 24.w),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: bgColors,
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+        backgroundColor: theme.blackColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20.r),
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(20.w),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.warning_rounded,
+                size: 32.sp,
+                color: theme.lightPinkColor,
               ),
-              borderRadius: BorderRadius.circular(22.r),
-              border: Border.all(
-                color: borderColor.withValues(alpha: 0.35),
-                width: 1.5,
+              SizedBox(height: 16.h),
+              TextConstant(
+                title: 'Delete activity?',
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: theme.whiteColor,
+                textAlign: TextAlign.center,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: borderColor.withValues(alpha: 0.15),
-                  blurRadius: 20,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: SafeArea(
-              child: Padding(
-                padding: EdgeInsets.all(20.w),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Warning icon in circular container
-                    Container(
-                      padding: EdgeInsets.all(16.w),
-                      decoration: BoxDecoration(
-                        color: iconColor.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.warning_rounded,
-                        size: 32.sp,
-                        color: iconColor,
-                      ),
-                    ),
-                    heightBox(16),
-                    // Title
-                    TextConstant(
-                      title: 'delete_activity',
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: themeController.whiteColor,
-                      textAlign: TextAlign.center,
-                    ),
-                    heightBox(8),
-                    // Message with proper text overflow handling - wrapped with constraints
-                    Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 8.w),
+              SizedBox(height: 8.h),
+              TextConstant(
+                title: 'This activity will be removed from your feed',
+                fontSize: 14,
+                color: theme.whiteColor.withValues(alpha: 0.8),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 20.h),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Get.back(result: false),
                       child: TextConstant(
-                        title: 'delete_activity_message',
+                        title: 'Cancel',
+                        color: theme.greyColor,
                         fontSize: 14,
-                        color: themeController.whiteColor.withValues(alpha: 0.8),
-                        textAlign: TextAlign.center,
-                        softWrap: true,
-                        maxLines: 3,
                       ),
                     ),
-                    SizedBox(height: 20.h),
-                    // Action buttons
-                    Row(
-                      children: [
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () => Get.back(result: false),
-                            child: Container(
-                              padding: EdgeInsets.symmetric(vertical: 12.h),
-                              decoration: BoxDecoration(
-                                color: themeController.whiteColor.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(20.r),
-                                border: Border.all(
-                                  color: themeController.whiteColor.withValues(alpha: 0.3),
-                                  width: 1.5,
-                                ),
-                              ),
-                              child: TextConstant(
-                                title: 'cancel',
-                                textAlign: TextAlign.center,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: themeController.whiteColor,
-                              ),
-                            ),
-                          ),
-                        ),
-                        widthBox(12),
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () => Get.back(result: true),
-                            child: Container(
-                              padding: EdgeInsets.symmetric(vertical: 12.h),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(colors: ctaColors),
-                                borderRadius: BorderRadius.circular(20.r),
-                                border: Border.all(
-                                  color: borderColor.withValues(alpha: 0.5),
-                                  width: 1.5,
-                                ),
-                              ),
-                              child: TextConstant(
-                                title: 'delete',
-                                textAlign: TextAlign.center,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: themeController.whiteColor,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                  ),
+                  SizedBox(width: 12.w),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Get.back(result: true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: theme.lightPinkColor,
+                      ),
+                      child: TextConstant(
+                        title: 'Delete',
+                        color: theme.whiteColor,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ),
+            ],
           ),
         ),
       ),
-      barrierDismissible: true,
     );
 
     if (confirmed == true) {
-      await controller.deleteActivity(activity.id);
+      final ctrl = Get.find<ActivityController>();
+      await ctrl.deleteActivity(activity.id);
       Get.snackbar(
         'Deleted',
         'Activity deleted',
-        backgroundColor: themeController.lightPinkColor.withValues(alpha: 0.9),
-        colorText: themeController.whiteColor,
+        backgroundColor: theme.lightPinkColor.withValues(alpha: 0.9),
+        colorText: theme.whiteColor,
         duration: Duration(seconds: 2),
       );
       return true;
@@ -1226,3 +967,4 @@ class ActivityScreen extends StatelessWidget {
     return false;
   }
 }
+

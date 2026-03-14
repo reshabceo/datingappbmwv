@@ -17,6 +17,7 @@ import '../VerificationPage/verification_screen.dart';
 import '../../Widgets/optimized_toggle_button.dart';
 import '../VerificationPage/test_verification_screen.dart';
 import '../WelcomePage/welcome_screen.dart';
+import '../SubscriptionPage/subscription_status_widget.dart';
 
 class _NoGlowBehavior extends ScrollBehavior {
   const _NoGlowBehavior();
@@ -472,6 +473,11 @@ class ProfileScreen extends StatelessWidget {
                                   ],
                                 )
                               : const SizedBox.shrink()),
+                          heightBox(16),
+                          // --------------------
+                          // Subscription Status Widget
+                          // --------------------
+                          const SubscriptionStatusWidget(),
                           heightBox(16),
                           // --------------------
                           // Settings Button
@@ -1115,6 +1121,63 @@ class ProfileScreen extends StatelessWidget {
           ),
           decoration: InputDecoration(
             hintText: 'tell_us_about_yourself',
+            hintStyle: TextStyle(
+              color: themeController.whiteColor.withValues(alpha: 0.5),
+              fontSize: 14.sp,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12.r),
+              borderSide: BorderSide(
+                color: discoverController.currentMode.value == 'bff'
+                    ? themeController.bffSecondaryColor.withValues(alpha: 0.3)
+                    : themeController.purpleColor.withValues(alpha: 0.3),
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12.r),
+              borderSide: BorderSide(
+                color: discoverController.currentMode.value == 'bff'
+                    ? themeController.bffSecondaryColor.withValues(alpha: 0.3)
+                    : themeController.purpleColor.withValues(alpha: 0.3),
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12.r),
+              borderSide: BorderSide(
+                color: discoverController.currentMode.value == 'bff'
+                    ? themeController.bffSecondaryColor
+                    : themeController.purpleColor,
+              ),
+            ),
+            filled: true,
+            fillColor: discoverController.currentMode.value == 'bff'
+                ? themeController.bffSecondaryColor.withValues(alpha: 0.1)
+                : themeController.purpleColor.withValues(alpha: 0.1),
+            contentPadding: EdgeInsets.all(16.w),
+          ),
+        ),
+        heightBox(16),
+
+        // --------------------
+        // Phone Number
+        // --------------------
+        TextConstant(
+          title: 'phone_number'.tr,
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: themeController.whiteColor,
+        ),
+        heightBox(8),
+        TextField(
+          controller: controller.phoneController,
+          keyboardType: TextInputType.phone,
+          style: TextStyle(
+            color: themeController.whiteColor,
+            fontSize: 14.sp,
+            fontWeight: FontWeight.w500,
+          ),
+          decoration: InputDecoration(
+            hintText: 'enter_your_phone'.tr,
             hintStyle: TextStyle(
               color: themeController.whiteColor.withValues(alpha: 0.5),
               fontSize: 14.sp,

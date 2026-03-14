@@ -448,6 +448,18 @@ class EditProfileScreen extends StatelessWidget {
                           );
                         }),
                         heightBox(25),
+                        TextConstant(title: 'phone_number'.tr, fontSize: 14, fontWeight: FontWeight.bold),
+                        Divider(color: themeController.purpleColor.withValues(alpha: 0.4), height: 20.h),
+                        TextFieldConstant(
+                          height: 44.h,
+                          hintFontSize: 14,
+                          hintText: 'enter_your_phone'.tr,
+                          borderColor: themeController.purpleColor.withValues(alpha: 0.4),
+                          hintFontWeight: FontWeight.bold,
+                          keyboardType: TextInputType.phone,
+                          controller: controller.phoneController,
+                        ),
+                        heightBox(25),
                         TextConstant(title: 'my_photos'.tr, fontSize: 14, fontWeight: FontWeight.bold),
                         Divider(color: themeController.purpleColor.withValues(alpha: 0.4), height: 20.h),
                         TextConstant(

@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 import '../../services/payment_service.dart';
 import '../../services/supabase_service.dart';
+import 'package:lovebug/Common/widget_constant.dart';
 
 class SubscriptionController extends GetxController {
   RxBool isLoading = false.obs;
@@ -17,22 +18,48 @@ class SubscriptionController extends GetxController {
     try {
       isLoading.value = true;
       
-      // Check if user has active subscription
-      final hasSubscription = await PaymentService.hasActiveSubscription();
-      hasActiveSubscription.value = hasSubscription;
+      // Check if user has active subscription from payment records/RPC
+      bool hasSubscription = false;
+      try {
+        hasSubscription = await PaymentService.hasActiveSubscription();
+      } catch (e) {
+        print('⚠️ RPC subscription check failed (might not exist): $e');
+        // RPC may not exist yet — fall through to profile check
+      }
       
-      if (hasSubscription) {
-        // Get subscription details
-        final details = await PaymentService.getSubscriptionDetails();
+      // Also check profile is_premium flag as a secondary source (synced with Profile Tag)
+      final isProfilePremium = await SupabaseService.isPremiumUser();
+      
+      print('🔍 Subscription check: RPC=$hasSubscription, Profile=$isProfilePremium');
+      
+      hasActiveSubscription.value = hasSubscription || isProfilePremium;
+      
+      if (hasSubscription || isProfilePremium) {
+        // Get subscription details for dates and plan type
+        Map<String, dynamic>? details;
+        try {
+          details = await PaymentService.getSubscriptionDetails();
+        } catch (e) {
+          print('⚠️ getSubscriptionDetails failed: $e');
+        }
+        
         if (details != null) {
           subscriptionDetails.value = details;
+        } else if (isProfilePremium) {
+          // Fallback details if we know user is premium but RPC has no record
+          subscriptionDetails.value = {
+            'plan_type': 'premium', // Generic premium if specific plan unknown
+            'status': 'active',
+            'start_date': DateTime.now().toIso8601String(),
+            'end_date': DateTime.now().add(const Duration(days: 365)).toIso8601String(),
+          };
         }
       }
     } catch (e) {
       print('Error checking subscription status: $e');
-      Get.snackbar('Error', 'Failed to check subscription status');
     } finally {
       isLoading.value = false;
+      update(); // CRITICAL: notify GetBuilder listeners
     }
   }
 
@@ -43,24 +70,26 @@ class SubscriptionController extends GetxController {
       // Get current user details
       final user = SupabaseService.currentUser;
       if (user == null) {
-        Get.snackbar('Error', 'Please login first');
+        showCustomSnackBar(title: 'error'.tr, message: 'please_login_first'.tr, isError: true);
         return;
       }
 
-      // Get user profile for name and email
+      // Get user profile for name, email and phone
       final profile = await SupabaseService.getProfile(user.id);
       final userName = profile?['name'] ?? 'User';
       final userEmail = user.email ?? '';
+      final userPhone = profile?['phone'] ?? user.phone;
 
       // Initialize payment
       await PaymentService.initiatePayment(
         planType: planType,
         userEmail: userEmail,
         userName: userName,
+        userPhone: userPhone,
       );
     } catch (e) {
       print('Error initiating payment: $e');
-      Get.snackbar('Error', 'Failed to initiate payment');
+      showCustomSnackBar(title: 'error'.tr, message: 'failed_to_initiate_payment'.tr, isError: true);
     } finally {
       isLoading.value = false;
     }
@@ -76,29 +105,39 @@ class SubscriptionController extends GetxController {
       await checkSubscriptionStatus();
     } catch (e) {
       print('Error cancelling subscription: $e');
-      Get.snackbar('Error', 'Failed to cancel subscription');
+      showCustomSnackBar(title: 'error'.tr, message: 'failed_to_cancel_subscription'.tr, isError: true);
     } finally {
       isLoading.value = false;
     }
   }
 
   String getSubscriptionStatusText() {
-    if (hasActiveSubscription.value && subscriptionDetails.isNotEmpty) {
-      final endDate = DateTime.parse(subscriptionDetails['end_date']);
-      final daysRemaining = endDate.difference(DateTime.now()).inDays;
-      
-      if (daysRemaining > 0) {
-        return 'Premium active - $daysRemaining days remaining';
-      } else {
-        return 'Premium expired';
+    if (hasActiveSubscription.value) {
+      if (subscriptionDetails.isNotEmpty && subscriptionDetails.containsKey('end_date')) {
+        try {
+          final endDateStr = subscriptionDetails['end_date']?.toString();
+          if (endDateStr != null) {
+            final endDate = DateTime.parse(endDateStr);
+            final daysRemaining = endDate.difference(DateTime.now()).inDays;
+            
+            if (daysRemaining < 0) {
+              return 'Premium expired';
+            }
+          }
+        } catch (e) {
+          print('Error parsing subscription date: $e');
+        }
       }
+      // If we know user is premium (hasActiveSubscription is true) 
+      // but details or end_date is missing/invalid, still show Premium Active.
+      return 'Premium active';
     }
     return 'Free Plan';
   }
 
   String getPlanTypeText() {
     if (subscriptionDetails.isNotEmpty) {
-      final planType = subscriptionDetails['plan_type'] as String;
+      final planType = subscriptionDetails['plan_type']?.toString();
       switch (planType) {
         case '1_month':
           return 'Premium - 1 Month';
@@ -114,13 +153,20 @@ class SubscriptionController extends GetxController {
   }
 
   bool get isPremiumActive {
-    return hasActiveSubscription.value && subscriptionDetails.isNotEmpty;
+    return hasActiveSubscription.value;
   }
 
   int get daysRemaining {
     if (isPremiumActive) {
-      final endDate = DateTime.parse(subscriptionDetails['end_date']);
-      return endDate.difference(DateTime.now()).inDays;
+      final endDateStr = subscriptionDetails['end_date']?.toString();
+      if (endDateStr != null) {
+        try {
+          final endDate = DateTime.parse(endDateStr);
+          return endDate.difference(DateTime.now()).inDays;
+        } catch (e) {
+          return 0;
+        }
+      }
     }
     return 0;
   }

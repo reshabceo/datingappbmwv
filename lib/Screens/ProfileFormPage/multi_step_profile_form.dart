@@ -482,6 +482,16 @@ class _MultiStepProfileFormState extends State<MultiStepProfileForm> {
             controller.showBirthDatePicker(context);
           },
         ),
+        SizedBox(height: 20.h),
+        
+        TextFieldConstant(
+          height: 56.h,
+          hintFontSize: 16.sp,
+          hintText: 'phone_number'.tr,
+          hintFontWeight: FontWeight.w500,
+          controller: controller.phoneController,
+          keyboardType: TextInputType.phone,
+        ),
         SizedBox(height: 12.h),
         SizedBox(height: 12.h),
         // Age display - removed Obx as it's not needed for text controller changes
@@ -938,6 +948,10 @@ class _MultiStepProfileFormState extends State<MultiStepProfileForm> {
           }
         } catch (e) {
           Get.snackbar('Error', 'Invalid date format. Use DD/MM/YYYY');
+          return false;
+        }
+        if (controller.phoneController.text.isEmpty) {
+          Get.snackbar('Error', 'phone_number_required'.tr);
           return false;
         }
         return true;

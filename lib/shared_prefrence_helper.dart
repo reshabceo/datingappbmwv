@@ -7,6 +7,7 @@ class SharedPreferenceHelper {
   static String userId = 'userId';
   static String languageCode = 'languageCode';
   static String languageName = 'languageName';
+  static String eulaTermsAccepted = 'eula_terms_accepted';
 
   // Initialize SharedPreferences once
   static Future<void> init() async {

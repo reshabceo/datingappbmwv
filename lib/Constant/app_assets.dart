@@ -10,7 +10,8 @@ class AppAssets {
   static const String notification = '${icons}notification.svg';
   static const String setting = '${icons}setting.svg';
   static const String discover = '${icons}discover.svg';
-  static const String stories = '${icons}stories.svg';
+  static const String chronicles = '${icons}stories.svg'; // Chronicles icon (uses stories.svg as base)
+  static const String stories = '${icons}stories.svg'; // Kept for backward compatibility
   static const String chat = '${icons}chat.svg';
   static const String notificationIcon = '${icons}notificationIcon.svg';
   static const String profile = '${icons}profile.svg';

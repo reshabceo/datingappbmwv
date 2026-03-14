@@ -81,7 +81,7 @@ class BottomBarController extends GetxController {
   
   // Track tab usage for analytics
   void _trackTabUsage(int tabIndex) {
-    final tabNames = ['discover', 'stories', 'chat', 'profile'];
+    final tabNames = ['discover', 'chronicles', 'chat', 'profile'];
     if (tabIndex >= 0 && tabIndex < tabNames.length) {
       AnalyticsService.trackFeatureUsage('tab_navigation', {
         'tab_name': tabNames[tabIndex],

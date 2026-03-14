@@ -106,7 +106,7 @@ class StoriesScreen extends StatelessWidget {
                 children: [
                   heightBox(0),
                   TextConstant(
-                    title: 'Stories',
+                    title: 'Chronicles',
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
                     color: themeController.whiteColor,
@@ -138,14 +138,14 @@ class StoriesScreen extends StatelessWidget {
                                     ),
                                     SizedBox(height: 16),
                                     TextConstant(
-                                      title: 'No stories yet',
+                                      title: 'No chronicles yet',
                                       fontSize: 18,
                                       fontWeight: FontWeight.w600,
                                       color: themeController.whiteColor,
                                     ),
                                     SizedBox(height: 8),
                                     TextConstant(
-                                      title: 'Get matches to see their stories!',
+                                      title: 'Get connections to see their chronicles!',
                                       fontSize: 14,
                                       color: themeController.whiteColor.withValues(alpha: 0.7),
                                     ),
@@ -472,12 +472,12 @@ class StoriesScreen extends StatelessWidget {
       final uid = SupabaseService.currentUser?.id;
       if (uid == null) {
         print('❌ DEBUG: No user ID found');
-        Get.snackbar('Login required', 'Please sign in to add a story');
+        Get.snackbar('Login required', 'Please sign in to add a chronicle');
         return;
       }
       
-      // Navigate to story camera screen
-      print('🔄 DEBUG: Opening story camera screen...');
+      // Navigate to chronicle camera screen
+      print('🔄 DEBUG: Opening chronicle camera screen...');
       Get.to(() => StoryCameraScreen());
       print('✅ DEBUG: Navigation completed');
       
@@ -506,7 +506,7 @@ class StoriesScreen extends StatelessWidget {
               ),
               heightBox(16),
               TextConstant(
-                title: 'Uploading Story...',
+                title: 'Uploading Chronicle...',
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
                 color: themeController.whiteColor,

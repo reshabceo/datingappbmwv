@@ -18,6 +18,9 @@ class EmailCodeVerifyScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Set the signup flow flag in controller when screen is built
+    controller.setSignupFlow(isSignupFlow);
+    
     return Scaffold(
       backgroundColor: theme.blackColor,
       body: SingleChildScrollView(

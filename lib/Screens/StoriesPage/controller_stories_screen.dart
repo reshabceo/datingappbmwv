@@ -22,13 +22,13 @@ class StoriesController extends GetxController {
         return;
       }
 
-      // Clean up expired stories first
+      // Clean up expired chronicles first
       await _cleanupExpiredStories();
 
-      // Get all active stories (without join)
+      // Get all active chronicles (without join)
       final rows = await SupabaseService.getActiveStories();
-      print('DEBUG: Found ${rows.length} total active stories');
-      print('DEBUG: Stories data: $rows');
+      print('DEBUG: Found ${rows.length} total active chronicles');
+      print('DEBUG: Chronicles data: $rows');
       
       // Get matched user IDs
       final matches = await SupabaseService.getMatches();
@@ -81,14 +81,14 @@ class StoriesController extends GetxController {
       for (final row in rows) {
         final storyUserId = (row['user_id'] ?? '').toString();
 
-        // Check if story is expired (runtime check)
+        // Check if chronicle is expired (runtime check)
         final expiresAt = DateTime.tryParse((row['expires_at'] ?? '').toString());
         if (expiresAt != null && expiresAt.isBefore(DateTime.now())) {
-          print('⏭️ DEBUG: Skipping expired story: ${row['id']} (expired at: $expiresAt)');
+          print('⏭️ DEBUG: Skipping expired chronicle: ${row['id']} (expired at: $expiresAt)');
           continue;
         }
 
-        // Only include stories from matched users or current user
+        // Only include chronicles from matched users or current user
         if (!matchedUserIds.contains(storyUserId)) continue;
 
         final profile = idToProfile[storyUserId];
@@ -197,7 +197,7 @@ class StoriesController extends GetxController {
         'expires_at': expiresAt,
       }).select().single();
       
-      // Track story posted analytics
+      // Track chronicle posted analytics
       await AnalyticsService.trackStoryPosted(
         result['id'].toString(),
         'image', // Assuming image for now
@@ -205,7 +205,7 @@ class StoriesController extends GetxController {
       
       await loadStories();
     } catch (e) {
-      print('Error adding story: $e');
+      print('Error adding chronicle: $e');
     }
   }
 
@@ -277,30 +277,30 @@ class StoriesController extends GetxController {
       await SupabaseService.client.from('stories').delete().eq('id', storyId);
       await loadStories();
     } catch (e) {
-      print('Error deleting story: $e');
+      print('Error deleting chronicle: $e');
     }
   }
 
   Future<void> _cleanupExpiredStories() async {
     try {
-      print('🔄 DEBUG: Cleaning up expired stories...');
+      print('🔄 DEBUG: Cleaning up expired chronicles...');
       final result = await SupabaseService.client
           .from('stories')
           .delete()
           .lt('expires_at', DateTime.now().toIso8601String());
       
-      print('✅ DEBUG: Cleaned up expired stories: $result');
+      print('✅ DEBUG: Cleaned up expired chronicles: $result');
     } catch (e) {
-      print('❌ DEBUG: Error cleaning up expired stories: $e');
+      print('❌ DEBUG: Error cleaning up expired chronicles: $e');
     }
   }
   
-  // Track story view
+  // Track chronicle view
   Future<void> trackStoryView(String storyId, String storyUserId) async {
     try {
       await AnalyticsService.trackStoryViewed(storyId, storyUserId);
     } catch (e) {
-      print('Error tracking story view: $e');
+      print('Error tracking chronicle view: $e');
     }
   }
 

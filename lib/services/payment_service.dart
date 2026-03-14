@@ -1,18 +1,21 @@
 import 'dart:convert';
 import 'dart:async';
+import 'package:flutter/material.dart';
 // import 'package:razorpay_flutter/razorpay_flutter.dart'; // COMMENTED OUT - SWITCHED TO CASHFREE
 import 'package:uuid/uuid.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
 import '../config/supabase_config.dart';
 import '../config/cashfree_config.dart';
 import 'analytics_service.dart';
+import '../Common/widget_constant.dart';
 
 class PaymentService {
   // static Razorpay? _razorpay; // COMMENTED OUT - SWITCHED TO CASHFREE
-  static const String _cashfreeAppId = CashfreeConfig.cashfreeAppId;
-  static const String _cashfreeSecretKey = CashfreeConfig.cashfreeSecretKey;
+  static String get _cashfreeAppId => CashfreeConfig.cashfreeAppId;
+  static String get _cashfreeSecretKey => CashfreeConfig.cashfreeSecretKey;
   static const String _environment = CashfreeConfig.environment;
   
   // Subscription plans with pricing
@@ -35,7 +38,34 @@ class PaymentService {
       'duration_months': 6,
       'description': 'Premium features for 6 months'
     }
+
   };
+
+  // Super Like Packages
+  // NOTE: Keys must match the DB CHECK constraint (payment_orders_plan_type_check)
+  // which allows: super_like_5, super_like_10, super_like_20
+  // Display names/counts can differ from the key names
+  static const Map<String, Map<String, dynamic>> superLikePackages = {
+    'super_like_5': {
+      'name': '3 Super Loves',
+      'price': 99,
+      'count': 3,
+      'description': 'Get 3 Super Loves to boost your profile'
+    },
+    'super_like_10': {
+      'name': '15 Super Loves',
+      'price': 179,
+      'count': 15,
+      'description': 'Popular Choice - 15 Super Loves'
+    },
+    'super_like_20': {
+      'name': '30 Super Loves',
+      'price': 299,
+      'count': 30,
+      'description': 'Best Value - 30 Super Loves'
+    }
+  };
+
 
   static Future<void> initialize() async {
     // Cashfree doesn't require initialization like Razorpay
@@ -52,38 +82,97 @@ class PaymentService {
     required String planType,
     required String userEmail,
     required String userName,
+    String? userPhone,
   }) async {
-    final plan = subscriptionPlans[planType];
+    // Ensure we have strings and no nulls from dynamic callers
+    final String cleanPlanType = planType.trim();
+    final String safeUserName = userName.isEmpty ? 'User' : userName;
+    final String safeUserEmail = userEmail.isEmpty ? '' : userEmail;
+    
+    print('💰 initiatePayment called for planType: "$cleanPlanType"');
+    
+    final plan = (subscriptionPlans[cleanPlanType] ?? superLikePackages[cleanPlanType]) as Map<String, dynamic>?;
+    
     if (plan == null) {
-      Get.snackbar('Error', 'Invalid subscription plan');
+      print('❌ Invalid planType: "$cleanPlanType". Available keys: ${[...subscriptionPlans.keys, ...superLikePackages.keys]}');
+      showCustomSnackBar(title: 'error'.tr, message: 'invalid_package_or_plan_selected'.tr, isError: true);
       return;
     }
 
-    final orderId = const Uuid().v4();
-    final amount = (plan['price'] as int) * 100; // Convert rupees to paise for Cashfree (₹1,500 = 150,000 paise)
-    final description = plan['description'] as String;
+    // Use a plain UUID to support databases that expect UUID types and avoid "Invalid Session"
+    // Using a new UUID for every attempt ensures uniqueness
+    // Use a simpler order ID format as recommended for sandbox
+    final String orderId = "order_${DateTime.now().millisecondsSinceEpoch}";
+    final double amount = (plan['price'] as num?)?.toDouble() ?? 0.0;
+    final String description = plan['description']?.toString() ?? 'Purchase of $cleanPlanType';
+
 
     try {
+      // Get current user ID
+      final user = Supabase.instance.client.auth.currentUser;
+      final String userId = user?.id ?? 'guest_${const Uuid().v4().substring(0, 8)}';
+
       // Create order in Supabase first
       await _createOrderRecord(orderId, planType, amount, userEmail);
+
+      // Check if phone number is available
+      String? rawPhone = userPhone ?? user?.phone;
+      
+      // If phone is missing, try to fetch from profile
+      if (rawPhone == null || rawPhone.isEmpty || rawPhone == '0000000000' || rawPhone == '9999999999') {
+        try {
+          final profile = await Supabase.instance.client
+              .from('profiles')
+              .select('phone')
+              .eq('id', user?.id ?? '')
+              .single();
+          rawPhone = profile['phone']?.toString();
+        } catch (e) {
+          print('Could not fetch phone from profile: $e');
+        }
+      }
+
+      // Fallback to a valid-looking dummy number if phone is missing or clearly invalid (000/999)
+      // This ensures payments are never blocked by missing profile info.
+      if (rawPhone == null || rawPhone.isEmpty || rawPhone == '0000000000' || rawPhone == '9999999999') {
+        print('⚠️ Phone missing or dummy, using fallback: 9876543210');
+        rawPhone = '9876543210';
+      }
+
+      // Sanitize phone number to contain only digits (Cashfree requirement)
+      String sanitizedPhone = rawPhone.replaceAll(RegExp(r'\D'), '');
+      
+      // If still invalid after sanitization, use fallback
+      if (sanitizedPhone.length < 10) {
+        print('⚠️ Sanitized phone too short (${sanitizedPhone.length}), using fallback: 9876543210');
+        sanitizedPhone = '9876543210';
+      }
+      
+      // Ensure it has exactly 10 digits
+      final String finalPhone = sanitizedPhone.length >= 10 
+          ? sanitizedPhone.substring(sanitizedPhone.length - 10) 
+          : sanitizedPhone;
 
       // Create Cashfree payment session
       await _createCashfreePaymentSession(
         orderId: orderId,
         amount: amount,
-        userEmail: userEmail,
-        userName: userName,
+        userId: userId,
+        userEmail: safeUserEmail,
+        userName: safeUserName,
+        userPhone: finalPhone,
         description: description,
       );
     } catch (e) {
-      Get.snackbar('Error', 'Failed to initiate payment: $e');
+      print('❌ Error in initiatePayment: $e');
+      showCustomSnackBar(title: 'error'.tr, message: '${'failed_to_initiate_payment'.tr}: ${e.toString()}', isError: true);
     }
   }
 
   static Future<void> _createOrderRecord(
     String orderId,
     String planType,
-    int amount,
+    double amount,
     String userEmail,
   ) async {
     try {
@@ -125,22 +214,26 @@ class PaymentService {
         'order_id': orderId,
         'user_id': userId,
         'plan_type': planType,
-        'amount': amount,
+        'amount': amount.toInt(),
         'status': 'pending',
         'user_email': userEmail,
         'created_at': DateTime.now().toIso8601String(),
       });
     } catch (e) {
       print('Error creating order record: $e');
+      // CRITICAL: rethrow so the caller knows the DB insert failed
+      rethrow;
     }
   }
 
   // CASHFREE PAYMENT SESSION CREATION
   static Future<void> _createCashfreePaymentSession({
     required String orderId,
-    required int amount,
+    required double amount,
+    required String userId,
     required String userEmail,
     required String userName,
+    required String userPhone,
     required String description,
   }) async {
     try {
@@ -148,83 +241,344 @@ class PaymentService {
           ? 'https://sandbox.cashfree.com/pg' 
           : 'https://api.cashfree.com/pg';
       
+      // GET THE ABSOLUTE MINIMAL AND CLEANEST REQUEST BODY POSSIBLE
+      // Avoid any dynamic text in order_meta or order_note that could bleed
       final requestBody = {
         'order_id': orderId,
-        'order_amount': amount.round(), // Amount is already in paise
+        'order_amount': amount,
         'order_currency': 'INR',
         'customer_details': {
-          'customer_id': userEmail,
+          'customer_id': userId,
           'customer_name': userName,
           'customer_email': userEmail,
+          'customer_phone': userPhone,
         },
         'order_meta': {
-          'return_url': 'https://your-domain.com/payment/success',
-          // 'notify_url': CashfreeConfig.webhookUrl, // Disabled - using direct verification
+          // STRICT: Only the URL, no parameters, no placeholders
+          'return_url': 'https://lovebug.live/payment-result',
         },
-        'order_note': description,
+        'order_note': 'Upgrade', // Use a simple static string
       };
 
-      final response = await http.post(
-        Uri.parse('$baseUrl/orders'),
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-version': '2023-08-01',
-          'x-client-id': _cashfreeAppId,
-          'x-client-secret': _cashfreeSecretKey,
-        },
-        body: jsonEncode(requestBody),
-      );
+      print('📦 Cashfree CLEAN request body: ${jsonEncode(requestBody)}');
 
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
-        final paymentUrl = responseData['payment_link'];
-        
-        // Open payment URL in browser or webview
-        await _openPaymentUrl(paymentUrl);
-      } else {
-        throw Exception('Failed to create payment session: ${response.body}');
-      }
+      final response = await http.post(
+          Uri.parse('$baseUrl/orders'),
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-version': '2023-08-01',
+            'x-client-id': _cashfreeAppId,
+            'x-client-secret': _cashfreeSecretKey,
+          },
+          body: jsonEncode(requestBody),
+        );
+
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          final responseData = jsonDecode(response.body);
+          print('✅ Cashfree Order Created! Response: ${jsonEncode(responseData)}');
+          
+          String? paymentUrl;
+          final rawSessionId = responseData['payment_session_id']?.toString();
+          
+          // Debug logs for session ID validation
+          print('🔍 Received raw session_id: $rawSessionId');
+          
+          String? cleanSessionId = rawSessionId;
+          if (cleanSessionId != null && cleanSessionId.contains('payment')) {
+            print('⚠️ Sanitizing corrupted sessionId: $cleanSessionId');
+            // Remove everything from the first occurrence of "payment" to be safe
+            cleanSessionId = cleanSessionId.split('payment').first;
+            print('✨ Cleaned sessionId: $cleanSessionId');
+          }
+
+          // Use direct payments.url if available (recommended by user)
+          paymentUrl = responseData['payments']?['url'] ?? 
+                      responseData['payment_link'];
+
+          if (_environment == 'sandbox') {
+             // If direct URL is missing, construct from cleanSessionId
+             if (paymentUrl == null && cleanSessionId != null) {
+                paymentUrl = 'https://payments-test.cashfree.com/order/#$cleanSessionId';
+                print('🔗 Sandbox Mode: Constructed test checkout URL from cleanSessionId: $paymentUrl');
+             } else {
+                print('🔗 Sandbox Mode: Using direct checkout URL: $paymentUrl');
+             }
+          } else {
+            // Production fallback
+            if (paymentUrl == null && cleanSessionId != null) {
+              paymentUrl = 'https://payments.cashfree.com/order/#$cleanSessionId';
+            }
+            print('🔗 Production Mode: Checkout URL: $paymentUrl');
+          }
+          
+          if (paymentUrl != null) {
+            if (cleanSessionId != null) {
+               // CRITICAL: Always store the CLEANED session ID to avoid "Client session invalid"
+               await _updateOrderSessionId(orderId, cleanSessionId);
+               print('💾 Stored cleaned payment_session_id in DB: $cleanSessionId');
+            }
+            await _openPaymentUrl(paymentUrl, orderId);
+          } else {
+            print('❌ Could not find or construct payment URL from response: $responseData');
+            throw Exception('Payment URL not found in Cashfree response');
+          }
+        } else {
+          print('❌ Cashfree Error Response: ${response.body}');
+          throw Exception('Failed to create payment session: ${response.body}');
+        }
     } catch (e) {
       print('Error creating Cashfree payment session: $e');
       rethrow;
     }
   }
 
-  static Future<void> _openPaymentUrl(String paymentUrl) async {
-    // This would typically open a webview or browser
-    print('Payment URL: $paymentUrl');
-    Get.snackbar('Payment', 'Redirecting to payment page...');
+  // Track the current active payment polling timer so we can cancel it
+  static Timer? _paymentPollingTimer;
+  static String? _currentPaymentOrderId;
+  static String? _currentPaymentPlanType;
+
+  static Future<void> _openPaymentUrl(String? paymentUrl, String orderId) async {
+    if (paymentUrl == null || paymentUrl.isEmpty) {
+      print('❌ Cannot open null or empty payment URL');
+      showCustomSnackBar(title: 'error'.tr, message: 'invalid_payment_url_received'.tr, isError: true);
+      return;
+    }
     
-    // In a real implementation, you would:
-    // 1. Open a webview with the payment URL
-    // 2. Handle the return URL to verify payment
-    // 3. Update order status based on payment result
+    print('Opening Payment URL: $paymentUrl');
+    showCustomSnackBar(title: 'payment'.tr, message: 'opening_payment_page'.tr);
     
-    // For now, start polling for payment status
-    _startPaymentPolling(paymentUrl);
+    try {
+      final Uri url = Uri.parse(paymentUrl);
+      if (await canLaunchUrl(url)) {
+        // CRITICAL: Use external application (system browser) for Cashfree checkout
+        // In-app browsers often fail session validation
+        await launchUrl(
+          url,
+          mode: LaunchMode.externalApplication,
+        );
+      } else {
+        print('❌ Could not launch URL: $paymentUrl');
+        throw Exception('Could not launch payment URL');
+      }
+    } catch (e) {
+      print('Error launching payment URL: $e');
+      showCustomSnackBar(title: 'error'.tr, message: 'failed_to_open_payment_page'.tr, isError: true);
+    }
+    
+    // Start polling for payment status with the actual orderId
+    _startPaymentPolling(orderId);
   }
 
-  static void _startPaymentPolling(String paymentUrl) {
-    // Start polling for payment status
-    Timer.periodic(const Duration(seconds: 10), (timer) async {
+  static void _startPaymentPolling(String orderId) {
+    // Cancel any previous polling timer
+    _paymentPollingTimer?.cancel();
+    _currentPaymentOrderId = orderId;
+    
+    // Look up the plan type from the pending order
+    _getCurrentPlanType(orderId);
+    
+    print('💰 Starting payment verification polling for order: $orderId');
+    
+    // Poll every 5 seconds for payment status
+    _paymentPollingTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
       try {
-        // Get the order ID from the payment URL or store it somewhere
-        // This is a simplified approach - in production you'd store the order ID
-        print('Polling payment status...');
+        print('🔄 Polling payment status for order: $orderId (tick ${timer.tick})...');
         
-        // You would implement payment verification here
-        // For now, we'll just show a message
-        Get.snackbar('Payment', 'Please complete payment in the browser and return to the app');
+        // Verify payment with Cashfree API
+        final isPaid = await _verifyCashfreePayment(orderId);
         
-        // Stop polling after 5 minutes
-        if (timer.tick >= 30) {
+        if (isPaid) {
+          // ✅ Payment confirmed!
           timer.cancel();
-          Get.snackbar('Payment', 'Payment timeout - please try again');
+          _paymentPollingTimer = null;
+          print('✅ Payment CONFIRMED for order: $orderId');
+          
+          // Update order status in database
+          await _updateOrderStatus(orderId, 'paid', orderId);
+          
+          // Activate the subscription/package
+          await _activateSubscription(orderId);
+          
+          // Track payment success
+          final planType = _currentPaymentPlanType ?? 'unknown';
+          await _trackPaymentSuccess(orderId, planType);
+          
+          // Show success message
+          showCustomSnackBar(
+            title: 'payment_successful'.tr,
+            message: 'premium_features_active_message'.tr,
+          );
+          return;
+        }
+        
+        // Check if payment failed by querying full order status
+        final orderStatus = await _getOrderStatus(orderId);
+        if (orderStatus == 'EXPIRED' || orderStatus == 'TERMINATED') {
+          timer.cancel();
+          _paymentPollingTimer = null;
+          print('❌ Payment FAILED/EXPIRED for order: $orderId (status: $orderStatus)');
+          await _updateOrderStatus(orderId, 'failed', null);
+          showCustomSnackBar(
+            title: 'payment_failed'.tr,
+            message: 'payment_session_expired_message'.tr,
+            isError: true,
+          );
+          return;
+        }
+        
+        // Stop polling after 5 minutes (60 ticks × 5 seconds)
+        if (timer.tick >= 60) {
+          timer.cancel();
+          _paymentPollingTimer = null;
+          print('⏰ Payment polling TIMEOUT for order: $orderId');
+          await _updateOrderStatus(orderId, 'timeout', null);
+          showCustomSnackBar(
+            title: 'payment_timeout'.tr,
+            message: 'payment_verification_timeout_message'.tr,
+            isError: true,
+          );
         }
       } catch (e) {
-        print('Error polling payment: $e');
+        print('Error polling payment status: $e');
       }
     });
+  }
+
+  /// Get the full order status string from Cashfree
+  static Future<String?> _getOrderStatus(String orderId) async {
+    try {
+      final baseUrl = _environment == 'sandbox'
+          ? 'https://sandbox.cashfree.com/pg'
+          : 'https://api.cashfree.com/pg';
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/orders/$orderId'),
+        headers: {
+          'x-api-version': '2023-08-01',
+          'x-client-id': _cashfreeAppId,
+          'x-client-secret': _cashfreeSecretKey,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        return responseData['order_status'] as String?;
+      }
+      return null;
+    } catch (e) {
+      print('Error getting order status: $e');
+      return null;
+    }
+  }
+
+  /// Look up the plan type for the given order from DB
+  static Future<void> _getCurrentPlanType(String orderId) async {
+    try {
+      final row = await Supabase.instance.client
+          .from('payment_orders')
+          .select('plan_type')
+          .eq('order_id', orderId)
+          .maybeSingle();
+      _currentPaymentPlanType = row?['plan_type'] as String?;
+    } catch (e) {
+      print('Error getting plan type: $e');
+    }
+  }
+
+  /// Activate subscription after confirmed payment
+  static Future<void> _activateSubscription(String orderId) async {
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) return;
+
+      // Get the order details
+      final orderRow = await Supabase.instance.client
+          .from('payment_orders')
+          .select('plan_type, amount')
+          .eq('order_id', orderId)
+          .maybeSingle();
+
+      if (orderRow == null) {
+        print('❌ Order not found for activation: $orderId');
+        return;
+      }
+
+      final planType = orderRow['plan_type'] as String? ?? '';
+      
+      // Check if this is a super like package
+      if (superLikePackages.containsKey(planType)) {
+        final package = superLikePackages[planType]!;
+        final count = package['count'] as int? ?? 0;
+        
+        // Add super likes to user
+        try {
+          await Supabase.instance.client.rpc('add_super_likes', params: {
+            'p_user_id': userId,
+            'p_count': count,
+          });
+          print('✅ Added $count super likes for user: $userId');
+        } catch (e) {
+          print('⚠️ Error adding super likes via RPC: $e');
+          // Fallback: update directly
+          try {
+            final profile = await Supabase.instance.client
+                .from('profiles')
+                .select('super_likes_count')
+                .eq('id', userId)
+                .maybeSingle();
+            final currentCount = (profile?['super_likes_count'] as int?) ?? 0;
+            await Supabase.instance.client
+                .from('profiles')
+                .update({'super_likes_count': currentCount + count})
+                .eq('id', userId);
+            print('✅ Fallback: Added $count super likes for user: $userId');
+          } catch (fallbackError) {
+            print('❌ Fallback super likes update failed: $fallbackError');
+          }
+        }
+        return;
+      }
+
+      // This is a subscription plan
+      final plan = subscriptionPlans[planType];
+      if (plan == null) {
+        print('❌ Unknown plan type: $planType');
+        return;
+      }
+
+      final durationMonths = plan['duration_months'] as int? ?? 1;
+      final now = DateTime.now();
+      final endDate = DateTime(now.year, now.month + durationMonths, now.day);
+
+      // Insert/update subscription record
+      try {
+        await Supabase.instance.client.from('user_subscriptions').upsert({
+          'user_id': userId,
+          'plan_type': planType,
+          'start_date': now.toIso8601String(),
+          'end_date': endDate.toIso8601String(),
+          'status': 'active',
+          'payment_order_id': orderId,
+          'updated_at': now.toIso8601String(),
+        }, onConflict: 'user_id');
+        print('✅ Subscription activated: $planType until ${endDate.toIso8601String()}');
+      } catch (e) {
+        print('⚠️ Error upserting subscription: $e');
+      }
+
+      // Update profile is_premium flag
+      try {
+        await Supabase.instance.client
+            .from('profiles')
+            .update({'is_premium': true})
+            .eq('id', userId);
+        print('✅ Profile is_premium set to true');
+      } catch (e) {
+        print('⚠️ Error updating is_premium: $e');
+      }
+    } catch (e) {
+      print('❌ Error activating subscription: $e');
+    }
   }
 
   // CASHFREE PAYMENT VERIFICATION
@@ -284,6 +638,21 @@ class PaymentService {
     }
   }
 
+  static Future<void> _updateOrderSessionId(
+    String orderId,
+    String sessionId,
+  ) async {
+    try {
+      await Supabase.instance.client.from('payment_orders').update({
+        'payment_session_id': sessionId,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('order_id', orderId);
+    } catch (e) {
+      print('Error updating order session ID: $e');
+      // This might fail if the column doesn't exist yet, we'll log it but not crash
+    }
+  }
+
   static Future<void> _updateOrderStatus(
     String orderId,
     String status,
@@ -303,11 +672,12 @@ class PaymentService {
 
   static Future<void> _trackPaymentSuccess(String orderId, String planId) async {
     try {
-      // Get plan details
-      final plan = subscriptionPlans[planId];
+      // Get plan details from either subscriptions or super likes
+      final plan = subscriptionPlans[planId] ?? superLikePackages[planId];
       if (plan == null) return;
       
-      // Track payment success in analytics
+      final String planName = plan['name']?.toString() ?? 'Package';
+      final double amount = (plan['price'] as num?)?.toDouble() ?? 0.0;
       await Supabase.instance.client.from('user_events').insert({
         'event_type': 'payment_success',
         'event_data': {
@@ -317,11 +687,11 @@ class PaymentService {
         'user_id': Supabase.instance.client.auth.currentUser?.id,
       });
       
-      // Track subscription purchase for UAC
+      // Track subscription/package purchase for UAC
       await AnalyticsService.trackSubscriptionPurchased(
         subscriptionId: orderId,
-        planName: plan['name'],
-        price: plan['price'].toDouble(),
+        planName: planName,
+        price: amount,
         currency: 'INR',
         paymentMethod: 'cashfree',
       );
@@ -397,13 +767,13 @@ class PaymentService {
       });
       
       if (response == true) {
-        Get.snackbar('Success', 'Subscription cancelled successfully');
+        showCustomSnackBar(title: 'success'.tr, message: 'subscription_cancelled_successfully'.tr);
       } else {
-        Get.snackbar('Error', 'No active subscription found to cancel');
+        showCustomSnackBar(title: 'error'.tr, message: 'no_active_subscription_found_to_cancel'.tr, isError: true);
       }
     } catch (e) {
       print('Error cancelling subscription: $e');
-      Get.snackbar('Error', 'Failed to cancel subscription');
+      showCustomSnackBar(title: 'error'.tr, message: 'failed_to_cancel_subscription'.tr, isError: true);
     }
   }
 }
