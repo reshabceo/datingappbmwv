@@ -345,6 +345,7 @@ export default function App() {
                 <Route path="/privacy-policy" element={<PrivacyPolicy />} />
                 <Route path="/terms-of-service" element={<TermsOfService />} />
                 <Route path="/refund-policy" element={<RefundPolicy />} />
+                <Route path="/child-safety-policy" element={<CSAEPolicy />} />
                 <Route path="/careers" element={<Careers />} />
                 <Route path="/press" element={<Press />} />
                 <Route path="/blog" element={<Blog />} />

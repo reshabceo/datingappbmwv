@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:lovebug/services/notification_clearing_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:lovebug/Common/widget_constant.dart';
 import 'package:lovebug/ThemeController/theme_controller.dart';
 import 'supabase_service.dart';
 import 'notification_service.dart';
@@ -854,12 +855,7 @@ class CallListenerService {
       }
     } catch (e) {
       print('❌ Error accepting call: $e');
-      Get.snackbar(
-        'Error',
-        'Failed to accept call: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      showCustomSnackBar(title: 'error'.tr, message: '${'failed_to_accept_call'.tr}: $e', isError: true);
     }
   }
 

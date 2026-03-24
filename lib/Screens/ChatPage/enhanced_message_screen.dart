@@ -1332,6 +1332,8 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> with Widg
                       !isLoadingZodiac &&
                       otherUserZodiac != null &&
                       otherUserZodiac != 'unknown';
+                  
+                  print('👀 showAstro: $showAstro (visible: $astroVisible, loadingZodiac: $isLoadingZodiac, otherZodiac: $otherUserZodiac)');
                   final hasAnyMessages =
                       controller.messages.isNotEmpty || controller.audioMessages.isNotEmpty;
 
@@ -1345,7 +1347,7 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> with Widg
                           otherUserName: widget.userName ?? '',
                           otherUserZodiac: otherUserZodiac!,
                           visible: true,
-                          autoGenerateIfMissing: false,
+                          autoGenerateIfMissing: true,
                         ),
                       Center(
                           child: Container(
@@ -1398,6 +1400,7 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> with Widg
                   );
                   }
 
+              print('👀 (Message List) showAstro: $showAstro');
               return Column(
                 children: [
                   if (showAstro)
@@ -1406,25 +1409,13 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> with Widg
                       otherUserName: widget.userName ?? '',
                       otherUserZodiac: otherUserZodiac!,
                       visible: true,
-                      autoGenerateIfMissing: false,
+                      autoGenerateIfMissing: true,
                     ),
                   Expanded(
                         child: Obx(() {
                           // Access selectedMessageKeys to make Obx reactive to selection changes
                           final _ = controller.selectedMessageKeys.length;
                           
-                          print(
-                              '🔊 DEBUG: Obx rebuilding - allSortedMessages count: ${controller.allSortedMessages.length}');
-                      print('🔍 DEBUG: UI Display Order:');
-                      for (int i = 0; i < controller.allSortedMessages.length; i++) {
-                            final item = controller.allSortedMessages[i];
-                            if (item is Message) {
-                              print('  $i: TEXT "${item.text}" at ${item.timestamp}');
-                            } else if (item is AudioMessage) {
-                              print('  $i: AUDIO at ${item.createdAt}');
-                            }
-                          }
-
                           final isSelectionMode = controller.isSelectionMode.value;
                       
                       return ListView.builder(
@@ -1989,6 +1980,7 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> with Widg
     } else if (_astroButtonState == AstroCompatibilityButtonState.show) {
       // Hide insights
       print('DEBUG: Hiding astro insights');
+      if (!mounted) return;
       setState(() {
         _astroButtonState = AstroCompatibilityButtonState.hide;
         astroVisible = false;
@@ -1996,6 +1988,7 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> with Widg
     } else if (_astroButtonState == AstroCompatibilityButtonState.hide) {
       // Show insights again
       print('DEBUG: Showing astro insights');
+      if (!mounted) return;
       setState(() {
         _astroButtonState = AstroCompatibilityButtonState.show;
         astroVisible = true;
@@ -2010,12 +2003,14 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> with Widg
         );
         print('DEBUG: Regenerate response: $response');
         
+        if (!mounted) return;
         setState(() {
           _astroButtonState = AstroCompatibilityButtonState.show;
           astroVisible = true;
         });
       } catch (e) {
         print('DEBUG: Error regenerating astro insights: $e');
+        if (!mounted) return;
         Get.snackbar('Error', 'Failed to regenerate astro compatibility: $e');
       }
     }
@@ -2036,6 +2031,7 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> with Widg
         
         if (now.isBefore(expiresAt)) {
           // Valid insights exist - start hidden, first click will show
+          if (!mounted) return;
           setState(() {
             _astroButtonState = AstroCompatibilityButtonState.hide;
             astroVisible = false; // Start hidden

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:lovebug/services/supabase_service.dart';
+import 'package:lovebug/services/astro_service.dart' as astro;
 import 'package:lovebug/ThemeController/theme_controller.dart';
 
 class AstroCompatibilityWidget extends StatefulWidget {
@@ -39,6 +40,7 @@ class _AstroCompatibilityWidgetState extends State<AstroCompatibilityWidget> {
 
   Future<void> loadMatchEnhancements() async {
     try {
+      if (!mounted) return;
       setState(() {
         isLoading = true;
         hasError = false;
@@ -51,12 +53,18 @@ class _AstroCompatibilityWidgetState extends State<AstroCompatibilityWidget> {
           .eq('match_id', widget.matchId)
           .maybeSingle();
 
+      if (!mounted) return;
+
       if (existing != null && 
           existing['expires_at'] != null && 
           DateTime.parse(existing['expires_at']).isAfter(DateTime.now())) {
         // Also check if any ice breaker was already used for this match
         await _checkIceBreakerUsage();
+        if (!mounted) return;
+        if (!mounted) return;
+        if (!mounted) return;
         setState(() {
+          print('🔍 Using existing match enhancements from DB');
           matchEnhancements = existing;
           isLoading = false;
         });
@@ -66,13 +74,16 @@ class _AstroCompatibilityWidgetState extends State<AstroCompatibilityWidget> {
       // Do not auto-generate unless enabled
       if (widget.autoGenerateIfMissing) {
         await generateEnhancements();
+        if (!mounted) return;
       } else {
+        if (!mounted) return;
         setState(() {
           isLoading = false;
         });
       }
     } catch (e) {
       print('Error loading match enhancements: $e');
+      if (!mounted) return;
       setState(() {
         hasError = true;
         isLoading = false;
@@ -96,45 +107,84 @@ class _AstroCompatibilityWidgetState extends State<AstroCompatibilityWidget> {
           .select('id')
           .eq('match_id', widget.matchId)
           .limit(1);
+      if (!mounted) return;
+      if (!mounted) return;
       setState(() {
         iceBreakersUsed = (rows as List).isNotEmpty;
       });
     } catch (_) {
+      if (!mounted) return;
       setState(() {
         iceBreakersUsed = false;
       });
     }
   }
 
+  String? errorMessage;
+
   Future<void> generateEnhancements() async {
     try {
-      final response = await SupabaseService.client.functions.invoke(
-        'generate-match-insights',
-        body: {'match_id': widget.matchId},
-      );
-      
-      final data = response.data;
+      if (!mounted) return;
+      setState(() {
+        isLoading = true;
+        hasError = false;
+        errorMessage = null;
+      });
+
+      // 🔍 Better reliability: Use AstroService which validates via RPC first if possible
+      final data = await astro.AstroService.generateMatchInsights(widget.matchId);
+      if (!mounted) return;
 
       if (data != null && data['success'] == true) {
-        // Reload the data from database
-        final updated = await SupabaseService.client
-            .from('match_enhancements')
-            .select('*')
-            .eq('match_id', widget.matchId)
-            .maybeSingle();
+        // Build the enhancements object from the API response immediately
+        // to avoid waiting for DB replication
+        final enhancements = {
+          'match_id': widget.matchId,
+          'astro_compatibility': data['astro_compatibility'],
+          'ice_breakers': data['ice_breakers'],
+          'created_at': DateTime.now().toIso8601String(),
+        };
 
+        if (!mounted) return;
         setState(() {
-          matchEnhancements = updated;
+          print('✅ Astro insights set in state: ${enhancements['match_id']}');
+          print('🔍 astro_compatibility data: ${enhancements['astro_compatibility']}');
+          matchEnhancements = enhancements;
           isLoading = false;
         });
       } else {
-        throw Exception('Failed to generate enhancements');
+        final error = data?['error']?.toString() ?? 'Failed to generate enhancements';
+        print('Error generating enhancements: $error');
+        if (!mounted) return;
+        setState(() {
+          hasError = true;
+          isLoading = false;
+          
+          // Specialized messages for known errors
+          if (error.contains('failed_to_fetch_matched_data') || 
+              error.contains('Match data not found') || 
+              error.contains('Match not found')) {
+            errorMessage = 'Could not find profile details for this match.';
+          } else if (error.contains('missing_zodiac_data') || error.contains('zodiac_sign is unknown')) {
+            errorMessage = 'One or both profiles are missing a zodiac sign. Please set yours in profile settings.';
+          } else if (error.contains('Match session not found')) {
+            errorMessage = 'This match session is no longer active.';
+          } else if (error.contains('OpenAI API key not configured') || error.contains('API key not found')) {
+            errorMessage = 'OpenAI key missing in Supabase. Please set OPENAI_API_KEY in Supabase secrets.';
+          } else if (error.contains('OpenAI API call failed')) {
+            errorMessage = 'AI service failed. Please check your OpenAI key and balance in Supabase.';
+          } else {
+            errorMessage = 'The stars are shy today ($error). Please try again later.';
+          }
+        });
       }
     } catch (e) {
       print('Error generating enhancements: $e');
+      if (!mounted) return;
       setState(() {
         hasError = true;
         isLoading = false;
+        errorMessage = 'Something went wrong while connecting with the stars: $e';
       });
     }
   }
@@ -150,6 +200,7 @@ class _AstroCompatibilityWidgetState extends State<AstroCompatibilityWidget> {
 
   @override
   Widget build(BuildContext context) {
+    print('🎨 AstroCompatibilityWidget.build: visible=${widget.visible}, isLoading=$isLoading, hasError=$hasError');
     if (!widget.visible) return SizedBox.shrink();
     if (isLoading) {
       return Container(
@@ -212,7 +263,7 @@ class _AstroCompatibilityWidgetState extends State<AstroCompatibilityWidget> {
             SizedBox(width: 12.w),
             Expanded(
               child: Text(
-                'Unable to load compatibility insights',
+                errorMessage ?? 'Unable to load compatibility insights',
                 style: TextStyle(
                   color: themeController.isDarkMode.value 
                       ? Colors.white 
@@ -242,15 +293,26 @@ class _AstroCompatibilityWidgetState extends State<AstroCompatibilityWidget> {
 
     final astroData = matchEnhancements!['astro_compatibility'] as Map<String, dynamic>?;
     final iceBreakers = matchEnhancements!['ice_breakers'] as List<dynamic>?;
+    
+    print('🎨 AstroContributionWidget.build: astroData is ${astroData == null ? "NULL" : "PRESENT"}');
+    if (astroData != null) {
+      print('🎨 astroData keys: ${astroData.keys.toList()}');
+    }
 
     return Container(
       margin: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
-      child: Column(
-        children: [
-          // Astrological Compatibility Card ONLY
-          if (astroData != null) _buildCompatibilityCard(astroData),
-          // REMOVED: Ice Breakers Card - conversation starters should not appear in astro panel
-        ],
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.4, // Max 40% of screen height
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Astrological Compatibility Card ONLY
+            if (astroData != null) _buildCompatibilityCard(astroData),
+            // REMOVED: Ice Breakers Card - conversation starters should not appear in astro panel
+          ],
+        ),
       ),
     );
   }

@@ -147,14 +147,42 @@ class AstroService {
   /// Generate match insights using the edge function
   static Future<Map<String, dynamic>?> generateMatchInsights(String matchId) async {
     try {
+      print('🔍 DEBUG: AstroService.generateMatchInsights for match: $matchId');
+      
+      // 1. Pre-validation check - ensures we don't waste API calls if database RPC will fail
       final response = await SupabaseService.client.functions.invoke(
         'generate-match-insights',
         body: {'match_id': matchId},
       );
-      return response.data;
+      
+      final data = response.data;
+      if (data != null) {
+        if (data['success'] == true) {
+          print('✅ Astrology generation successful. Keys: ${data.keys.toList()}');
+          
+          // Map camelCase to snake_case for backward compatibility
+          if (data.containsKey('astroCompatibility') && !data.containsKey('astro_compatibility')) {
+            data['astro_compatibility'] = data['astroCompatibility'];
+          }
+          if (data.containsKey('iceBreakers') && !data.containsKey('ice_breakers')) {
+            data['ice_breakers'] = data['iceBreakers'];
+          }
+          if (data.containsKey('matchId') && !data.containsKey('match_id')) {
+            data['match_id'] = data['matchId'];
+          }
+          
+          return data;
+        }
+ else {
+          print('❌ Astrology generation failed: ${data['error']}');
+          return data;
+        }
+      }
+      
+      return {'success': false, 'error': 'empty_response'};
     } catch (e) {
-      print('Exception generating match insights: $e');
-      return null;
+      print('❌ Exception generating match insights: $e');
+      return {'success': false, 'error': e.toString()};
     }
   }
 

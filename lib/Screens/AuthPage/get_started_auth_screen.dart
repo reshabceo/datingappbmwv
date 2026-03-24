@@ -159,7 +159,7 @@ class GetStartedAuthScreen extends StatelessWidget {
                       final email = emailController.text.trim();
                       print('Email entered: $email');
                       if (email.isEmpty) {
-                        Get.snackbar('Error', 'Please enter your email');
+                        showCustomSnackBar(title: 'error'.tr, message: 'please_enter_your_email'.tr, isError: true);
                         return;
                       }
                       

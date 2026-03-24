@@ -21,6 +21,7 @@ import 'package:lovebug/services/rewind_service.dart';
 import 'package:lovebug/services/premium_message_service.dart';
 import 'package:lovebug/Screens/SubscriptionPage/ui_subscription_screen.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class DiscoverScreen extends StatefulWidget {
   DiscoverScreen({super.key});
@@ -70,7 +71,22 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               child: SingleChildScrollView(
                 child: Column(
                   children: [
-                    heightBox(135),
+                    Obx(() {
+                      final isBff = controller.currentMode.value == 'bff';
+                      // Consistent spacing to keep card position the same even without top icons
+                      return Column(
+                        children: [
+                          // If dating mode (not isBff) is perfect at 55.h,
+                          // we need to move BFF mode down to compensate for the missing top icons.
+                          heightBox(isBff ? 100.h.toInt() : 55.h.toInt()), 
+                          if (!isBff) ...[
+                            _buildTopHorizontalActions(),
+                            SizedBox(height: 2.h),
+                          ],
+                          if (isBff) SizedBox(height: 2.h),
+                        ],
+                      );
+                    }),
                     Obx(() {
                       final count = controller.profiles.length;
                       final isLoading = controller.isPreloading.value;
@@ -132,17 +148,152 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
                       return _buildCardSwiper(count);
                     }),
-                    heightBox(20),
+                    _buildActionButtonsOverlay(), // Moved inside the Column for natural flow
+                    SizedBox(height: 50.h), // Space at bottom to avoid bottom navigation bar
                   ],
                 ),
               ),
             ),
-            _buildNameOverlay(),
-            _buildActionButtonsOverlay(),
+            // Name overlay removed as it's now inside the card
+            // _buildActionButtonsOverlay() // Removed from here
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildTopHorizontalActions() {
+    return Obx(() {
+      // Hide top actions in BFF mode as requested
+      if (controller.currentMode.value == 'bff') {
+        return const SizedBox.shrink();
+      }
+      
+      // Show these only for profiles and not initially loading
+      if (controller.profiles.isEmpty || controller.isInitialLoading.value) {
+        return const SizedBox.shrink();
+      }
+      
+      // Both Dating and BFF modes now show top actions for consistency with the design image
+      // Note: Top actions: Back, Super Like, Message
+      final purpleColor = const Color(0xFFC850C0);
+
+      return Padding(
+        padding: EdgeInsets.symmetric(horizontal: 40.w),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _buildTopPurpleIcon(
+              icon: FontAwesomeIcons.backward,
+              onTap: () async {
+                final isPremium = await SupabaseService.isPremiumUser();
+                if (!isPremium) {
+                  RewindService.showRewindUpgradeDialog();
+                  return;
+                }
+                RewindService.showRewindDialog(
+                  onRewind: () async {
+                    final result = await RewindService.performRewind();
+                    if (result['success'] == true) {
+                      controller.undoLastSwipe();
+                      Get.snackbar('Rewind', 'Profile restored!', duration: const Duration(seconds: 1));
+                    }
+                  },
+                  onUpgrade: () => Get.to(() => SubscriptionScreen()),
+                );
+              },
+            ),
+            _buildTopPurpleIcon(
+              icon: FontAwesomeIcons.faceGrinStars, // Excited face
+              onTap: () async {
+                final usage = await SupabaseService.getDailyUsage();
+                final used = usage['super_likes_used'] ?? 0;
+                if ((1 - used) > 0) {
+                  _swiperController.swipe(CardSwiperDirection.top);
+                  return;
+                }
+                if (!_superLikeUpgradeShown) {
+                  _superLikeUpgradeShown = true;
+                  Get.dialog(Dialog(
+                    backgroundColor: Colors.transparent,
+                    insetPadding: EdgeInsets.zero,
+                    child: SuperLikeLimitWidget(),
+                  ));
+                  return;
+                }
+                Get.dialog(SuperLikePurchaseDialog());
+              },
+              showBadge: true,
+            ),
+            _buildTopPurpleIcon(
+              icon: FontAwesomeIcons.envelope,
+              onTap: () {
+                final p = controller.currentProfile;
+                if (p != null) {
+                  PremiumMessageService.showPremiumMessageDialog(
+                    recipientId: p.id,
+                    recipientName: p.name,
+                    recipientPhoto: p.photos.isNotEmpty ? p.photos.first : '',
+                  );
+                }
+              },
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  Widget _buildTopPurpleIcon({
+    required IconData icon,
+    required VoidCallback onTap,
+    bool showBadge = false,
+  }) {
+    // Purple color matching the design image
+    const purpleColor = Color(0xFFC850C0);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 48.w,
+        height: 48.w,
+        decoration: const BoxDecoration(
+          color: Colors.transparent, // Bare icon
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            FaIcon(icon, color: purpleColor, size: 28.sp),
+            if (showBadge)
+              Positioned(
+                top: 5.h,
+                right: 5.w,
+                child: FutureBuilder<Map<String, dynamic>>(
+                  future: _getSuperLikeCount(),
+                  builder: (context, snapshot) {
+                    final remaining = snapshot.data?['remaining'] as int? ?? 0;
+                    if (remaining == 0) return const SizedBox.shrink();
+                    return Container(
+                      padding: EdgeInsets.all(4.w),
+                      decoration: const BoxDecoration(
+                        color: Colors.black54,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        '$remaining',
+                        style: TextStyle(color: Colors.white, fontSize: 8.sp, fontWeight: FontWeight.bold),
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopButtonsOverlay() {
+    return const SizedBox.shrink(); // Replaced by _buildTopHorizontalActions
   }
 
   // Track whether we've shown the upgrade prompt once during this session
@@ -242,300 +393,82 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   }
 
   Widget _buildActionButtonsOverlay() {
-    return Positioned(
-      bottom: 20.h,
-      left: 0,
-      right: 0,
-      child: Obx(
-        () => Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: controller.currentMode.value == 'bff'
-              ? _buildBFFActionButtons()
-              : _buildDatingActionButtons(),
-        ),
+    return Obx(
+      () => Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: controller.currentMode.value == 'bff'
+            ? _buildBFFActionButtons()
+            : _buildDatingActionButtons(),
       ),
     );
   }
 
   List<Widget> _buildDatingActionButtons() {
+    // Purple color matching the design image for Bug and Heart-eye
+    const purpleColor = Color(0xFFC850C0);
     return [
-      _buildRewindMiniButton(),
       GestureDetector(
         onTap: () => _swiperController.swipe(CardSwiperDirection.left),
         child: Container(
-          width: 60.w,
-          height: 60.w,
-          decoration: BoxDecoration(
-            color: Colors.red,
-            borderRadius: BorderRadius.circular(30.r),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.red.withValues(alpha: 0.3),
-                blurRadius: 10.r,
-              ),
-            ],
+          width: 75.w,
+          height: 75.w,
+          decoration: const BoxDecoration(
+            color: Colors.transparent, // Bare icon
           ),
           child: Center(
-            child: Text('🐝', style: TextStyle(fontSize: 28.sp)),
-          ),
-        ),
-      ),
-      GestureDetector(
-        onTap: () async {
-          // Check super like limit for ALL users (free and premium both have 1 per day)
-          final usage = await SupabaseService.getDailyUsage();
-          final used = usage['super_likes_used'] ?? 0;
-          final remaining = (1 - used).clamp(0, 1);
-          if (remaining > 0) {
-            // Allow super like if within daily limit
-            _swiperController.swipe(CardSwiperDirection.top);
-            return;
-          }
-          // Out of daily super likes:
-          // First show upgrade prompt once; subsequent taps show purchase dialog
-          // Show superlike limit prompt
-          if (!_superLikeUpgradeShown) {
-            _superLikeUpgradeShown = true;
-            Get.dialog(
-              Dialog(
-                backgroundColor: Colors.transparent,
-                insetPadding: EdgeInsets.zero,
-                child: SuperLikeLimitWidget(),
-              ),
-              barrierDismissible: true,
-            );
-            return;
-          }
-          // After upgrade prompt is shown once, open purchase dialog
-          Get.dialog(SuperLikePurchaseDialog(), barrierDismissible: true);
-        },
-        child: Container(
-          width: 60.w,
-          height: 60.w,
-          decoration: BoxDecoration(
-            color: Colors.blue,
-            borderRadius: BorderRadius.circular(30.r),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.blue.withValues(alpha: 0.3),
-                blurRadius: 10.r,
-              ),
-            ],
-          ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Icon(Icons.star_rounded, color: Colors.white, size: 28.sp),
-              Positioned(
-                top: 6.h,
-                right: 8.w,
-                child: FutureBuilder<Map<String, dynamic>>(
-                  future: _getSuperLikeCount(),
-                  key: ValueKey(controller.deckVersion.value), // Refresh when deck version changes
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const SizedBox.shrink();
-                    }
-                    
-                    final data = snapshot.data ?? {'isPremium': false, 'remaining': 0};
-                    final bool isPremium = data['isPremium'] ?? false;
-                    final int remaining = data['remaining'] ?? 0;
-                    
-                    // Don't show badge for premium users (unlimited) or if remaining is 0
-                    if (isPremium || remaining == 0) {
-                      return const SizedBox.shrink();
-                    }
-                    
-                    return AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 250),
-                      transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
-                      child: Container(
-                        key: ValueKey<int>(remaining),
-                        padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.6),
-                          borderRadius: BorderRadius.circular(10.r),
-                        ),
-                        child: Text(
-                          '$remaining',
-                          style: TextStyle(color: Colors.white, fontSize: 10.sp, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
+            child: FaIcon(FontAwesomeIcons.bug, color: purpleColor, size: 36.sp),
           ),
         ),
       ),
       GestureDetector(
         onTap: () => _swiperController.swipe(CardSwiperDirection.right),
         child: Container(
-          width: 60.w,
-          height: 60.w,
-          decoration: BoxDecoration(
-            color: themeController.getAccentColor(),
-            borderRadius: BorderRadius.circular(30.r),
-            boxShadow: [
-              BoxShadow(
-                color: themeController.getAccentColor().withValues(alpha: 0.3),
-                blurRadius: 10.r,
-              ),
-            ],
+          width: 75.w,
+          height: 75.w,
+          decoration: const BoxDecoration(
+            color: Colors.transparent, // Bare icon
           ),
           child: Center(
-            child: Text('😍', style: TextStyle(fontSize: 28.sp)),
+            child: FaIcon(FontAwesomeIcons.faceGrinHearts, color: purpleColor, size: 40.sp),
           ),
         ),
       ),
-      _buildMessageMiniButton(),
     ];
   }
 
   List<Widget> _buildBFFActionButtons() {
+    // Purple color matching the design image for consistency across modes
+    const purpleColor = Color(0xFFC850C0);
     return [
-      _buildRewindMiniButton(),
       GestureDetector(
         onTap: () => _swiperController.swipe(CardSwiperDirection.left),
         child: Container(
-          width: 60.w,
-          height: 60.w,
-          decoration: BoxDecoration(
-            color: Colors.red,
-            borderRadius: BorderRadius.circular(30.r),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.red.withValues(alpha: 0.3),
-                blurRadius: 10.r,
-              ),
-            ],
+          width: 75.w,
+          height: 75.w,
+          decoration: const BoxDecoration(
+            color: Colors.transparent, // Bare icon
           ),
           child: Center(
-            child: Text('🐝', style: TextStyle(fontSize: 28.sp)),
+            child: FaIcon(FontAwesomeIcons.bug, color: purpleColor, size: 36.sp),
           ),
         ),
       ),
       GestureDetector(
         onTap: () => _swiperController.swipe(CardSwiperDirection.right),
         child: Container(
-          width: 60.w,
-          height: 60.w,
-          decoration: BoxDecoration(
-            color: themeController.getAccentColor(),
-            borderRadius: BorderRadius.circular(30.r),
-            boxShadow: [
-              BoxShadow(
-                color: themeController.getAccentColor().withValues(alpha: 0.3),
-                blurRadius: 10.r,
-              ),
-            ],
+          width: 75.w,
+          height: 75.w,
+          decoration: const BoxDecoration(
+            color: Colors.transparent, // Bare icon
           ),
-          child: Icon(Icons.people, color: Colors.white, size: 28.sp),
+          child: Center(
+            child: FaIcon(FontAwesomeIcons.handshake, color: purpleColor, size: 40.sp),
+          ),
         ),
       ),
-      _buildMessageMiniButton(),
     ];
   }
 
-  // Small rewind button to the left of Dislike
-  Widget _buildRewindMiniButton() {
-    return GestureDetector(
-      onTap: () async {
-        final isPremium = await SupabaseService.isPremiumUser();
-        if (!isPremium) {
-          RewindService.showRewindUpgradeDialog();
-          return;
-        }
-        RewindService.showRewindDialog(
-          onRewind: () async {
-            print('🔄 DEBUG: Rewind button tapped');
-            
-            // First, delete the swipe from the database
-            final result = await RewindService.performRewind();
-            print('🔄 DEBUG: Rewind result: $result');
-            
-            if (result['success'] == true) {
-              print('✅ DEBUG: Swipe deleted from database, undoing swipe animation...');
-              
-              // Undo the swipe animation - re-insert the profile at index 0
-              final undone = controller.undoLastSwipe();
-              
-              if (undone) {
-                print('✅ DEBUG: Profile re-inserted at index 0 - smooth animation!');
-                Get.snackbar('Rewind', 'Profile restored!', duration: Duration(seconds: 1));
-              } else {
-                print('⚠️ DEBUG: Could not undo swipe - no last swiped profile found');
-                // Fallback: reload profiles if undo fails
-                await Future.delayed(Duration(milliseconds: 500));
-                await controller.reloadWithFilters();
-                print('✅ DEBUG: Profiles reloaded after rewind (fallback)');
-              }
-            } else {
-              print('❌ DEBUG: Rewind failed: ${result['error']}');
-              Get.snackbar('Rewind', result['error']?.toString() ?? 'Failed');
-            }
-          },
-          onUpgrade: () => Get.to(() => SubscriptionScreen()),
-        );
-      },
-      child: Container(
-        width: 44.w,
-        height: 44.w,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFFFD700), Color(0xFFFFA500)], // Gold to Orange gradient
-          ),
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Color(0xFFFFD700).withValues(alpha: 0.4),
-              blurRadius: 8.r,
-              spreadRadius: 1,
-            ),
-          ],
-        ),
-        child: Icon(Icons.undo, color: Colors.white, size: 20.sp),
-      ),
-    );
-  }
-
-  // Small message button to the right of Like
-  Widget _buildMessageMiniButton() {
-    return GestureDetector(
-      onTap: () async {
-        final p = controller.currentProfile;
-        if (p == null) {
-          Get.snackbar('Message', 'No profile selected');
-          return;
-        }
-        // Service handles premium check and shows appropriate dialog
-        PremiumMessageService.showPremiumMessageDialog(
-          recipientId: p.id,
-          recipientName: p.name,
-          recipientPhoto: p.photos.isNotEmpty ? p.photos.first : '',
-        );
-      },
-      child: Container(
-        width: 44.w,
-        height: 44.w,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF9C27B0), Color(0xFF673AB7)], // Purple to Deep Purple gradient
-          ),
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Color(0xFF9C27B0).withValues(alpha: 0.4),
-              blurRadius: 8.r,
-              spreadRadius: 1,
-            ),
-          ],
-        ),
-        child: Icon(LucideIcons.send, color: Colors.white, size: 18.sp),
-      ),
-    );
-  }
 
   void _openFilters() {
     showModalBottomSheet(

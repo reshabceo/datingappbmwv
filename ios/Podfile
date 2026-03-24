@@ -28,11 +28,13 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 flutter_ios_podfile_setup
 
 target 'Runner' do
-  use_frameworks!
+  use_frameworks! :linkage => :static
+  use_modular_headers!
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
   
-  # Firebase pods
+  # Firebase pods - explicitly include FirebaseCore
+  pod 'Firebase/Core'
   pod 'Firebase/Analytics'
   pod 'Firebase/Messaging'
   
@@ -48,6 +50,24 @@ post_install do |installer|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
       # Force Swift 5 for all Pods to avoid Swift 6 breaking changes in Xcode 16
       config.build_settings['SWIFT_VERSION'] = '5.0'
+      
+      # Suppress deprecation warnings for third-party Pods (these are from dependencies, not our code)
+      # This suppresses warnings from: DKPhotoGallery, GoogleMobileAds, facebook_app_events
+      pod_names_with_warnings = [
+        'DKPhotoGallery',
+        'GoogleMobileAds',
+        'google_mobile_ads',
+        'facebook_app_events',
+        'FacebookAppEvents'
+      ]
+      
+      if pod_names_with_warnings.any? { |name| target.name.include?(name) }
+        # Suppress Objective-C deprecation warnings
+        config.build_settings['GCC_WARN_DEPRECATED_FUNCTIONS'] = 'NO'
+        config.build_settings['CLANG_WARN_DEPRECATED'] = 'NO'
+        # Suppress Swift deprecation warnings
+        config.build_settings['SWIFT_SUPPRESS_WARNINGS'] = 'YES'
+      end
     end
   end
 end

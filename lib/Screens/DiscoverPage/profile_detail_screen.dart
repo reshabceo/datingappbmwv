@@ -293,6 +293,241 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     }
   }
 
+  Future<void> _reportUser() async {
+    try {
+      final themeController = Get.find<ThemeController>();
+      
+      // Show reason selection dialog
+      final reason = await Get.dialog<String>(
+        AlertDialog(
+          backgroundColor: themeController.blackColor,
+          title: TextConstant(
+            title: 'Report User',
+            color: themeController.whiteColor,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextConstant(
+                title: 'Why are you reporting this user?',
+                color: themeController.whiteColor.withOpacity(0.8),
+                fontSize: 14,
+              ),
+              SizedBox(height: 16.h),
+              _buildReasonOption('Inappropriate content', 'inappropriate'),
+              _buildReasonOption('Harassment', 'harassment'),
+              _buildReasonOption('Spam or fake profile', 'spam'),
+              _buildReasonOption('Other', 'other'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Get.back(result: null),
+              child: TextConstant(
+                title: 'Cancel',
+                color: themeController.greyColor,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      );
+
+      if (reason == null) return;
+
+      // Show loading
+      Get.dialog(
+        Center(
+          child: Container(
+            padding: EdgeInsets.all(20.w),
+            decoration: BoxDecoration(
+              color: themeController.blackColor,
+              borderRadius: BorderRadius.circular(10.r),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(color: themeController.getAccentColor()),
+                SizedBox(height: 10.h),
+                TextConstant(
+                  title: 'Reporting user...',
+                  color: themeController.whiteColor,
+                  fontSize: 14,
+                ),
+              ],
+            ),
+          ),
+        ),
+        barrierDismissible: false,
+      );
+
+      // Create report
+      await SupabaseService.client.from('reports').insert({
+        'reporter_id': SupabaseService.currentUser?.id,
+        'reported_id': widget.profile.id,
+        'content_type': 'profile',
+        'content_id': widget.profile.id,
+        'reason': reason,
+        'description': 'User reported from profile screen',
+        'status': 'pending',
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      Get.back(); // Close loading
+
+      Get.snackbar(
+        'User Reported',
+        'Thank you for your report. We will review it shortly.',
+        backgroundColor: themeController.blackColor,
+        colorText: themeController.whiteColor,
+        duration: Duration(seconds: 3),
+      );
+    } catch (e) {
+      Get.back(); // Close loading if open
+      Get.snackbar(
+        'Error',
+        'Failed to report user: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  Widget _buildReasonOption(String title, String value) {
+    final themeController = Get.find<ThemeController>();
+    return InkWell(
+      onTap: () => Get.back(result: value),
+      child: Container(
+        padding: EdgeInsets.symmetric(vertical: 12.h, horizontal: 16.w),
+        margin: EdgeInsets.only(bottom: 8.h),
+        decoration: BoxDecoration(
+          color: themeController.whiteColor.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(8.r),
+          border: Border.all(
+            color: themeController.getAccentColor().withValues(alpha: 0.2),
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextConstant(
+                title: title,
+                color: themeController.whiteColor,
+                fontSize: 14,
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios,
+              color: themeController.whiteColor.withValues(alpha: 0.5),
+              size: 14.sp,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _blockUser() async {
+    try {
+      final themeController = Get.find<ThemeController>();
+      
+      // Show confirmation dialog
+      final confirmed = await Get.dialog<bool>(
+        AlertDialog(
+          backgroundColor: themeController.blackColor,
+          title: TextConstant(
+            title: 'Block User',
+            color: themeController.whiteColor,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+          content: TextConstant(
+            title: 'Are you sure you want to block this user? You will no longer see their profile or receive messages from them.',
+            color: themeController.whiteColor.withOpacity(0.8),
+            fontSize: 14,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Get.back(result: false),
+              child: TextConstant(
+                title: 'Cancel',
+                color: themeController.greyColor,
+                fontSize: 14,
+              ),
+            ),
+            TextButton(
+              onPressed: () => Get.back(result: true),
+              child: TextConstant(
+                title: 'Block',
+                color: Colors.red,
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed != true) return;
+
+      // Show loading
+      Get.dialog(
+        Center(
+          child: Container(
+            padding: EdgeInsets.all(20.w),
+            decoration: BoxDecoration(
+              color: themeController.blackColor,
+              borderRadius: BorderRadius.circular(10.r),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(color: Colors.red),
+                SizedBox(height: 10.h),
+                TextConstant(
+                  title: 'Blocking user...',
+                  color: themeController.whiteColor,
+                  fontSize: 14,
+                ),
+              ],
+            ),
+          ),
+        ),
+        barrierDismissible: false,
+      );
+
+      // Block the user
+      await SupabaseService.client.from('blocked_users').insert({
+        'blocker_id': SupabaseService.currentUser?.id,
+        'blocked_id': widget.profile.id,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      Get.back(); // Close loading
+
+      Get.snackbar(
+        'User Blocked',
+        'This user has been blocked and will no longer appear in your feed.',
+        backgroundColor: themeController.blackColor,
+        colorText: themeController.whiteColor,
+        duration: Duration(seconds: 3),
+      );
+
+      // Navigate back
+      Get.back();
+    } catch (e) {
+      Get.back(); // Close loading if open
+      Get.snackbar(
+        'Error',
+        'Failed to block user: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+
   void _onAppBarMenuTap() {
     if (!widget.isMatched) {
       _showNotMatchedSnack();
@@ -399,6 +634,35 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                         },
                       ),
                       heightBox(20.h.toInt()),
+                      // Divider for safety options
+                      Container(
+                        height: 1,
+                        margin: EdgeInsets.symmetric(vertical: 8.h),
+                        color: themeController.whiteColor.withValues(alpha: 0.1),
+                      ),
+                      // Report User option
+                      _buildSheetMenuOption(
+                        themeController,
+                        icon: Icons.flag_outlined,
+                        title: 'Report User',
+                        onTap: () async {
+                          Get.back();
+                          await _reportUser();
+                        },
+                        isDestructive: false,
+                      ),
+                      // Block User option
+                      _buildSheetMenuOption(
+                        themeController,
+                        icon: Icons.block,
+                        title: 'Block User',
+                        onTap: () async {
+                          Get.back();
+                          await _blockUser();
+                        },
+                        isDestructive: true,
+                      ),
+                      heightBox(20.h.toInt()),
                     ],
                   ),
                 ),
@@ -415,6 +679,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     required IconData icon,
     required String title,
     required Future<void> Function() onTap,
+    bool isDestructive = false,
   }) {
     return Container(
       margin: EdgeInsets.only(bottom: 8.h),
@@ -428,10 +693,14 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
           child: Container(
             padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
             decoration: BoxDecoration(
-              color: themeController.whiteColor.withValues(alpha: 0.05),
+              color: isDestructive 
+                  ? Colors.red.withValues(alpha: 0.1)
+                  : themeController.whiteColor.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(12.r),
               border: Border.all(
-                color: themeController.getAccentColor().withValues(alpha: 0.1),
+                color: isDestructive
+                    ? Colors.red.withValues(alpha: 0.2)
+                    : themeController.getAccentColor().withValues(alpha: 0.1),
                 width: 1.w,
               ),
             ),
@@ -439,7 +708,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
               children: [
                 Icon(
                   icon,
-                  color: themeController.getAccentColor(),
+                  color: isDestructive ? Colors.red : themeController.getAccentColor(),
                   size: 20.sp,
                 ),
                 SizedBox(width: 12.w),
@@ -448,7 +717,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                     title: title,
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
-                    color: themeController.whiteColor,
+                    color: isDestructive ? Colors.red : themeController.whiteColor,
                   ),
                 ),
                 Icon(

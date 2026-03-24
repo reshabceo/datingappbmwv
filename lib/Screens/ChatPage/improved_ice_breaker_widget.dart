@@ -68,6 +68,7 @@ class _ImprovedIceBreakerWidgetState extends State<ImprovedIceBreakerWidget> {
 
   Future<void> loadIceBreakers() async {
     try {
+      if (!mounted) return;
       setState(() {
         isLoading = true;
         hasError = false;
@@ -77,6 +78,7 @@ class _ImprovedIceBreakerWidgetState extends State<ImprovedIceBreakerWidget> {
       await _checkIceBreakerUsage();
       
       if (iceBreakersUsed) {
+        if (!mounted) return;
         setState(() {
           isLoading = false;
         });
@@ -95,14 +97,16 @@ class _ImprovedIceBreakerWidgetState extends State<ImprovedIceBreakerWidget> {
       if (result != null && result.isNotEmpty) {
         final data = result.first;
         final shouldShow = data['should_show'] as bool? ?? false;
-        final iceBreakersData = data['ice_breakers'] as List<dynamic>?;
+        final iceBreakersData = (data['out_ice_breakers'] ?? data['ice_breakers']) as List<dynamic>?;
 
         if (shouldShow && iceBreakersData != null) {
+          if (!mounted) return;
           setState(() {
             iceBreakers = iceBreakersData.cast<Map<String, dynamic>>();
             isLoading = false;
           });
         } else {
+          if (!mounted) return;
           setState(() {
             iceBreakersUsed = true;
             isLoading = false;
@@ -114,6 +118,7 @@ class _ImprovedIceBreakerWidgetState extends State<ImprovedIceBreakerWidget> {
       }
     } catch (e) {
       print('❌ Error loading icebreakers: $e');
+      if (!mounted) return;
       setState(() {
         hasError = true;
         isLoading = false;
@@ -135,10 +140,11 @@ class _ImprovedIceBreakerWidgetState extends State<ImprovedIceBreakerWidget> {
         if (hasBeenUsed && mounted) {
           setState(() {
             iceBreakersUsed = true;
-            usedByUserId = data['used_by_user_id']?.toString();
-            usedIceBreakerText = data['used_ice_breaker_text']?.toString();
-            usedAt = data['used_at'] != null 
-                ? DateTime.parse(data['used_at'].toString())
+            usedByUserId = (data['out_used_by_user_id'] ?? data['used_by_user_id'])?.toString();
+            usedIceBreakerText = (data['out_used_ice_breaker_text'] ?? data['used_ice_breaker_text'])?.toString();
+            final usedAtRaw = data['out_used_at'] ?? data['used_at'];
+            usedAt = usedAtRaw != null 
+                ? DateTime.parse(usedAtRaw.toString())
                 : null;
           });
         }
@@ -156,19 +162,23 @@ class _ImprovedIceBreakerWidgetState extends State<ImprovedIceBreakerWidget> {
       );
 
       if (resp.data != null && resp.data['success'] == true) {
-        final iceBreakersData = resp.data['ice_breakers'] as List<dynamic>?;
+        final data = resp.data;
+        final iceBreakersData = (data['ice_breakers'] ?? data['iceBreakers']) as List<dynamic>?;
         if (iceBreakersData != null) {
+          if (!mounted) return;
           setState(() {
             iceBreakers = iceBreakersData.cast<Map<String, dynamic>>();
             isLoading = false;
           });
         } else {
+          if (!mounted) return;
           setState(() {
             hasError = true;
             isLoading = false;
           });
         }
       } else {
+        if (!mounted) return;
         setState(() {
           hasError = true;
           isLoading = false;
@@ -176,6 +186,7 @@ class _ImprovedIceBreakerWidgetState extends State<ImprovedIceBreakerWidget> {
       }
     } catch (e) {
       print('❌ Error generating icebreakers: $e');
+      if (!mounted) return;
       setState(() {
         hasError = true;
         isLoading = false;
@@ -464,6 +475,7 @@ class _ImprovedIceBreakerWidgetState extends State<ImprovedIceBreakerWidget> {
       }
       
       // Update local state
+      if (!mounted) return;
       setState(() {
         iceBreakersUsed = true;
         usedByUserId = currentUserId;

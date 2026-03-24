@@ -3,6 +3,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../shared_prefrence_helper.dart';
 import 'supabase_service.dart';
+import 'geocoding_service.dart';
 
 class LocationService {
   static const String _lastLocationUpdateKey = 'last_location_update';
@@ -221,12 +222,12 @@ class LocationService {
   /// Get location name from coordinates using reverse geocoding
   static Future<String?> _getLocationNameFromCoordinates(double latitude, double longitude) async {
     try {
-      // You can implement reverse geocoding here using a service like Google Maps API
-      // For now, return a simple format
-      return '${latitude.toStringAsFixed(4)}, ${longitude.toStringAsFixed(4)}';
+      print('📍 LocationService: Reverse geocoding Lat: $latitude, Lon: $longitude');
+      final readable = await GeocodingService.getReadableLocation(latitude, longitude);
+      return readable;
     } catch (e) {
       print('❌ LocationService: Error getting location name: $e');
-      return null;
+      return '${latitude.toStringAsFixed(4)}, ${longitude.toStringAsFixed(4)}';
     }
   }
   

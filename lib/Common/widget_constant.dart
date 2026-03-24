@@ -399,8 +399,38 @@ Future showCustomDialog({required Widget child}) {
   return Get.dialog(Dialog(backgroundColor: Colors.transparent, child: child));
 }
 
-showCustomSnackBar({String? title, String? message}) {
-  Get.snackbar(title!, message!);
+showCustomSnackBar({String? title, String? message, bool isError = false, Widget? icon, Function(GetSnackBar)? onTap, Duration? duration}) {
+  Get.snackbar(
+    title ?? (isError ? 'Error' : 'Success'.tr),
+    message ?? '',
+    backgroundColor: isError ? Colors.redAccent.withValues(alpha: 0.9) : Colors.green.withValues(alpha: 0.9),
+    colorText: Colors.white,
+    snackPosition: SnackPosition.TOP,
+    margin: EdgeInsets.all(16.w),
+    borderRadius: 12.r,
+    duration: duration ?? const Duration(seconds: 4),
+    snackStyle: SnackStyle.FLOATING,
+    icon: icon ?? Icon(
+      isError ? Icons.error_outline : Icons.check_circle_outline,
+      color: Colors.white,
+      size: 24.sp,
+    ),
+    onTap: onTap,
+    boxShadows: [
+      BoxShadow(
+        color: Colors.black.withValues(alpha: 0.2),
+        blurRadius: 10,
+        spreadRadius: 2,
+        offset: const Offset(0, 4),
+      ),
+    ],
+    mainButton: TextButton(
+      onPressed: () => Get.back(),
+      child: const Text('OK', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+    ),
+    padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 15.h),
+    overlayBlur: 0.5,
+  );
 }
 
 AutoSizeText autoSizeText(String text, {FontWeight? fontWeight, int? maxLine, double? maxFontSize, Color? color}) {

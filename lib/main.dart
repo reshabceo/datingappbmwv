@@ -39,6 +39,8 @@ import 'services/local_notification_service.dart';
 import 'services/call_debug_helper.dart';
 import 'services/android_call_action_service.dart';
 import 'services/notification_clearing_service.dart';
+import 'Widgets/eula_terms_modal.dart';
+import 'Common/widget_constant.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -59,8 +61,17 @@ Future<void> main() async {
   // Request camera, photo, and location permissions on app startup
   await _requestPermissions();
   
-  // Firebase is already initialized in AppDelegate.swift for iOS
-  // No need to initialize again in Flutter
+  // Initialize Firebase (Required for Android, and recommended for shared Dart code)
+  if (Platform.isAndroid || !kIsWeb) {
+    try {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+      print('✅ Firebase initialized successfully in Flutter');
+    } catch (e) {
+      print('⚠️ Firebase initialization warning: $e');
+    }
+  }
   
   // Initialize Notification Service
   await NotificationService.initialize();
@@ -289,6 +300,10 @@ class MyApp extends StatelessWidget {
                 darkTheme: themeController.darkTheme,
                 themeMode: themeController.isDarkMode.value ? ThemeMode.dark : ThemeMode.light,
                 home: _AuthGate(),
+                // Global snackbar styling for visibility
+                builder: (context, child) {
+                  return child ?? const SizedBox.shrink();
+                },
                 // home: BottombarScreen(),
               )),
             );
@@ -422,11 +437,10 @@ void _handleCallNotificationAction(Map<String, dynamic> data) async {
     print('✅ Push notification call acceptance complete');
   } catch (e) {
     print('❌ Error handling call notification action: $e');
-    Get.snackbar(
-      'Error',
-      'Failed to join call: $e',
-      backgroundColor: Colors.red,
-      colorText: Colors.white,
+    showCustomSnackBar(
+      title: 'error'.tr,
+      message: '${'failed_to_join_call'.tr}: $e',
+      isError: true,
     );
   }
 }
@@ -473,6 +487,8 @@ class _AuthGateState extends State<_AuthGate> with WidgetsBindingObserver {
   bool _hasProfile = false;
   bool _checkingProfile = true;
   bool _didNavigateToMain = false;
+  bool _eulaAccepted = false;
+  bool _checkingEula = true;
   StreamSubscription<AuthState>? _authSub;
 
   @override
@@ -480,7 +496,7 @@ class _AuthGateState extends State<_AuthGate> with WidgetsBindingObserver {
     super.initState();
     // CRITICAL FIX: Add app lifecycle observer to handle OAuth redirects
     WidgetsBinding.instance.addObserver(this);
-    _checkSessionAndProfile();
+    _checkEulaAndSession();
     // React to login/logout in real time
     _authSub = SupabaseService.authStateChanges.listen((authState) {
       print('🔄 DEBUG: Auth state changed - event: ${authState.event}, session: ${authState.session != null}');
@@ -516,20 +532,86 @@ class _AuthGateState extends State<_AuthGate> with WidgetsBindingObserver {
         
         // Force immediate state refresh for OAuth sign-ins
         Future.delayed(Duration(milliseconds: 100), () {
-          _checkSessionAndProfile();
+          // Only check session/profile if EULA is already accepted
+          if (_eulaAccepted) {
+            _checkSessionAndProfile();
+          }
         });
         
-        // AGGRESSIVE FIX: Force navigation immediately when signed in
-        if (authState.session != null) {
-          print('🔄 DEBUG: Session detected during sign-in, forcing immediate navigation...');
+        // FIXED: Instead of blindly navigating to BottombarScreen, 
+        // use _checkSessionAndProfile which checks if profile is complete first.
+        // This ensures new OAuth users go to profile form, existing ones go to main app.
+        if (authState.session != null && _eulaAccepted) {
+          print('🔄 DEBUG: Session detected during sign-in, checking profile before navigation...');
           Future.microtask(() {
-            Get.offAll(() => BottombarScreen());
+            _checkSessionAndProfile();
           });
         }
       } else {
-        _checkSessionAndProfile();
+        // Only check session/profile if EULA is already accepted
+        if (_eulaAccepted) {
+          _checkSessionAndProfile();
+        }
       }
     });
+  }
+
+  Future<void> _checkEulaAndSession() async {
+    // First check if EULA has been accepted
+    _checkingEula = true;
+    _eulaAccepted = SharedPreferenceHelper.getBool(
+      SharedPreferenceHelper.eulaTermsAccepted,
+      defaultValue: false,
+    );
+    
+    print('📋 DEBUG: EULA accepted status: $_eulaAccepted');
+    
+    if (!_eulaAccepted) {
+      // Show EULA modal and wait for acceptance
+      _checkingEula = false;
+      setState(() {});
+      
+      // CRITICAL FIX: Use post-frame callback to ensure modal shows on iPad
+      // This ensures the widget tree is fully built before showing the modal
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (mounted) {
+          print('📋 DEBUG: Showing EULA modal on iPad/iPhone');
+          // Show EULA modal - it will save acceptance status when user accepts
+          await Get.dialog(
+            EULATermsModal(),
+            barrierDismissible: false,
+          );
+          
+          // Re-check after modal is closed
+          if (mounted) {
+            _eulaAccepted = SharedPreferenceHelper.getBool(
+              SharedPreferenceHelper.eulaTermsAccepted,
+              defaultValue: false,
+            );
+            
+            print('📋 DEBUG: EULA accepted after modal: $_eulaAccepted');
+            
+            if (_eulaAccepted) {
+              _checkingEula = false;
+              setState(() {});
+              // Now proceed with normal session/profile check
+              _checkSessionAndProfile();
+            } else {
+              // User didn't accept, keep showing modal
+              print('⚠️ DEBUG: EULA not accepted, showing modal again');
+              _checkEulaAndSession();
+            }
+          }
+        }
+      });
+      
+      // Return early - modal will be shown via post-frame callback
+      return;
+    }
+    
+    _checkingEula = false;
+    // Now proceed with normal session/profile check
+    _checkSessionAndProfile();
   }
 
   Future<void> _checkSessionAndProfile() async {
@@ -583,6 +665,7 @@ class _AuthGateState extends State<_AuthGate> with WidgetsBindingObserver {
               // Incomplete profile - go to profile creation
               print('🆕 DEBUG: Incomplete profile detected, navigating to profile creation');
               print('🆕 DEBUG: Profile data: name=${profile['name']}, age=${profile['age']}, description=${profile['description']}, hobbies=${profile['hobbies']}, image_urls=${profile['image_urls']}');
+              if (!mounted) return;
               setState(() {
                 _ready = true;
                 _hasSession = true;
@@ -617,6 +700,7 @@ class _AuthGateState extends State<_AuthGate> with WidgetsBindingObserver {
               // New user OR incomplete profile - go to profile creation
               print('🆕 DEBUG: New user or incomplete profile detected, navigating to profile creation');
               print('🆕 DEBUG: Time difference: ${timeDifference}min, Incomplete: $hasIncompleteProfile');
+              if (!mounted) return;
               setState(() {
                 _ready = true;
                 _hasSession = true;
@@ -635,6 +719,7 @@ class _AuthGateState extends State<_AuthGate> with WidgetsBindingObserver {
               // Sign out the user and show deactivation message
               await SupabaseService.signOut();
               _showAccountDeactivatedDialog(userId);
+              if (!mounted) return;
               setState(() {
                 _ready = true;
                 _hasSession = false;
@@ -656,6 +741,7 @@ class _AuthGateState extends State<_AuthGate> with WidgetsBindingObserver {
           final hasValidProfile = profile != null && profile.isNotEmpty && profile['name'] != null && profile['is_active'] == true;
           print('🔍 DEBUG: hasValidProfile: $hasValidProfile');
           
+          if (!mounted) return;
           setState(() {
             _ready = true;
             _hasSession = true;
@@ -775,6 +861,7 @@ class _AuthGateState extends State<_AuthGate> with WidgetsBindingObserver {
           // Start analytics session for authenticated user - Temporarily disabled
           // await AnalyticsService.startSession();
         } else {
+          if (!mounted) return;
           setState(() {
             _ready = true;
             _hasSession = false;
@@ -785,6 +872,7 @@ class _AuthGateState extends State<_AuthGate> with WidgetsBindingObserver {
         }
       } catch (e) {
         print('Error checking profile: $e');
+        if (!mounted) return;
         setState(() {
           _ready = true;
           _hasSession = true;
@@ -797,6 +885,7 @@ class _AuthGateState extends State<_AuthGate> with WidgetsBindingObserver {
         // await AnalyticsService.startSession();
       }
     } else {
+      if (!mounted) return;
       setState(() {
         _ready = true;
         _hasSession = false;
@@ -926,12 +1015,9 @@ class _AuthGateState extends State<_AuthGate> with WidgetsBindingObserver {
       Get.back();
 
       // Show success message
-      Get.snackbar(
-        'Account Reactivated',
-        'Your account has been reactivated successfully! Please log in again.',
-        backgroundColor: Colors.black,
-        colorText: Colors.white,
-        duration: Duration(seconds: 3),
+      showCustomSnackBar(
+        title: 'account_reactivated'.tr,
+        message: 'account_reactivated_message'.tr,
       );
 
       // Navigate to welcome screen instead of main app
@@ -945,12 +1031,10 @@ class _AuthGateState extends State<_AuthGate> with WidgetsBindingObserver {
     } catch (e) {
       print('❌ Error reactivating account: $e');
       Get.back(); // Close loading dialog
-      Get.snackbar(
-        'Error',
-        'Failed to reactivate account: $e',
-        backgroundColor: Colors.black,
-        colorText: Colors.white,
-        duration: Duration(seconds: 3),
+      showCustomSnackBar(
+        title: 'error'.tr,
+        message: '${'failed_to_reactivate_account'.tr}: $e',
+        isError: true,
       );
     }
   }
@@ -985,11 +1069,56 @@ class _AuthGateState extends State<_AuthGate> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    print('🔍 DEBUG: _AuthGate build - _ready: $_ready, _checkingProfile: $_checkingProfile, _hasSession: $_hasSession, _hasProfile: $_hasProfile');
+    print('🔍 DEBUG: _AuthGate build - _ready: $_ready, _checkingProfile: $_checkingProfile, _checkingEula: $_checkingEula, _eulaAccepted: $_eulaAccepted, _hasSession: $_hasSession, _hasProfile: $_hasProfile');
     
-    if (!_ready || _checkingProfile) {
+    // Show loading while checking EULA or session/profile
+    if (_checkingEula || !_ready || _checkingProfile) {
       print('🔍 DEBUG: Showing loading indicator');
-      return Center(child: CircularProgressIndicator());
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: CircularProgressIndicator(
+            color: Colors.pink,
+          ),
+        ),
+      );
+    }
+    
+    // If EULA not accepted, show loading screen while modal is being displayed
+    // The modal will be shown via post-frame callback in _checkEulaAndSession
+    if (!_eulaAccepted) {
+      // CRITICAL FIX: Ensure modal is shown if it hasn't been shown yet
+      if (!_checkingEula) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && !_eulaAccepted) {
+            // Try to show modal again if it's not showing
+            Get.dialog(
+              EULATermsModal(),
+              barrierDismissible: false,
+            ).then((_) {
+              if (mounted) {
+                _eulaAccepted = SharedPreferenceHelper.getBool(
+                  SharedPreferenceHelper.eulaTermsAccepted,
+                  defaultValue: false,
+                );
+                if (_eulaAccepted) {
+                  setState(() {});
+                  _checkSessionAndProfile();
+                }
+              }
+            });
+          }
+        });
+      }
+      
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: CircularProgressIndicator(
+            color: Colors.pink,
+          ),
+        ),
+      );
     }
     return LayoutBuilder(
       builder: (context, constraints) {

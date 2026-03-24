@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:lovebug/services/rewind_service.dart';
 import 'package:lovebug/services/supabase_service.dart';
 import 'package:lovebug/Screens/SubscriptionPage/ui_subscription_screen.dart';
+import 'package:lovebug/Common/widget_constant.dart';
 
 class RewindButton extends StatefulWidget {
   final VoidCallback? onRewindSuccess;
@@ -57,11 +58,10 @@ class _RewindButtonState extends State<RewindButton> {
     }
 
     if (!_canRewind) {
-      Get.snackbar(
-        'No Rewind Available',
-        'No swipes available to rewind',
-        backgroundColor: Colors.orange,
-        colorText: Colors.white,
+      showCustomSnackBar(
+        title: 'no_rewind_available'.tr,
+        message: 'no_swipes_available_to_rewind'.tr,
+        isError: true,
       );
       return;
     }
@@ -73,24 +73,21 @@ class _RewindButtonState extends State<RewindButton> {
           final result = await RewindService.performRewind();
           
           if (result.containsKey('error')) {
-            Get.snackbar('Error', result['error']);
+            showCustomSnackBar(title: 'error'.tr, message: result['error'], isError: true);
             widget.onRewindError?.call();
             return;
           }
 
-          Get.snackbar(
-            'Rewind Successful! 🔄',
-            'Your last swipe has been undone',
-            backgroundColor: Colors.green,
-            colorText: Colors.white,
-            duration: Duration(seconds: 2),
+          showCustomSnackBar(
+            title: 'rewind_successful'.tr,
+            message: 'last_swipe_undone'.tr,
           );
 
           // Refresh rewind status
           await _checkRewindStatus();
           widget.onRewindSuccess?.call();
         } catch (e) {
-          Get.snackbar('Error', 'Failed to rewind: $e');
+          showCustomSnackBar(title: 'error'.tr, message: '${'failed_to_rewind'.tr}: $e', isError: true);
           widget.onRewindError?.call();
         }
       },

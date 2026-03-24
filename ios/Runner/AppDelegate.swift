@@ -10,6 +10,15 @@ import FirebaseMessaging
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    // CRITICAL FIX: Check if running on iPad and handle gracefully
+    if UIDevice.current.userInterfaceIdiom == .pad {
+      print("⚠️ WARNING: App is running on iPad. This app is optimized for iPhone only.")
+      // Show unsupported device message after a short delay to ensure UI is ready
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+        self.showUnsupportedDeviceAlert()
+      }
+    }
+    
     // Initialize Firebase (as per Firebase console instructions)
     FirebaseApp.configure()
     
@@ -69,6 +78,24 @@ import FirebaseMessaging
   // Handle FCM token refresh
   override func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
     Messaging.messaging().apnsToken = deviceToken
+  }
+  
+  // Show alert for unsupported device (iPad)
+  private func showUnsupportedDeviceAlert() {
+    guard let rootViewController = window?.rootViewController else { return }
+    
+    let alert = UIAlertController(
+      title: "Unsupported Device",
+      message: "This app is optimized for iPhone only. Please use an iPhone to access all features. The app may not function correctly on iPad.",
+      preferredStyle: .alert
+    )
+    
+    alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
+      // Continue anyway - don't block the app completely
+      // The app should still try to work, just with potential layout issues
+    })
+    
+    rootViewController.present(alert, animated: true)
   }
 }
 

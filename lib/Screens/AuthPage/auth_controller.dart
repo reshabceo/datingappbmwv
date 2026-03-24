@@ -12,7 +12,9 @@ import '../../services/analytics_service.dart';
 import '../../services/notification_service.dart';
 import '../../utils/email_validation.dart';
 import 'email_code_verify_screen.dart';
+import 'reset_password_verify_screen.dart';
 import 'auth_ui_screen.dart';
+import 'package:lovebug/Common/widget_constant.dart';
 import '../WelcomePage/welcome_screen.dart';
 
 class AuthController extends GetxController {
@@ -22,6 +24,7 @@ class AuthController extends GetxController {
   TextEditingController emailOtpController = TextEditingController();
   RxInt resendSeconds = 0.obs;
   String _emailAction = 'auto'; // 'signin' or 'signup'
+  bool _isSignupFlow = false; // Track if current OTP verification is for signup
 
   RxString selectedLanguage = 'English'.obs;
   RxBool isLoading = false.obs;
@@ -30,6 +33,12 @@ class AuthController extends GetxController {
   RxBool didProbeEmail = false.obs;
   RxBool isOTPSent = false.obs;
   RxString authMode = 'email'.obs; // Always email mode
+
+  // Method to set signup flow flag from EmailCodeVerifyScreen
+  void setSignupFlow(bool isSignup) {
+    _isSignupFlow = isSignup;
+    print('🔍 DEBUG: Signup flow flag set to: $_isSignupFlow');
+  }
 
   final Map<String, String> languagesMap = {
     'English': 'en',
@@ -55,30 +64,30 @@ class AuthController extends GetxController {
 
   Future<void> signUpWithEmail() async {
     if (emailController.text.isEmpty || passwordController.text.isEmpty || confirmPasswordController.text.isEmpty) {
-      Get.snackbar('Error', 'Please fill all fields');
+      showCustomSnackBar(title: 'error'.tr, message: 'please_fill_all_fields'.tr, isError: true);
       return;
     }
     
     // Validate email format and prevent invalid emails
     final emailValidation = EmailValidation.validateEmail(emailController.text.trim());
     if (!emailValidation.valid) {
-      Get.snackbar('Invalid Email', emailValidation.error ?? 'Please enter a valid email address');
+      showCustomSnackBar(title: 'invalid_email'.tr, message: (emailValidation.error ?? 'please_enter_a_valid_email_address'.tr), isError: true);
       return;
     }
     
     if (passwordController.text.length < 6) {
-      Get.snackbar('Error', 'Password must be at least 6 characters');
+      showCustomSnackBar(title: 'error'.tr, message: 'password_must_be_at_least_6_characters'.tr, isError: true);
       return;
     }
     if (passwordController.text != confirmPasswordController.text) {
-      Get.snackbar('Error', 'Passwords do not match');
+      showCustomSnackBar(title: 'error'.tr, message: 'passwords_do_not_match'.tr, isError: true);
       return;
     }
     try {
       isLoading.value = true;
       print('Signing up user with email and sending OTP...');
       
-      // Use signUp which will create user and send verification email automatically
+      // Use signUp to create user account
       final response = await SupabaseService.signUpWithEmail(
         email: emailController.text,
         password: passwordController.text
@@ -86,27 +95,59 @@ class AuthController extends GetxController {
       
       print('User signed up successfully: ${response.user?.id}');
       
+      // CRITICAL FIX: After signup, send OTP code explicitly
+      // signUp() sends a magic link by default; we want a 6-digit code instead
+      try {
+        await SupabaseService.sendEmailOtp(emailController.text);
+        print('✅ OTP code sent to ${emailController.text}');
+      } catch (otpError) {
+        print('⚠️ OTP send after signup error (may be rate limited): $otpError');
+        // Continue anyway - the user was created
+      }
+      
       isOTPSent.value = true;
       _startResendTimer();
       
       print('Navigating to email verification screen');
+      _isSignupFlow = true; // Mark this as signup flow
       Get.to(() => EmailCodeVerifyScreen(
         isSignupFlow: true, 
         email: emailController.text, 
         password: passwordController.text
       ));
       
-      Get.snackbar('Check your email', 'We sent a verification code to ${emailController.text}');
+      showCustomSnackBar(title: 'check_your_email'.tr, message: '${'we_sent_a_6_digit_verification_code_to'.tr} ${emailController.text}');
     } on AuthApiException catch (e) {
       print('Auth error in signUpWithEmail: $e');
       if (e.code == 'over_email_send_rate_limit') {
-        Get.snackbar('Rate Limited', 'Please wait ${e.message.split('after ')[1].split(' seconds')[0]} seconds before trying again');
+        // Safely extract wait time from error message
+        String waitMessage = 'a few minutes';
+        try {
+          final messageParts = e.message.split('after ');
+          if (messageParts.length > 1) {
+            final timeParts = messageParts[1].split(' seconds');
+            if (timeParts.isNotEmpty) {
+              final seconds = int.tryParse(timeParts[0]);
+              if (seconds != null) {
+                if (seconds < 60) {
+                  waitMessage = '$seconds seconds';
+                } else {
+                  final minutes = (seconds / 60).ceil();
+                  waitMessage = '$minutes minute${minutes > 1 ? 's' : ''}';
+                }
+              }
+            }
+          }
+        } catch (_) {
+          // If parsing fails, use default message
+        }
+        showCustomSnackBar(title: 'rate_limited'.tr, message: '${'too_many_requests_please_wait'.tr} $waitMessage ${'before_trying_again'.tr}', isError: true);
       } else {
-        Get.snackbar('Error', 'Failed to create account: ${e.message}');
+        showCustomSnackBar(title: 'error'.tr, message: '${'failed_to_create_account'.tr}: ${e.message}', isError: true);
       }
     } catch (e) {
       print('Error in signUpWithEmail: $e');
-      Get.snackbar('Error', 'Failed to create account: ${e.toString()}');
+      showCustomSnackBar(title: 'error'.tr, message: '${'failed_to_create_account'.tr}: ${e.toString()}', isError: true);
     } finally {
       isLoading.value = false;
     }
@@ -115,16 +156,16 @@ class AuthController extends GetxController {
 
   Future<void> signInWithEmail() async {
     if (emailController.text.isEmpty) {
-      Get.snackbar('Error', 'Enter email');
+      showCustomSnackBar(title: 'error'.tr, message: 'enter_email'.tr, isError: true);
       return;
     }
     try {
       isLoading.value = true;
       await SupabaseService.sendEmailOtp(emailController.text);
-      Get.snackbar('Verification needed', 'We sent a 6-digit code to your email.');
+      showCustomSnackBar(title: 'verification_needed'.tr, message: 'we_sent_a_6_digit_code_to_your_email'.tr);
       isOTPSent.value = true;
     } catch (e) {
-      Get.snackbar('Error', 'Failed to send code');
+      showCustomSnackBar(title: 'error'.tr, message: 'failed_to_send_code'.tr, isError: true);
     } finally {
       isLoading.value = false;
     }
@@ -132,7 +173,7 @@ class AuthController extends GetxController {
 
   Future<void> verifyEmailCodeAndSetPassword() async {
     if (emailOtpController.text.isEmpty) {
-      Get.snackbar('Error', 'Enter the 6-digit code');
+      showCustomSnackBar(title: 'error'.tr, message: 'enter_the_6_digit_code'.tr, isError: true);
       return;
     }
     try {
@@ -150,13 +191,15 @@ class AuthController extends GetxController {
         print('Email verified successfully, navigating...');
         // Track login for UAC
         await AnalyticsService.trackLoginEnhanced('email_otp');
-        await _checkUserProfileAndNavigate();
+        // Pass isSignupFlow flag to check profile and navigate appropriately
+        await _checkUserProfileAndNavigate(isSignupFlow: _isSignupFlow);
+        _isSignupFlow = false; // Reset after use
       } else {
-        Get.snackbar('Error', 'Invalid code');
+        showCustomSnackBar(title: 'error'.tr, message: 'invalid_code'.tr, isError: true);
       }
     } catch (e) {
       print('Error verifying email: $e');
-      Get.snackbar('Error', 'Verification failed: ${e.toString()}');
+      showCustomSnackBar(title: 'error'.tr, message: '${'verification_failed'.tr}: ${e.toString()}', isError: true);
     } finally {
       isLoading.value = false;
     }
@@ -165,7 +208,7 @@ class AuthController extends GetxController {
   Future<void> continueWithEmail() async {
     final email = emailController.text.trim();
     if (email.isEmpty) {
-      Get.snackbar('Error', 'Enter email');
+      showCustomSnackBar(title: 'error'.tr, message: 'enter_email'.tr, isError: true);
       return;
     }
     
@@ -214,7 +257,7 @@ class AuthController extends GetxController {
           isSignupMode.value = false;
           didProbeEmail.value = true;
           Get.to(() => AuthScreen(prefillEmail: email, isPasswordMode: true));
-          Get.snackbar('Please wait', 'Too many attempts. Try again shortly.');
+          showCustomSnackBar(title: 'please_wait'.tr, message: 'too_many_attempts_try_again_shortly'.tr, isError: true);
         } else {
           print('Unknown OTP probe error → default to signup');
           isExistingEmail.value = false;
@@ -242,7 +285,7 @@ class AuthController extends GetxController {
         isSignupMode.value = false;
         didProbeEmail.value = true;
         Get.to(() => AuthScreen(prefillEmail: email, isPasswordMode: true));
-        Get.snackbar('Please wait', 'Too many attempts. Try again shortly.');
+        showCustomSnackBar(title: 'please_wait'.tr, message: 'too_many_attempts_try_again_shortly'.tr, isError: true);
       } else {
         // Any other error: conservatively treat as non-existing
         print('Other error, defaulting to signup - Code: $code, Message: $msg');
@@ -269,13 +312,13 @@ class AuthController extends GetxController {
     // Validate email before resending
     final emailValidation = EmailValidation.validateEmail(email);
     if (!emailValidation.valid) {
-      Get.snackbar('Invalid Email', emailValidation.error ?? 'Please enter a valid email address');
+      showCustomSnackBar(title: 'invalid_email'.tr, message: (emailValidation.error ?? 'please_enter_a_valid_email_address'.tr), isError: true);
       return;
     }
     try {
       await SupabaseService.sendEmailOtp(email);
       _startResendTimer();
-      Get.snackbar('Sent', 'We resent the code to $email');
+      showCustomSnackBar(title: 'sent'.tr, message: '${'we_resent_the_code_to'.tr} $email');
     } catch (_) {}
   }
 
@@ -283,14 +326,14 @@ class AuthController extends GetxController {
     final email = emailController.text.trim();
     final password = passwordController.text.trim();
     if (email.isEmpty || password.isEmpty) {
-      Get.snackbar('Error', 'Enter email and password');
+      showCustomSnackBar(title: 'error'.tr, message: 'enter_email_and_password'.tr, isError: true);
       return;
     }
     
     // Validate email format
     final emailValidation = EmailValidation.validateEmail(email);
     if (!emailValidation.valid) {
-      Get.snackbar('Invalid Email', emailValidation.error ?? 'Please enter a valid email address');
+      showCustomSnackBar(title: 'invalid_email'.tr, message: (emailValidation.error ?? 'please_enter_a_valid_email_address'.tr), isError: true);
       return;
     }
     try {
@@ -311,17 +354,17 @@ class AuthController extends GetxController {
           msg.contains('invalid') || 
           msg.contains('wrong password') ||
           msg.contains('incorrect password')) {
-        Get.snackbar('Sign in failed', 'Invalid email or password');
+        showCustomSnackBar(title: 'sign_in_failed'.tr, message: 'invalid_email_or_password'.tr, isError: true);
       } else if (code.contains('email_not_confirmed') || msg.contains('email not confirmed')) {
-        Get.snackbar('Email not verified', 'Please check your email and click the verification link');
+        showCustomSnackBar(title: 'email_not_verified'.tr, message: 'please_check_your_email_and_click_the_verification_link'.tr, isError: true);
       } else if (code.contains('too_many_requests') || msg.contains('rate limit')) {
-        Get.snackbar('Too many attempts', 'Please wait a moment before trying again');
+        showCustomSnackBar(title: 'too_many_attempts'.tr, message: 'please_wait_a_moment_before_trying_again'.tr, isError: true);
       } else {
-        Get.snackbar('Sign in failed', e.message);
+        showCustomSnackBar(title: 'sign_in_failed'.tr, message: e.message, isError: true);
       }
     } catch (e) {
       print('❌ DEBUG: General error in signInWithPassword: $e');
-      Get.snackbar('Sign in failed', 'An error occurred. Please try again.');
+      showCustomSnackBar(title: 'sign_in_failed'.tr, message: 'an_error_occurred_please_try_again'.tr, isError: true);
     } finally {
       isLoading.value = false;
     }
@@ -343,7 +386,7 @@ class AuthController extends GetxController {
       
     } catch (e) {
       print('❌ DEBUG: Google Sign-In failed: $e');
-      Get.snackbar('Google sign in failed', e.toString());
+      showCustomSnackBar(title: 'google_sign_in_failed'.tr, message: e.toString(), isError: true);
     } finally {
       isLoading.value = false;
     }
@@ -352,36 +395,96 @@ class AuthController extends GetxController {
   Future<void> startEmailOtp() async {
     final email = emailController.text.trim();
     if (email.isEmpty) {
-      Get.snackbar('Error', 'Enter email');
+      showCustomSnackBar(title: 'error'.tr, message: 'enter_email'.tr, isError: true);
       return;
     }
     try {
       await SupabaseService.sendEmailOtp(email);
       isOTPSent.value = true;
       isExistingEmail.value = true;
+      _isSignupFlow = false; // This is sign-in, not signup
       _startResendTimer();
       Get.to(() => EmailCodeVerifyScreen(isSignupFlow: false));
     } catch (e) {
-      Get.snackbar('Error', 'Could not send code');
+      showCustomSnackBar(title: 'error'.tr, message: 'could_not_send_code'.tr, isError: true);
     }
   }
 
-  Future<void> sendMagicLink() async {
+  Future<bool> verifyPasswordResetOtp(String email, String otp, String newPassword) async {
+    try {
+      isLoading.value = true;
+      print('🔄 DEBUG: Verifying recovery OTP for: $email');
+      
+      final res = await SupabaseService.client.auth.verifyOTP(
+        email: email,
+        token: otp,
+        type: OtpType.recovery,
+      );
+      
+      if (res.user != null) {
+        print('✅ DEBUG: OTP verified, updating password for user: ${res.user?.id}');
+        await SupabaseService.client.auth.updateUser(
+          UserAttributes(password: newPassword),
+        );
+        
+        print('✅ DEBUG: Password updated, checking profile and navigating...');
+        // Track for UAC
+        await AnalyticsService.trackLoginEnhanced('password_reset_otp');
+        await _checkUserProfileAndNavigate();
+        return true;
+      }
+      return false;
+    } on AuthApiException catch (e) {
+      print('❌ DEBUG: Auth error in verifyPasswordResetOtp: ${e.code} - ${e.message}');
+      rethrow;
+    } catch (e) {
+      print('❌ DEBUG: General error in verifyPasswordResetOtp: $e');
+      rethrow;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  Future<void> forgotPassword() async {
     final email = emailController.text.trim();
     if (email.isEmpty) {
-      Get.snackbar('Error', 'Enter email');
+      showCustomSnackBar(title: 'error'.tr, message: 'enter_email'.tr, isError: true);
       return;
     }
+    
+    // Validate email format
+    final emailValidation = EmailValidation.validateEmail(email);
+    if (!emailValidation.valid) {
+      showCustomSnackBar(title: 'invalid_email'.tr, message: (emailValidation.error ?? 'please_enter_a_valid_email_address'.tr), isError: true);
+      return;
+    }
+
     try {
-      await SupabaseService.client.auth.signInWithOtp(
-        email: email, 
-        shouldCreateUser: false,
-        emailRedirectTo: 'https://dkcitxzvojvecuvacwsp.supabase.co/auth/v1/callback',
-      );
-      Get.snackbar('Check your email', 'We sent you a sign-in link. Click it to continue in the app.');
+      isLoading.value = true;
+      print('🔄 DEBUG: Requesting password reset OTP for: $email');
+      await SupabaseService.client.auth.resetPasswordForEmail(email);
+      
+      _startResendTimer();
+      isOTPSent.value = true;
+      
+      showCustomSnackBar(title: 'code_sent'.tr, message: '${'we_sent_a_6_digit_password_reset_code_to'.tr} $email');
+      
+      // Navigate if not already on the verify screen
+      if (Get.currentRoute != '/ResetPasswordVerifyScreen') {
+        Get.to(() => ResetPasswordVerifyScreen(email: email));
+      }
+    } on AuthApiException catch (e) {
+      print('❌ DEBUG: Auth error in forgotPassword: ${e.code} - ${e.message}');
+      if (e.code == 'over_email_send_rate_limit') {
+        showCustomSnackBar(title: 'please_wait'.tr, message: 'too_many_requests_please_try_again_in_a_few_minutes'.tr, isError: true);
+      } else {
+        showCustomSnackBar(title: 'error'.tr, message: '${'failed_to_send_reset_code'.tr}: ${e.message}', isError: true);
+      }
     } catch (e) {
-      print('Magic link error: $e');
-      Get.snackbar('Error', 'Could not send link: $e');
+      print('❌ DEBUG: General error in forgotPassword: $e');
+      showCustomSnackBar(title: 'error'.tr, message: 'could_not_send_reset_code_please_try_again'.tr, isError: true);
+    } finally {
+      isLoading.value = false;
     }
   }
 
@@ -401,9 +504,13 @@ class AuthController extends GetxController {
       await SupabaseService.signInWithProvider(OAuthProvider.google);
       // Track login for UAC
       await AnalyticsService.trackLoginEnhanced('google');
-      await _checkUserProfileAndNavigate();
+      // NOTE: Don't call _checkUserProfileAndNavigate() here!
+      // signInWithOAuth only opens the browser — OAuth hasn't completed yet.
+      // The _AuthGate auth state listener will handle navigation when the
+      // OAuth deep link callback fires and Supabase completes the PKCE exchange.
+      print('✅ Google OAuth browser opened — waiting for callback via deep link');
     } catch (e) {
-      Get.snackbar('Google sign-in failed', e.toString());
+      showCustomSnackBar(title: 'google_sign_in_failed'.tr, message: e.toString(), isError: true);
     } finally {
       isLoading.value = false;
     }
@@ -415,9 +522,12 @@ class AuthController extends GetxController {
       await SupabaseService.signInWithProvider(OAuthProvider.apple);
       // Track login for UAC
       await AnalyticsService.trackLoginEnhanced('apple');
-      await _checkUserProfileAndNavigate();
+      // NOTE: Don't call _checkUserProfileAndNavigate() here!
+      // signInWithOAuth only opens the browser — OAuth hasn't completed yet.
+      // The _AuthGate auth state listener handles navigation on deep link callback.
+      print('✅ Apple OAuth browser opened — waiting for callback via deep link');
     } catch (e) {
-      Get.snackbar('Apple sign-in failed', e.toString());
+      showCustomSnackBar(title: 'apple_sign_in_failed'.tr, message: e.toString(), isError: true);
     } finally {
       isLoading.value = false;
     }
@@ -492,12 +602,9 @@ class AuthController extends GetxController {
       Get.back();
 
       // Show success message
-      Get.snackbar(
-        'Account Reactivated',
-        'Your account has been reactivated successfully! Please log in again.',
-        backgroundColor: Colors.black,
-        colorText: Colors.white,
-        duration: Duration(seconds: 3),
+      showCustomSnackBar(
+        title: 'account_reactivated'.tr,
+        message: 'account_reactivated_success_message'.tr,
       );
 
       // Navigate to welcome screen - the user needs to log in again
@@ -506,18 +613,17 @@ class AuthController extends GetxController {
     } catch (e) {
       print('❌ Error reactivating account: $e');
       Get.back(); // Close loading dialog
-      Get.snackbar(
-        'Error',
-        'Failed to reactivate account: $e',
-        backgroundColor: Colors.black,
-        colorText: Colors.white,
-        duration: Duration(seconds: 3),
+      showCustomSnackBar(
+        title: 'error'.tr,
+        message: '${'failed_to_reactivate_account'.tr}: $e',
+        isError: true,
       );
     }
   }
 
-  Future<void> _checkUserProfileAndNavigate() async {
+  Future<void> _checkUserProfileAndNavigate({bool isSignupFlow = false}) async {
     print('🔍 DEBUG: _checkUserProfileAndNavigate called after successful login');
+    print('🔍 DEBUG: isSignupFlow: $isSignupFlow');
     
     // Wait a moment for the auth state to propagate
     await Future.delayed(Duration(milliseconds: 500));
@@ -529,7 +635,7 @@ class AuthController extends GetxController {
     print('🔍 DEBUG: User email: ${session?.user?.email}');
     
     if (session != null) {
-      print('✅ DEBUG: Session found, navigating to main app');
+      final userId = session.user!.id;
       
       // 🔔 CRITICAL FIX: Register FCM token after successful authentication
       try {
@@ -552,8 +658,59 @@ class AuthController extends GetxController {
         print('❌ DEBUG: FCM token registration failed: $e');
       }
       
-      // Force navigation to main app
-      Get.offAll(() => BottombarScreen());
+      // Check if profile exists and is complete
+      try {
+        final profile = await SupabaseService.getProfile(userId);
+        
+        print('🔍 DEBUG: Profile check - exists: ${profile != null}');
+        
+        if (profile != null) {
+          // Check if profile is complete (has all required fields)
+          final hasName = profile['name'] != null && profile['name'].toString().trim().isNotEmpty;
+          final hasAge = profile['age'] != null && profile['age'] != 0;
+          final hasDescription = profile['description'] != null && profile['description'].toString().trim().isNotEmpty;
+          final hasHobbies = profile['hobbies'] != null && (profile['hobbies'] as List).isNotEmpty;
+          final hasPhotos = profile['image_urls'] != null && (profile['image_urls'] as List).isNotEmpty;
+          
+          final isProfileComplete = hasName && hasAge && hasDescription && hasHobbies && hasPhotos;
+          
+          print('🔍 DEBUG: Profile completeness:');
+          print('  - Name: $hasName');
+          print('  - Age: $hasAge');
+          print('  - Description: $hasDescription');
+          print('  - Hobbies: $hasHobbies');
+          print('  - Photos: $hasPhotos');
+          print('  - Complete: $isProfileComplete');
+          
+          // If this is a signup flow OR profile is incomplete, go to profile form
+          if (isSignupFlow || !isProfileComplete) {
+            print('📝 DEBUG: Navigating to profile form (signup: $isSignupFlow, incomplete: ${!isProfileComplete})');
+            Get.offAll(() => MultiStepProfileForm());
+            return;
+          } else {
+            print('✅ DEBUG: Profile is complete, navigating to main app');
+            Get.offAll(() => BottombarScreen());
+            return;
+          }
+        } else {
+          // No profile exists - must be a new signup, go to profile form
+          print('📝 DEBUG: No profile found, navigating to profile form');
+          Get.offAll(() => MultiStepProfileForm());
+          return;
+        }
+      } catch (e) {
+        print('❌ DEBUG: Error checking profile: $e');
+        // On error, if it's a signup flow, go to profile form
+        // Otherwise, try to go to main app
+        if (isSignupFlow) {
+          print('📝 DEBUG: Error during signup, navigating to profile form');
+          Get.offAll(() => MultiStepProfileForm());
+        } else {
+          print('✅ DEBUG: Error but not signup, navigating to main app');
+          Get.offAll(() => BottombarScreen());
+        }
+        return;
+      }
     } else {
       print('❌ DEBUG: No session found after login, trying again...');
       
@@ -561,8 +718,9 @@ class AuthController extends GetxController {
       await Future.delayed(Duration(milliseconds: 1000));
       final retrySession = SupabaseService.client.auth.currentSession;
       if (retrySession != null) {
-        print('✅ DEBUG: Session found on retry, navigating to main app');
-        Get.offAll(() => BottombarScreen());
+        print('✅ DEBUG: Session found on retry, checking profile...');
+        // Recursively call with same signup flag
+        await _checkUserProfileAndNavigate(isSignupFlow: isSignupFlow);
       } else {
         print('❌ DEBUG: Still no session after retry');
       }

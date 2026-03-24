@@ -26,12 +26,20 @@
 
 // CASHFREE CONFIGURATION
 class CashfreeConfig {
-  // Cashfree credentials
-  static const String cashfreeAppId = '108566980dabe16ff7dcf1c424e9665801';
-  static const String cashfreeSecretKey = 'cfsk_ma_prod_2696a352b7f5c5519d02aa8750eccfd5_5b5f2bd0';
-  
   // Environment (sandbox or production)
-  static const String environment = 'production'; // Live credentials
+  static const String environment = 'sandbox'; // Set to 'sandbox' for testing
+  
+  // Production credentials
+  static const String prodAppId = '108566980dabe16ff7dcf1c424e9665801';
+  static const String prodSecretKey = 'cfsk_ma_prod_2696a352b7f5c5519d02aa8750eccfd5_5b5f2bd0';
+  
+  // Sandbox credentials
+  static const String sandboxAppId = 'TEST108148726e3fe406cfaf95fc00af27841801';
+  static const String sandboxSecretKey = 'cfsk_ma_test_66de59f49e4468e95026fe4777c738dc_c66ff734';
+  
+  // Dynamic credentials based on environment
+  static String get cashfreeAppId => environment == 'sandbox' ? sandboxAppId : prodAppId;
+  static String get cashfreeSecretKey => environment == 'sandbox' ? sandboxSecretKey : prodSecretKey;
   
   // Webhook URL for payment verification
   static const String webhookUrl = 'https://dkcitxzvojvecuvacwsp.supabase.co/functions/v1/cashfree-webhook';

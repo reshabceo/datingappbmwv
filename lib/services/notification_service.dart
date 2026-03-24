@@ -11,6 +11,7 @@ import 'package:lovebug/services/callkit_service.dart';
 import 'package:lovebug/models/call_models.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_callkit_incoming/entities/entities.dart';
+import 'package:lovebug/Common/widget_constant.dart';
 
 // Background message handler (must be top-level function)
 // Public so it can be registered in main.dart before runApp
@@ -644,7 +645,7 @@ class NotificationService {
         _showAccountSuspendedDialog(data['message'] ?? 'Your account has been suspended');
         break;
       case 'story_reply':
-        // Navigate to stories screen
+        // Navigate to chronicles screen
         Get.toNamed('/stories');
         break;
       case 'incoming_call':
@@ -676,15 +677,9 @@ class NotificationService {
   }
 
   static void _showInAppNotification(String title, String body) {
-    Get.snackbar(
-      title,
-      body,
-      snackPosition: SnackPosition.TOP,
-      backgroundColor: Colors.black87,
-      colorText: Colors.white,
-      duration: Duration(seconds: 3),
-      margin: EdgeInsets.all(16),
-      borderRadius: 8,
+    showCustomSnackBar(
+      title: title,
+      message: body,
     );
   }
 

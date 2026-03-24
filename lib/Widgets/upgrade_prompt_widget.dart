@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import '../services/supabase_service.dart';
-import '../services/in_app_purchase_service.dart';
 import '../widgets/super_like_purchase_button.dart';
 import '../Widgets/super_like_purchase_dialog.dart';
 import '../Screens/SubscriptionPage/ui_subscription_screen.dart';

@@ -8,6 +8,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'dart:ui';
+import 'package:google_fonts/google_fonts.dart';
 
 class ProfileCard extends StatefulWidget {
   final Profile profile;
@@ -189,6 +191,10 @@ class _ProfileCardState extends State<ProfileCard>
                           ),
                         ),
                       ),
+                  if (widget.profile.isLocked)
+                    _buildLockOverlay(),
+                  
+                  // Bottom section (info) always on top for visibility
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -196,52 +202,6 @@ class _ProfileCardState extends State<ProfileCard>
                       _buildBottomSection(),
                     ],
                   ),
-                  // Superlike badge - only show to premium users
-                  // Blue outline/glow is already shown to everyone via border/boxShadow above
-                  if (widget.profile.isSuperLiked && _isCurrentUserPremium)
-                    Positioned(
-                      top: 20.h,
-                      right: 20.w,
-                      child: Container(
-                        padding: EdgeInsets.symmetric(
-                            horizontal: 12.w, vertical: 6.h),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.blue.shade600,
-                              Colors.cyan.shade400
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(20.r),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.blue.withOpacity(0.5),
-                              blurRadius: 10,
-                              spreadRadius: 2,
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.star,
-                                color: Colors.white, size: 16.sp),
-                            SizedBox(width: 4.w),
-                            Text(
-                              'SUPER LOVE',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 10.sp,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  
-                  // Premium message button removed - no buttons should appear on top left
-                  
                 ],
               ),
             ),
@@ -252,138 +212,210 @@ class _ProfileCardState extends State<ProfileCard>
     );
   }
 
-  Widget _buildBottomSection() {
-    return Container(
-      height: Get.height * 0.25,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(20.r),
-          bottomRight: Radius.circular(20.r),
-        ),
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          stops: const [0.0, 0.3, 0.7, 1.0],
-          colors: [
-            Colors.transparent,
-            Colors.white.withValues(alpha: 0.5),
-            Colors.white.withValues(alpha: 0.8),
-            Colors.white.withValues(alpha: 0.95),
-          ],
-        ),
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(16.w),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.location_on,
-                    color: widget.themeController.blackColor, size: 14.sp),
-                SizedBox(width: 4.w),
-                TextConstant(
-                  title: widget.profile.location,
-                  fontSize: 13.sp,
-                  color: widget.themeController.blackColor,
-                ),
-                TextConstant(
-                  title: ' • ',
-                  fontSize: 13.sp,
-                  color: widget.themeController.blackColor,
-                ),
-                TextConstant(
-                  title: widget.profile.distance,
-                  fontSize: 13.sp,
-                  color: widget.themeController.lightPinkColor,
-                ),
-              ],
-            ),
-            SizedBox(height: 8.h),
-            Row(
-              children: [
-                if (widget.profile.isVerified)
-                  _buildStatusBadge(
-                    icon: Icons.check_circle_rounded,
-                    text: 'Verified',
-                    color: widget.themeController.lightPinkColor,
-                    isSmall: true,
-                  ),
-                if (widget.profile.isVerified) SizedBox(width: 8.w),
-                if (widget.profile.isActiveNow)
-                  _buildStatusBadge(
-                    icon: LucideIcons.flame,
-                    text: 'Active Now',
-                    color: widget.themeController.lightPinkColor,
-                    isSmall: true,
-                  ),
-              ],
-            ),
-            SizedBox(height: 10.h),
-            Flexible(
-              child: Container(
-                padding: EdgeInsets.all(10.w),
+  Widget _buildLockOverlay() {
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black.withOpacity(0.12), // Reduced opacity for clearer background
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12), // Increased blur for better visibility
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: EdgeInsets.all(20.w),
                 decoration: BoxDecoration(
-                  color: widget.themeController.lightPinkColor
-                      .withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(10.r),
-                  border: Border.all(
-                    color: widget.themeController.lightPinkColor
-                        .withValues(alpha: 0.2),
-                    width: 0.5.w,
-                  ),
+                  color: Colors.white.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.5),
                 ),
-                child: TextConstant(
-                  title: widget.profile.description,
-                  fontSize: 12.sp,
-                  height: 1.3,
-                  fontWeight: FontWeight.w400,
-                  softWrap: true,
-                  color: widget.themeController.blackColor,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                child: Icon(
+                  Icons.lock_rounded,
+                  color: Colors.white,
+                  size: 40.sp,
                 ),
               ),
-            ),
-            SizedBox(height: 10.h),
-            Wrap(
-              spacing: 6.w,
-              runSpacing: 6.h,
-              children: widget.profile.hobbies.take(3).map((hobby) {
-                return Container(
-                  padding:
-                      EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        widget.themeController.lightPinkColor
-                            .withValues(alpha: 0.4),
-                        widget.themeController.lightPinkColor
-                            .withValues(alpha: 0.2),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(15.r),
-                    border: Border.all(
-                      color: widget.themeController.lightPinkColor
-                          .withValues(alpha: 0.5),
-                      width: 0.5.w,
-                    ),
-                  ),
-                  child: TextConstant(
-                    title: hobby,
-                    fontSize: 10.sp,
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+                margin: EdgeInsets.only(top: 15.h),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20.r),
+                  border: Border.all(color: Colors.white.withOpacity(0.2)),
+                ),
+                child: Text(
+                  'Start chat to unlock',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14.sp,
                     fontWeight: FontWeight.w600,
-                    color: widget.themeController.blackColor,
                   ),
-                );
-              }).toList(),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSuperLikeBadge() {
+    return Positioned(
+      top: 20.h,
+      right: 20.w,
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.blue.shade600, Colors.cyan.shade400],
+          ),
+          borderRadius: BorderRadius.circular(20.r),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.blue.withOpacity(0.5),
+              blurRadius: 10,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.star, color: Colors.white, size: 16.sp),
+            SizedBox(width: 4.w),
+            Text(
+              'SUPER LOVE',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 10.sp,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ],
         ),
       ),
     );
   }
+
+  Widget _buildBottomSection() {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.fromLTRB(16.w, 40.h, 16.w, 16.h), // Top padding for gradient transition
+      decoration: BoxDecoration(
+        // Smooth gradient for readability but keeping it minimalist
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.black.withOpacity(0.0),
+            Colors.black.withOpacity(0.2),
+            Colors.black.withOpacity(0.5),
+            Colors.black.withOpacity(0.8),
+          ],
+          stops: const [0.0, 0.3, 0.6, 1.0],
+        ),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min, // Use minimum size to prevent taking up all space and overflowing
+          children: [
+            // Pink Name & Age at the top of bottom section
+              Text(
+                '${widget.profile.name}, ${widget.profile.age}',
+                style: GoogleFonts.dancingScript(
+                  fontSize: 32.sp,
+                  fontWeight: FontWeight.w900,
+                  color: const Color(0xFFC850C0), // Bold Pink
+                  shadows: [
+                    Shadow(color: Colors.black.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 1)),
+                  ],
+                ),
+              ),
+              SizedBox(height: 8.h),
+              Row(
+                children: [
+                  Icon(Icons.location_on, color: Colors.white, size: 14.sp),
+                  SizedBox(width: 4.w),
+                  Text(
+                    widget.profile.location,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13.sp,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Text(
+                    ' • ',
+                    style: TextStyle(color: Colors.white70, fontSize: 13.sp),
+                  ),
+                  Text(
+                    widget.profile.distance,
+                    style: TextStyle(
+                      color: widget.themeController.lightPinkColor,
+                      fontSize: 13.sp,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 8.h),
+              Row(
+                children: [
+                  if (widget.profile.isVerified)
+                    _buildStatusBadge(
+                      icon: Icons.check_circle_rounded,
+                      text: 'Verified',
+                      color: Colors.blue.shade300,
+                      isSmall: true,
+                    ),
+                  if (widget.profile.isVerified) SizedBox(width: 8.w),
+                  if (widget.profile.isActiveNow)
+                    _buildStatusBadge(
+                      icon: LucideIcons.flame,
+                      text: 'Active Now',
+                      color: Colors.orange.shade300,
+                      isSmall: true,
+                    ),
+                  if (widget.profile.intent != null && widget.profile.intent!.isNotEmpty) ...[
+                    SizedBox(width: 8.w),
+                    _buildStatusBadge(
+                      icon: LucideIcons.tag,
+                      text: widget.profile.intent!,
+                      color: const Color(0xFFC850C0).withOpacity(0.8),
+                      isSmall: true,
+                    ),
+                  ],
+                ],
+              ),
+              SizedBox(height: 12.h),
+              if (widget.profile.description.isNotEmpty)
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 8.h),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12.r),
+                    border: Border.all(color: Colors.white.withOpacity(0.1)),
+                  ),
+                  child: Text(
+                    widget.profile.description,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.9),
+                      fontSize: 12.sp,
+                      height: 1.4,
+                      fontWeight: FontWeight.w400,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+            SizedBox(height: 12.h),
+
+          ],
+        ),
+      ),
+    );
+  }
+
 
   Widget _buildStatusBadge({
     required IconData icon,

@@ -9,6 +9,7 @@ import 'package:lovebug/services/app_state_service.dart';
 import 'package:lovebug/screens/call_screens/video_call_screen.dart';
 import 'package:lovebug/screens/call_screens/audio_call_screen.dart';
 import 'package:uuid/uuid.dart';
+import 'package:lovebug/Common/widget_constant.dart';
 
 class CallController extends GetxController {
   static CallController get instance => Get.find<CallController>();
@@ -134,7 +135,7 @@ class CallController extends GetxController {
 
     } catch (e) {
       print('Error initiating call: $e');
-      Get.snackbar('Error', 'Failed to start call');
+      showCustomSnackBar(title: 'error'.tr, message: 'failed_to_start_call'.tr, isError: true);
     }
   }
 

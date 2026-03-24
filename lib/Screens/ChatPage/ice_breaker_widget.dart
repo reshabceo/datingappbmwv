@@ -106,7 +106,8 @@ class _IceBreakerWidgetState extends State<IceBreakerWidget> {
       );
 
       if (resp.data != null && resp.data['success'] == true) {
-        final iceBreakersData = resp.data['ice_breakers'] as List<dynamic>?;
+        final data = resp.data;
+        final iceBreakersData = (data['ice_breakers'] ?? data['iceBreakers']) as List<dynamic>?;
         if (iceBreakersData != null) {
           setState(() {
             iceBreakers = iceBreakersData.cast<Map<String, dynamic>>();

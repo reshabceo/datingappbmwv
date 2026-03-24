@@ -2,8 +2,10 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
-import '../services/in_app_purchase_service.dart';
+import '../services/payment_service.dart';
+import '../services/supabase_service.dart';
 import '../ThemeController/theme_controller.dart';
+import 'package:lovebug/Common/widget_constant.dart';
 import '../Screens/DiscoverPage/controller_discover_screen.dart';
 
 class SuperLikePurchaseDialog extends StatelessWidget {
@@ -82,27 +84,27 @@ class SuperLikePurchaseDialog extends StatelessWidget {
                   // Super Love Packs
                   _buildPackItem(
                     title: '3 Super Loves',
-                    pricePerItem: '₹299.67/ea',
-                    totalPrice: '₹899',
-                    onTap: () => _buy('super_like_3'),
+                    pricePerItem: '₹33/ea',
+                    totalPrice: '₹99',
+                    onTap: () => _buy('super_like_5'),
                     themeController: themeController,
                   ),
                   SizedBox(height: 12.h),
                   
                   _buildPopularPackItem(
                     title: '15 Super Loves',
-                    pricePerItem: '₹226.60/ea',
-                    totalPrice: '₹3,399',
-                    onTap: () => _buy('super_like_15'),
+                    pricePerItem: '₹11.93/ea',
+                    totalPrice: '₹179',
+                    onTap: () => _buy('super_like_10'),
                     themeController: themeController,
                   ),
                   SizedBox(height: 12.h),
                   
                   _buildBestValuePackItem(
                     title: '30 Super Loves',
-                    pricePerItem: '₹173.33/ea',
-                    totalPrice: '₹5,200',
-                    onTap: () => _buy('super_like_30'),
+                    pricePerItem: '₹9.97/ea',
+                    totalPrice: '₹299',
+                    onTap: () => _buy('super_like_20'),
                     themeController: themeController,
                   ),
                   
@@ -294,8 +296,18 @@ class SuperLikePurchaseDialog extends StatelessWidget {
     );
   }
 
-  void _buy(String packageKey) {
+  void _buy(String packageKey) async {
     Get.back();
-    InAppPurchaseService.purchaseSuperLikes(packageKey);
+    final user = SupabaseService.currentUser;
+    if (user != null) {
+      await PaymentService.initiatePayment(
+        planType: packageKey,
+        userEmail: user.email ?? '',
+        userName: user.userMetadata?['name'] ?? 'User',
+        userPhone: user.phone,
+      );
+    } else {
+      showCustomSnackBar(title: 'error'.tr, message: 'please_login_to_purchase'.tr, isError: true);
+    }
   }
 }

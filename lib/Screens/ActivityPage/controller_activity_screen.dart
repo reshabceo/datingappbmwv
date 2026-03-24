@@ -4,6 +4,7 @@ import '../../services/supabase_service.dart';
 import '../../widgets/blurred_profile_widget.dart';
 import '../ChatPage/chat_integration_helper.dart';
 import './models/activity_model.dart';
+import 'package:lovebug/Common/widget_constant.dart';
 
 class ActivityController extends GetxController {
   final RxList<Activity> activities = <Activity>[].obs;
@@ -129,12 +130,9 @@ class ActivityController extends GetxController {
         isGhostModeActive.value = false;
         ghostModeExpiresAt.value = null;
         remainingHours.value = 0.0;
-        Get.snackbar(
-          'Ghost Mode',
-          'Ghost Mode deactivated',
-          backgroundColor: Get.theme.colorScheme.primary.withOpacity(0.9),
-          colorText: Get.theme.colorScheme.onPrimary,
-          duration: Duration(seconds: 2),
+        showCustomSnackBar(
+          title: 'ghost_mode'.tr,
+          message: 'ghost_mode_deactivated'.tr,
         );
       } else {
         // Activate
@@ -153,12 +151,9 @@ class ActivityController extends GetxController {
           remainingHours.value = difference.inHours + (difference.inMinutes % 60) / 60.0;
         }
         
-        Get.snackbar(
-          'Ghost Mode',
-          'Ghost Mode activated for 24 hours',
-          backgroundColor: Get.theme.colorScheme.primary.withOpacity(0.9),
-          colorText: Get.theme.colorScheme.onPrimary,
-          duration: Duration(seconds: 2),
+        showCustomSnackBar(
+          title: 'ghost_mode'.tr,
+          message: 'ghost_mode_activated'.tr,
         );
       }
       
@@ -166,12 +161,10 @@ class ActivityController extends GetxController {
       await _loadGhostModeStatus();
     } catch (e) {
       print('❌ Error toggling ghost mode: $e');
-      Get.snackbar(
-        'Error',
-        'Failed to toggle Ghost Mode: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-        duration: Duration(seconds: 2),
+      showCustomSnackBar(
+        title: 'error'.tr,
+        message: '${'failed_to_toggle_ghost_mode'.tr}: $e',
+        isError: true,
       );
     }
   }
@@ -342,11 +335,10 @@ class ActivityController extends GetxController {
       print('✅ All activities cleared');
     } catch (e) {
       print('❌ Error clearing activities: $e');
-      Get.snackbar(
-        'Error',
-        'Failed to clear activities',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+      showCustomSnackBar(
+        title: 'error'.tr,
+        message: 'failed_to_clear_activities'.tr,
+        isError: true,
       );
     }
   }
@@ -362,11 +354,10 @@ class ActivityController extends GetxController {
       print('✅ Activity deleted: $activityId');
     } catch (e) {
       print('❌ Error deleting activity: $e');
-      Get.snackbar(
-        'Error',
-        'Failed to delete activity',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+      showCustomSnackBar(
+        title: 'error'.tr,
+        message: 'failed_to_delete_activity'.tr,
+        isError: true,
       );
     }
   }
@@ -387,12 +378,9 @@ class ActivityController extends GetxController {
       case ActivityType.superLike:
         // Navigate to discover screen (where they can see this person's profile)
         Get.toNamed('/discover');
-        Get.snackbar(
-          '💡 Tip',
-          'Swipe right on ${activity.otherUserName} to match!',
-          backgroundColor: Get.theme.colorScheme.primary.withOpacity(0.9),
-          colorText: Get.theme.colorScheme.onPrimary,
-          duration: Duration(seconds: 3),
+        showCustomSnackBar(
+          title: 'tip'.tr,
+          message: 'swipe_right_to_match_tip'.tr.replaceAll('\$name', activity.otherUserName),
         );
         break;
       
@@ -451,20 +439,18 @@ class ActivityController extends GetxController {
           matchId: matchId,
         );
       } else {
-        Get.snackbar(
-          'Error',
-          'Could not find chat with ${activity.otherUserName}',
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
+        showCustomSnackBar(
+          title: 'error'.tr,
+          message: 'could_not_find_chat_with_user'.tr.replaceAll('\$name', activity.otherUserName),
+          isError: true,
         );
       }
     } catch (e) {
       print('Error navigating to chat: $e');
-      Get.snackbar(
-        'Error',
-        'Could not open chat',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+      showCustomSnackBar(
+        title: 'error'.tr,
+        message: 'could_not_open_chat'.tr,
+        isError: true,
       );
     }
   }

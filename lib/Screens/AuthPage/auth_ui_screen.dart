@@ -81,353 +81,347 @@ class AuthScreen extends StatelessWidget {
             end: Alignment.bottomCenter,
           ),
         ),
-        child: screenPadding(
-          child: SingleChildScrollView(
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            child: Column(
-              children: [
-                screenPadding(
-                  child: Column(
-                    children: [
-                      // App logo with language button aligned to the right
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          // Logo
-                          Image.asset(
-                            'assets/images/lovebug_logo.png',
-                            height: 48,
-                          ),
-                          SizedBox(width: 16.w),
-                          // Language selection button aligned to the right of logo
-                          Obx(
-                            () => PopupMenuButton<String>(
-                              onSelected: (String languageName) {
-                                controller.selectedLanguage.value = languageName;
-                                final languageCode = controller.languagesMap[languageName];
-                                if (languageCode != null) {
-                                  setLocale(languageCode, controller.selectedLanguage.value);
-                                }
-                              },
-                              child: Container(
-                                padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 8.h),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(20.r),
-                                  border: Border.all(color: Colors.white.withOpacity(0.2)),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    TextConstant(
-                                      title: controller.selectedLanguage.value,
-                                      color: themeController.whiteColor,
-                                      fontSize: 14,
-                                    ),
-                                    SizedBox(width: 6.w),
-                                    Icon(
-                                      Icons.arrow_drop_down,
-                                      color: themeController.whiteColor,
-                                      size: 18.sp,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              itemBuilder: (BuildContext context) {
-                                return controller.languagesMap.keys.map((String language) {
-                                  return PopupMenuItem<String>(
-                                    value: language,
-                                    child: TextConstant(
-                                      title: language,
-                                      color: themeController.blackColor,
-                                    ),
-                                  );
-                                }).toList();
-                              },
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: screenPadding(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        // App logo with language button aligned to the right
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            // Logo
+                            Image.asset(
+                              'assets/images/lovebug_logo.png',
+                              height: 48,
                             ),
-                          ),
-                        ],
-                      ),
-                      heightBox(16),
-                      TextConstant(
-                        title: 'welcome_back',
-                        color: themeController.whiteColor,
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      heightBox(8),
-                      TextConstant(
-                        title: 'find_your_perfect_match_with_lovebug',
-                        color: themeController.greyColor,
-                        fontSize: 16,
-                      ),
-                    ],
-                  ),
-                ),
-                heightBox(40),
-                
-                // Email Input Field
-                screenPadding(
-                  child: Column(
-                    children: [
-                      TextFieldConstant(
-                        height: 44,
-                        hintFontSize: 14,
-                        hintText: 'email_address',
-                        hintFontWeight: FontWeight.bold,
-                        keyboardType: TextInputType.emailAddress,
-                        controller: controller.emailController,
-                        borderColor: themeController.whiteColor,
-                        textColor: themeController.whiteColor,
-                      ),
-                      heightBox(16),
-                      Obx(() {
-                        if (controller.isSignupMode.value) {
-                          return Column(
-                            children: [
-                              TextFieldConstant(
-                                height: 44.h,
-                                hintFontSize: 14,
-                                hintText: 'set_password',
-                                hintFontWeight: FontWeight.bold,
-                                obscureText: true,
-                                controller: controller.passwordController,
-                                borderColor: themeController.whiteColor,
-                                textColor: themeController.whiteColor,
-                              ),
-                              heightBox(12),
-                              TextFieldConstant(
-                                height: 44.h,
-                                hintFontSize: 14,
-                                hintText: 'confirm_password',
-                                hintFontWeight: FontWeight.bold,
-                                obscureText: true,
-                                controller: controller.confirmPasswordController,
-                                borderColor: themeController.whiteColor,
-                                textColor: themeController.whiteColor,
-                              ),
-                            ],
-                          );
-                        } else if (controller.isExistingEmail.value) {
-                          return TextFieldConstant(
-                            height: 44.h,
-                            hintFontSize: 14,
-                            hintText: 'password',
-                            hintFontWeight: FontWeight.bold,
-                            obscureText: true,
-                            controller: controller.passwordController,
-                            borderColor: themeController.whiteColor,
-                            textColor: themeController.whiteColor,
-                          );
-                        }
-                        return SizedBox.shrink();
-                      }),
-                      // Add "Use verification code" and "Send magic link" for existing users
-                      Obx(() {
-                        if (controller.isExistingEmail.value) {
-                          return Column(
-                            children: [
-                              heightBox(12),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  TextButton(
-                                    onPressed: () {
-                                      controller.startEmailOtp();
-                                    },
-                                    child: Text(
-                                      'Use verification code',
-                                      style: TextStyle(
-                                        color: themeController.lightPinkColor,
-                                        fontSize: 12.sp,
-                                        decoration: TextDecoration.underline,
-                                      ),
-                                    ),
-                                  ),
-                                  TextButton(
-                                    onPressed: () {
-                                      controller.sendMagicLink();
-                                    },
-                                    child: Text(
-                                      'Send magic link',
-                                      style: TextStyle(
-                                        color: themeController.lightPinkColor,
-                                        fontSize: 12.sp,
-                                        decoration: TextDecoration.underline,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          );
-                        }
-                        return SizedBox.shrink();
-                      }),
-                    ],
-                  ),
-                  customPadding: EdgeInsets.only(top: 20.h),
-                ),
-                heightBox(20),
-                
-                // Email authentication flow
-                Column(
-                  children: [
-                    Obx(() => elevatedButton(
-                          height: 56.h,
-                          borderRadius: 28,
-                          title: controller.isSignupMode.value
-                              ? 'Sign up'
-                              : controller.isExistingEmail.value
-                                  ? (isOAuthMode ? 'Continue with ${oauthProvider?.toUpperCase() ?? 'OAuth'}' : 'Sign in')
-                                  : 'Continue',
-                          textColor: themeController.whiteColor,
-                          onPressed: controller.isLoading.value
-                              ? null
-                              : () {
-                                  if (controller.isSignupMode.value) {
-                                    controller.signUpWithEmail();
-                                  } else if (controller.isExistingEmail.value) {
-                                    if (isOAuthMode) {
-                                      if (oauthProvider == 'google') {
-                                        controller.signInWithGoogle();
-                                      } else if (oauthProvider == 'apple') {
-                                        controller.continueWithApple();
-                                      }
-                                    } else {
-                                      controller.signInWithPassword();
-                                    }
-                                  } else {
-                                    controller.continueWithEmail();
+                            SizedBox(width: 16.w),
+                            // Language selection button aligned to the right of logo
+                            Obx(
+                              () => PopupMenuButton<String>(
+                                onSelected: (String languageName) {
+                                  controller.selectedLanguage.value = languageName;
+                                  final languageCode = controller.languagesMap[languageName];
+                                  if (languageCode != null) {
+                                    setLocale(languageCode, controller.selectedLanguage.value);
                                   }
                                 },
-                          colorsGradient: [
-                            themeController.lightPinkColor,
-                            themeController.purpleColor,
+                                child: Container(
+                                  padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 8.h),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(20.r),
+                                    border: Border.all(color: Colors.white.withOpacity(0.2)),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      TextConstant(
+                                        title: controller.selectedLanguage.value,
+                                        color: themeController.whiteColor,
+                                        fontSize: 14,
+                                      ),
+                                      SizedBox(width: 6.w),
+                                      Icon(
+                                        Icons.arrow_drop_down,
+                                        color: themeController.whiteColor,
+                                        size: 18.sp,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                itemBuilder: (BuildContext context) {
+                                  return controller.languagesMap.keys.map((String language) {
+                                    return PopupMenuItem<String>(
+                                      value: language,
+                                      child: TextConstant(
+                                        title: language,
+                                        color: themeController.blackColor,
+                                      ),
+                                    );
+                                  }).toList();
+                                },
+                              ),
+                            ),
                           ],
-                        )),
-                    heightBox(24),
-                    // OR divider directly under the button (match Get Started)
-                    screenPadding(
-                      customPadding: EdgeInsets.symmetric(vertical: 0.h),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Divider(
-                              endIndent: 15,
-                              thickness: 0.2,
+                        ),
+                        heightBox(16),
+                        TextConstant(
+                          title: 'welcome_back',
+                          color: themeController.whiteColor,
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        heightBox(8),
+                        TextConstant(
+                          title: 'find_your_perfect_match_with_lovebug',
+                          color: themeController.greyColor,
+                          fontSize: 16,
+                        ),
+                        heightBox(40),
+                        
+                        // Email Input Field
+                        Column(
+                          children: [
+                            TextFieldConstant(
+                              height: 44,
+                              hintFontSize: 14,
+                              hintText: 'email_address',
+                              hintFontWeight: FontWeight.bold,
+                              keyboardType: TextInputType.emailAddress,
+                              controller: controller.emailController,
+                              borderColor: themeController.whiteColor,
+                              textColor: themeController.whiteColor,
+                            ),
+                            heightBox(16),
+                            Obx(() {
+                              if (controller.isSignupMode.value) {
+                                return Column(
+                                  children: [
+                                    TextFieldConstant(
+                                      height: 44.h,
+                                      hintFontSize: 14,
+                                      hintText: 'set_password',
+                                      hintFontWeight: FontWeight.bold,
+                                      obscureText: true,
+                                      controller: controller.passwordController,
+                                      borderColor: themeController.whiteColor,
+                                      textColor: themeController.whiteColor,
+                                    ),
+                                    heightBox(12),
+                                    TextFieldConstant(
+                                      height: 44.h,
+                                      hintFontSize: 14,
+                                      hintText: 'confirm_password',
+                                      hintFontWeight: FontWeight.bold,
+                                      obscureText: true,
+                                      controller: controller.confirmPasswordController,
+                                      borderColor: themeController.whiteColor,
+                                      textColor: themeController.whiteColor,
+                                    ),
+                                  ],
+                                );
+                              } else if (controller.isExistingEmail.value) {
+                                return TextFieldConstant(
+                                  height: 44.h,
+                                  hintFontSize: 14,
+                                  hintText: 'password',
+                                  hintFontWeight: FontWeight.bold,
+                                  obscureText: true,
+                                  controller: controller.passwordController,
+                                  borderColor: themeController.whiteColor,
+                                  textColor: themeController.whiteColor,
+                                );
+                              }
+                              return SizedBox.shrink();
+                            }),
+                            // Add "Use verification code" and "Send magic link" for existing users
+                            Obx(() {
+                              if (controller.isExistingEmail.value) {
+                                return Column(
+                                  children: [
+                                    heightBox(12),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        TextButton(
+                                          onPressed: () {
+                                            controller.startEmailOtp();
+                                          },
+                                          child: TextConstant(
+                                            title: 'use_verification_code',
+                                            color: themeController.lightPinkColor,
+                                            fontSize: 12.sp,
+                                            textDecoration: TextDecoration.underline,
+                                          ),
+                                        ),
+                                        TextButton(
+                                          onPressed: () {
+                                            controller.forgotPassword();
+                                          },
+                                          child: TextConstant(
+                                            title: 'forgot_password',
+                                            color: themeController.lightPinkColor,
+                                            fontSize: 12.sp,
+                                            textDecoration: TextDecoration.underline,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                );
+                              }
+                              return SizedBox.shrink();
+                            }),
+                          ],
+                        ),
+                        heightBox(20),
+                        
+                        // Email authentication flow
+                        Column(
+                          children: [
+                            Obx(() => elevatedButton(
+                                  height: 56.h,
+                                  borderRadius: 28,
+                                  title: controller.isSignupMode.value
+                                      ? 'sign_up'.tr
+                                      : controller.isExistingEmail.value
+                                          ? (isOAuthMode ? '${'continue_with'.tr} ${oauthProvider?.toUpperCase() ?? 'OAuth'}' : 'sign_in'.tr)
+                                          : 'continue'.tr,
+                                  textColor: themeController.whiteColor,
+                                  onPressed: controller.isLoading.value
+                                      ? null
+                                      : () {
+                                          if (controller.isSignupMode.value) {
+                                            controller.signUpWithEmail();
+                                          } else if (controller.isExistingEmail.value) {
+                                            if (isOAuthMode) {
+                                              if (oauthProvider == 'google') {
+                                                controller.signInWithGoogle();
+                                              } else if (oauthProvider == 'apple') {
+                                                controller.continueWithApple();
+                                              }
+                                            } else {
+                                              controller.signInWithPassword();
+                                            }
+                                          } else {
+                                            controller.continueWithEmail();
+                                          }
+                                        },
+                                  colorsGradient: [
+                                    themeController.lightPinkColor,
+                                    themeController.purpleColor,
+                                  ],
+                                )),
+                            heightBox(24),
+                            // OR divider directly under the button (match Get Started)
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Divider(
+                                    endIndent: 15,
+                                    thickness: 0.2,
+                                  ),
+                                ),
+                                TextConstant(
+                                  title: 'or',
+                                  color: themeController.greyColor,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                                Expanded(
+                                  child: Divider(
+                                    indent: 15,
+                                    thickness: 0.2,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            heightBox(24),
+                          ],
+                        ),
+                        
+                        if (!hideProviders) ...[
+                          // Google button (copied styling from GetStarted screen)
+                          Container(
+                            width: double.infinity,
+                            height: 56.h,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  themeController.lightPinkColor.withValues(alpha: 0.15),
+                                  themeController.purpleColor.withValues(alpha: 0.1),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              border: Border.all(
+                                color: themeController.lightPinkColor.withValues(alpha: 0.3),
+                                width: 1.w,
+                              ),
+                              borderRadius: BorderRadius.circular(28.r),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: themeController.lightPinkColor.withValues(alpha: 0.1),
+                                  blurRadius: 8,
+                                  offset: Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () { controller.continueWithGoogle(); },
+                                borderRadius: BorderRadius.circular(28.r),
+                                child: Center(
+                                  child: TextConstant(
+                                    title: 'continue_google',
+                                    color: themeController.whiteColor.withValues(alpha: 0.9),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
-                          TextConstant(
-                            title: 'or',
-                            color: themeController.greyColor,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                          ),
-                          Expanded(
-                            child: Divider(
-                              indent: 15,
-                              thickness: 0.2,
+                          heightBox(12),
+                          // Apple button (copied styling from GetStarted screen)
+                          Container(
+                            width: double.infinity,
+                            height: 56.h,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  themeController.lightPinkColor.withValues(alpha: 0.15),
+                                  themeController.purpleColor.withValues(alpha: 0.1),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              border: Border.all(
+                                color: themeController.lightPinkColor.withValues(alpha: 0.3),
+                                width: 1.w,
+                              ),
+                              borderRadius: BorderRadius.circular(28.r),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: themeController.lightPinkColor.withValues(alpha: 0.1),
+                                  blurRadius: 8,
+                                  offset: Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () { controller.continueWithApple(); },
+                                borderRadius: BorderRadius.circular(28.r),
+                                child: Center(
+                                  child: TextConstant(
+                                    title: 'continue_apple',
+                                    color: themeController.whiteColor.withValues(alpha: 0.9),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                         ],
-                      ),
+                      ],
                     ),
-                    heightBox(24),
-                  ],
+                  ),
                 ),
-                
-                if (!hideProviders) ...[
-                  // Google button (copied styling from GetStarted screen)
-                  Container(
-                    width: double.infinity,
-                    height: 56.h,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          themeController.lightPinkColor.withValues(alpha: 0.15),
-                          themeController.purpleColor.withValues(alpha: 0.1),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      border: Border.all(
-                        color: themeController.lightPinkColor.withValues(alpha: 0.3),
-                        width: 1.w,
-                      ),
-                      borderRadius: BorderRadius.circular(28.r),
-                      boxShadow: [
-                        BoxShadow(
-                          color: themeController.lightPinkColor.withValues(alpha: 0.1),
-                          blurRadius: 8,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () { controller.continueWithGoogle(); },
-                        borderRadius: BorderRadius.circular(28.r),
-                        child: Center(
-                          child: TextConstant(
-                            title: 'continue_google',
-                            color: themeController.whiteColor.withValues(alpha: 0.9),
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  heightBox(12),
-                  // Apple button (copied styling from GetStarted screen)
-                  Container(
-                    width: double.infinity,
-                    height: 56.h,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          themeController.lightPinkColor.withValues(alpha: 0.15),
-                          themeController.purpleColor.withValues(alpha: 0.1),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      border: Border.all(
-                        color: themeController.lightPinkColor.withValues(alpha: 0.3),
-                        width: 1.w,
-                      ),
-                      borderRadius: BorderRadius.circular(28.r),
-                      boxShadow: [
-                        BoxShadow(
-                          color: themeController.lightPinkColor.withValues(alpha: 0.1),
-                          blurRadius: 8,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () { controller.continueWithApple(); },
-                        borderRadius: BorderRadius.circular(28.r),
-                        child: Center(
-                          child: TextConstant(
-                            title: 'continue_apple',
-                            color: themeController.whiteColor.withValues(alpha: 0.9),
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
     );

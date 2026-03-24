@@ -90,7 +90,7 @@ class BottombarScreen extends StatelessWidget {
           return GlassmorphicContainer(
             blur: 15,
             border: 0,
-            height: 70.h,
+            height: 80.h, // Increased slightly to accommodate safe area padding
             borderRadius: 0,
             width: Get.width,
             alignment: Alignment.center,
@@ -109,17 +109,21 @@ class BottombarScreen extends StatelessWidget {
               colors: [Colors.white30, Colors.white10],
             ),
 
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 17.w),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  buildNavItem(AppAssets.discover, 'discover'.tr, 0),
-                  buildNavItem(AppAssets.stories, 'stories'.tr, 1),
-                  buildNavItem(AppAssets.chat, 'chat'.tr, 2),
-                  buildNavItem(AppAssets.profile, 'profile'.tr, 3),
-                  buildNavItem(AppAssets.notificationIcon, 'activity'.tr, 4),
-                ],
+            child: SafeArea(
+              bottom: true,
+              top: false,
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 17.w),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    buildNavItem(AppAssets.discover, 'discover'.tr, 0),
+                    buildNavItem(AppAssets.chronicles, 'chronicles'.tr, 1),
+                    buildNavItem(AppAssets.chat, 'chat'.tr, 2),
+                    buildNavItem(AppAssets.profile, 'profile'.tr, 3),
+                    buildNavItem(AppAssets.notificationIcon, 'activity'.tr, 4),
+                  ],
+                ),
               ),
             ),
           );

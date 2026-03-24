@@ -150,12 +150,18 @@ BEGIN
     RETURN jsonb_build_object('error', 'Match not found');
   END IF;
   
-  -- Get user profiles
-  SELECT * INTO user1_data FROM public.profiles WHERE id = match_data.user_id_1;
-  SELECT * INTO user2_data FROM public.profiles WHERE id = match_data.user_id_2;
+  -- Get user profiles (dating matches use user_id and other_user_id)
+  SELECT * INTO user1_data FROM public.profiles WHERE id = match_data.user_id;
+  SELECT * INTO user2_data FROM public.profiles WHERE id = match_data.other_user_id;
   
   IF user1_data IS NULL OR user2_data IS NULL THEN
-    RETURN jsonb_build_object('error', 'User profiles not found');
+    -- Try fallback to user_id_1/user_id_2 if needed
+    SELECT * INTO user1_data FROM public.profiles WHERE id = match_data.user_id_1;
+    SELECT * INTO user2_data FROM public.profiles WHERE id = match_data.user_id_2;
+    
+    IF user1_data IS NULL OR user2_data IS NULL THEN
+      RETURN jsonb_build_object('error', 'User profiles not found');
+    END IF;
   END IF;
   
   -- Return user data for edge function processing

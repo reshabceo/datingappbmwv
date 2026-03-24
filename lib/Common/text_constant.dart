@@ -16,7 +16,7 @@ class TextConstant extends StatelessWidget {
     this.height,
     this.textDecoration,
     this.decorationColor,
-    this.softWrap = false,
+    this.softWrap = true,
     this.fontStyle,
   });
 
@@ -57,7 +57,7 @@ class TextConstant extends StatelessWidget {
       displayText,
       overflow: overflow ?? TextOverflow.visible,
       textAlign: textAlign,
-      softWrap: softWrap ?? true, // Default to true to allow soft wrapping to prevent truncation
+      softWrap: softWrap, // Now defaults to true in constructor
       style: textStyle(
         height: height,
         fontSize: fontSize,

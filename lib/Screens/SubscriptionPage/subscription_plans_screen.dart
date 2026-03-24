@@ -152,8 +152,8 @@ class SubscriptionPlansScreen extends StatelessWidget {
                             context: context,
                             planType: '1_month',
                             title: 'Premium - 1 Month',
-                            price: '₹15.00',
-                            originalPrice: '₹20.00',
+                            price: '₹1,500',
+                            originalPrice: '₹2,000',
                             discount: '25%',
                             features: [
                               'Everything in Free',
@@ -175,8 +175,8 @@ class SubscriptionPlansScreen extends StatelessWidget {
                             context: context,
                             planType: '3_month',
                             title: 'Premium - 3 Months',
-                            price: '₹22.50',
-                            originalPrice: '₹45.00',
+                            price: '₹2,250',
+                            originalPrice: '₹4,500',
                             discount: '50%',
                             features: [
                               'Everything in Free',
@@ -198,8 +198,8 @@ class SubscriptionPlansScreen extends StatelessWidget {
                             context: context,
                             planType: '6_month',
                             title: 'Premium - 6 Months',
-                            price: '₹36.00',
-                            originalPrice: '₹90.00',
+                            price: '₹3,600',
+                            originalPrice: '₹9,000',
                             discount: '60%',
                             features: [
                               'Everything in Free',
@@ -359,7 +359,7 @@ class SubscriptionPlansScreen extends StatelessWidget {
         children: [
           if (isPopular)
             Positioned(
-              top: -1,
+              top: 0,
               right: 20.w,
               child: Container(
                 padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
@@ -381,6 +381,8 @@ class SubscriptionPlansScreen extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Add spacing when "Most Popular" badge is shown so it doesn't overlap
+              if (isPopular) SizedBox(height: 14.h),
               Row(
                 children: [
                   Icon(

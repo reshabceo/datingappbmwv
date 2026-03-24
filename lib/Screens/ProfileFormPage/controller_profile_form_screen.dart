@@ -14,6 +14,7 @@ import 'package:lovebug/Screens/Common/custom_crop_page.dart';
 import '../../services/supabase_service.dart';
 import '../../services/analytics_service.dart';
 import '../../services/location_service.dart';
+import '../../services/content_filter_service.dart';
 import '../BottomBarPage/bottombar_screen.dart';
 import '../BottomBarPage/controller_bottombar_screen.dart';
 
@@ -21,6 +22,7 @@ class ProfileFormController extends GetxController {
   TextEditingController nameController = TextEditingController();
   TextEditingController ageController = TextEditingController();
   TextEditingController dateOfBirthController = TextEditingController();
+  TextEditingController phoneController = TextEditingController();
   TextEditingController aboutController = TextEditingController();
   
   // Gender selection
@@ -411,17 +413,26 @@ class ProfileFormController extends GetxController {
       // Use case-insensitive comparison to handle 'Female', 'female', 'FEMALE', etc.
       final bool isPremium = selectedGender.value.trim().toLowerCase() == 'female';
       
+      // Filter description content for objectionable material
+      final filteredDescription = ContentFilterService.filterContent(aboutController.text);
+      if (filteredDescription == null) {
+        Get.snackbar('Error', 'Profile description contains inappropriate content. Please revise.');
+        isLoading.value = false;
+        return;
+      }
+      
       final profileData = {
         'id': user.id,
         'name': nameController.text,
         'age': age,
         'gender': selectedGender.value,
-        'description': aboutController.text,
+        'description': filteredDescription, // Use filtered content
         'hobbies': selectedInterests.toList(),
         'image_urls': uploadedImageUrls.toList(),
         'is_active': true,
         'is_premium': isPremium, // Set premium based on gender: Female = true, others = false
         'birth_date': birthDate.toIso8601String().split('T')[0],
+        'phone': phoneController.text, // Add phone number
         'zodiac_sign': AstroService.calculateZodiacSign(birthDate),
       };
 
@@ -533,29 +544,49 @@ class ProfileFormController extends GetxController {
           duration: Duration(seconds: 2));
       } else {
         print('❌ ProfileFormController: Location permission denied');
-        // Show dialog for denied permission
-        await Get.dialog(
-          AlertDialog(
-            backgroundColor: Get.theme.scaffoldBackgroundColor,
-            title: Text(
-              'Location Access Needed',
-              style: TextStyle(color: Get.theme.textTheme.titleLarge?.color),
-            ),
-            content: Text(
-              'To find matches near you, please enable location access in your device settings.',
-              style: TextStyle(color: Get.theme.textTheme.bodyLarge?.color),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Get.back(),
-                child: Text(
-                  'OK',
-                  style: TextStyle(color: Get.theme.primaryColor),
-                ),
+        // Check AGAIN if it's now permanently denied after the request
+        final finalStatus = await Permission.locationWhenInUse.status;
+        
+        if (finalStatus.isPermanentlyDenied) {
+          // Show settings guide
+           await Get.dialog(
+            AlertDialog(
+              backgroundColor: Get.theme.scaffoldBackgroundColor,
+              title: Text(
+                'Location Access Needed',
+                style: TextStyle(color: Get.theme.textTheme.titleLarge?.color),
               ),
-            ],
-          ),
-        );
+              content: Text(
+                'To find matches near you, please enable location access in your device settings.',
+                style: TextStyle(color: Get.theme.textTheme.bodyLarge?.color),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Get.back(),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(color: Get.theme.textTheme.bodyLarge?.color),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    Get.back();
+                    await LocationService.openAppLocationSettings();
+                  },
+                  style: TextButton.styleFrom(
+                    backgroundColor: Get.theme.primaryColor,
+                  ),
+                  child: Text(
+                    'Settings',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          );
+        } else {
+          Get.snackbar('Permission Denied', 'Please enable location to find nearby matches.');
+        }
       }
     } catch (e) {
       print('❌ ProfileFormController: Error requesting location permission: $e');

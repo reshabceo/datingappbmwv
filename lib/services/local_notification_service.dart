@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:lovebug/services/supabase_service.dart';
+import 'package:lovebug/Common/widget_constant.dart';
 
 class LocalNotificationService {
   static bool _initialized = false;
@@ -71,15 +72,9 @@ class LocalNotificationService {
     print('🔔 Showing local notification: $title - $body');
 
     // Show in-app notification for active app
-    Get.snackbar(
-      title,
-      body,
-      snackPosition: SnackPosition.TOP,
-      backgroundColor: Colors.black87,
-      colorText: Colors.white,
-      duration: Duration(seconds: 6), // Longer duration for better visibility
-      margin: EdgeInsets.all(16),
-      borderRadius: 8,
+    showCustomSnackBar(
+      title: title,
+      message: body,
       icon: _getNotificationIcon(type),
       onTap: (_) => _handleNotificationTap(type, data),
     );

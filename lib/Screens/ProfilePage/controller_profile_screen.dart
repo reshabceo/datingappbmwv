@@ -3,6 +3,9 @@ import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../services/supabase_service.dart';
 import '../../services/location_service.dart';
+import '../../services/geocoding_service.dart';
+import '../../services/content_filter_service.dart';
+import 'package:lovebug/Common/widget_constant.dart';
 
 class ProfileController extends GetxController {
   TextEditingController nameController = TextEditingController();
@@ -10,6 +13,7 @@ class ProfileController extends GetxController {
   TextEditingController locationController = TextEditingController();
   TextEditingController aboutController = TextEditingController();
   TextEditingController interestController = TextEditingController();
+  TextEditingController phoneController = TextEditingController();
 
   RxList<String> genderType = <String>['Male', 'Female', 'Non-binary'].obs;
   RxList<String> lookingType = <String>['Men', 'Women', 'Everyone'].obs;
@@ -65,9 +69,26 @@ class ProfileController extends GetxController {
           userProfile.value = profile;
           nameController.text = profile['name'] ?? '';
           ageController.text = profile['age']?.toString() ?? '';
-          locationController.text = profile['location'] ?? '';
+          final rawLocation = profile['location'] ?? '';
+          locationController.text = rawLocation;
+          
+          // If location looks like coordinates, try to resolve it in background
+          if (rawLocation.toString().contains(',')) {
+            final lat = (profile['latitude'] as num?)?.toDouble();
+            final lon = (profile['longitude'] as num?)?.toDouble();
+            if (lat != null && lon != null) {
+              GeocodingService.getReadableLocation(lat, lon).then((resolved) {
+                if (resolved != '$lat, $lon') {
+                  locationController.text = resolved;
+                  userProfile['location'] = resolved;
+                  update();
+                }
+              });
+            }
+          }
           // Support both bio/description
           aboutController.text = (profile['bio'] ?? profile['description'] ?? '') as String;
+          phoneController.text = profile['phone'] ?? '';
           // Support photos/image_urls - prioritize image_urls over photos to avoid duplicates
           List<String> allPhotos = [];
           if (profile['image_urls'] != null) {
@@ -137,7 +158,7 @@ class ProfileController extends GetxController {
       if (e.toString().contains('RLS') || e.toString().contains('policy')) {
         print('❌ This looks like an RLS (Row Level Security) policy issue!');
       }
-      Get.snackbar('Error', 'Failed to load profile: $e');
+      showCustomSnackBar(title: 'error'.tr, message: '${'failed_to_load_profile'.tr}: $e', isError: true);
       
       // Set default values on error
       userProfile.value = {
@@ -174,8 +195,15 @@ class ProfileController extends GetxController {
         if (locationController.text.trim().isNotEmpty) {
           profileData['location'] = locationController.text.trim();
         }
-        // Always allow updating description/About Me
-        profileData['description'] = aboutController.text;
+        // Always allow updating description/About Me - filter for objectionable content
+        final filteredDescription = ContentFilterService.filterContent(aboutController.text);
+        if (filteredDescription == null) {
+          showCustomSnackBar(title: 'error'.tr, message: 'profile_description_inappropriate_message'.tr, isError: true);
+          isLoading.value = false;
+          return;
+        }
+        profileData['description'] = filteredDescription;
+        profileData['phone'] = phoneController.text.trim();
         // Interests/Photos: include current selections if available
         if (myInterestList.isNotEmpty) {
           profileData['hobbies'] = myInterestList.toList();
@@ -211,6 +239,7 @@ class ProfileController extends GetxController {
       ageController.text = userProfile['age']?.toString() ?? '';
       locationController.text = userProfile['location']?.toString() ?? '';
       aboutController.text = userProfile['bio']?.toString() ?? userProfile['description']?.toString() ?? '';
+      phoneController.text = userProfile['phone']?.toString() ?? '';
       print('📝 Controllers populated - Name: ${nameController.text}, Age: ${ageController.text}');
     } else {
       // Exiting edit mode - clear any unsaved changes
@@ -238,6 +267,7 @@ class ProfileController extends GetxController {
     ageController.text = userProfile['age']?.toString() ?? '';
     locationController.text = userProfile['location']?.toString() ?? '';
     aboutController.text = userProfile['bio']?.toString() ?? userProfile['description']?.toString() ?? '';
+    phoneController.text = userProfile['phone']?.toString() ?? '';
     
     isEditMode.value = false;
     textInputEmoji.value = false;
@@ -321,7 +351,7 @@ class ProfileController extends GetxController {
       // Check if user is authenticated
       final user = SupabaseService.currentUser;
       if (user == null) {
-        Get.snackbar('Error', 'Please log in to upload photos');
+        showCustomSnackBar(title: 'error'.tr, message: 'please_log_in_to_upload_photos'.tr, isError: true);
         return;
       }
       
@@ -358,11 +388,11 @@ class ProfileController extends GetxController {
         // Update profile in database
         await updateProfile();
         
-        Get.snackbar('Success', 'Photo uploaded successfully!');
+        showCustomSnackBar(title: 'success'.tr, message: 'photo_uploaded_successfully'.tr);
       }
     } catch (e) {
       print('Error uploading image: $e');
-      Get.snackbar('Error', 'Failed to upload image: $e');
+      showCustomSnackBar(title: 'error'.tr, message: '${'failed_to_upload_image'.tr}: $e', isError: true);
     }
   }
 
