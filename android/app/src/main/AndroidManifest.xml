@@ -3,11 +3,21 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:label="lovebug"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- Sample AdMob App ID: ca-app-pub-3940256099942544~3347511713 -->
+        <!-- TODO: Replace with your actual AdMob App ID -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-3940256099942544~3347511713"/>
+            
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -42,17 +52,10 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
-            
-        <!-- Sample AdMob App ID: ca-app-pub-3940256099942544~3347511713 -->
-        <!-- TODO: Replace with your actual AdMob App ID -->
-        <meta-data
-            android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-3940256099942544~3347511713"/>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
          https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
-
          In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
     <queries>
         <intent>
@@ -71,3 +74,4 @@
         </intent>
     </queries>
 </manifest>
+

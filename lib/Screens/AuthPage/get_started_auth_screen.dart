@@ -114,7 +114,7 @@ class GetStartedAuthScreen extends StatelessWidget {
                               value: language,
                               child: TextConstant(
                                 title: language,
-                                color: theme.blackColor,
+                                color: theme.isDarkMode.value ? Colors.white : Colors.black,
                               ),
                             );
                           }).toList();

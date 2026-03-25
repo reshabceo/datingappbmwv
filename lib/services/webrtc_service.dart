@@ -83,6 +83,7 @@ class WebRTCService extends GetxController {
       // STUN servers for NAT discovery (reduced to 3 for better performance)
       {'urls': 'stun:stun.l.google.com:19302'},
       {'urls': 'stun:stun1.l.google.com:19302'},
+      {'urls': 'stun:stun2.l.google.com:19302'},
       {'urls': 'stun:stun.cloudflare.com:3478'},
       // Free TURN server for relay when direct connection fails
       // NOTE: For production, replace with your own TURN server (Coturn/Twilio/Xirsys)
@@ -1555,20 +1556,20 @@ class WebRTCService extends GetxController {
     });
   }
 
-  // Auto-cancel if no answer within 10 seconds for caller
+  // Auto-cancel if no answer within 60 seconds for caller
   void _startNoAnswerTimeout() {
     _noAnswerTimeout?.cancel();
     // Only relevant for initiator while connecting
     if (!_isInitiator) return;
     
-    print('⏰ DEBUG: Starting 10-second timeout for caller (no answer)');
-    _noAnswerTimeout = Timer(const Duration(seconds: 10), () async {
-      print('⏰ DEBUG: 10-second timeout triggered for caller');
+    print('⏰ DEBUG: Starting 60-second timeout for caller (no answer)');
+    _noAnswerTimeout = Timer(const Duration(seconds: 60), () async {
+      print('⏰ DEBUG: 60-second timeout triggered for caller');
       print('⏰ DEBUG: Current call state: ${_callState.value}');
       print('⏰ DEBUG: Answer applied: $_answerApplied');
       
       if (_callState.value == CallState.connecting && !_answerApplied) {
-        print('⏰ No answer within 30s – auto-canceling invite');
+        print('⏰ No answer within 60s – auto-canceling invite');
         try {
           _updateDbStateSafe('timeout');
         } catch (e) {
@@ -1582,20 +1583,20 @@ class WebRTCService extends GetxController {
     });
   }
 
-  // Auto-cancel if receiver doesn't answer within 12 seconds
+  // Auto-cancel if receiver doesn't answer within 60 seconds
   void _startReceiverTimeout() {
     _noAnswerTimeout?.cancel();
     // Only relevant for receiver while connecting
     if (_isInitiator) return;
     
-    print('⏰ DEBUG: Starting 12-second timeout for receiver (not answering)');
-    _noAnswerTimeout = Timer(const Duration(seconds: 12), () async {
-      print('⏰ DEBUG: 12-second timeout triggered for receiver');
+    print('⏰ DEBUG: Starting 60-second timeout for receiver (not answering)');
+    _noAnswerTimeout = Timer(const Duration(seconds: 60), () async {
+      print('⏰ DEBUG: 60-second timeout triggered for receiver');
       print('⏰ DEBUG: Current call state: ${_callState.value}');
       print('⏰ DEBUG: Answer applied: $_answerApplied');
       
       if (_callState.value == CallState.connecting && !_answerApplied) {
-        print('⏰ Receiver timeout - call not answered within 30s');
+        print('⏰ Receiver timeout - call not answered within 60s');
         try {
           _updateDbStateSafe('timeout');
         } catch (e) {
