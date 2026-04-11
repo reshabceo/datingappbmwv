@@ -22,7 +22,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   print('📱 BACKGROUND: Message data: ${message.data}');
   
   final data = message.data;
-  final type = data['type'];
+  final type = data['type'] ?? data['action'];
   
   // CRITICAL FIX: Handle incoming calls in background by triggering CallKit IMMEDIATELY
   if (type == 'incoming_call') {
@@ -31,7 +31,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     try {
       final callId = data['call_id'] as String?;
       final callerId = data['caller_id'] as String?;
-      final callerName = data['caller_name'] as String? ?? 'Unknown';
+      final callerName = data['caller_name'] as String? ?? 'Someone';
       final callType = data['call_type'] as String? ?? 'video';
       final matchId = data['match_id'] as String?;
       final callerImageUrl = data['caller_image_url'] as String?;
@@ -69,7 +69,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
             'callId': callId,
             'matchId': matchId,
             'callType': callType,
-            'isBffMatch': false,
+            'isBffMatch': data['is_bff_match'] == 'true',
             'callerId': callerId,
             'callerName': callerName,
           },
@@ -502,81 +502,11 @@ class NotificationService {
     print('📱 FOREGROUND: Message data: ${message.data}');
     
     final data = message.data;
-    final type = data['type'];
+    final type = data['type'] ?? data['action'];
     
     // Foreground incoming call handling
     if (type == 'incoming_call') {
-      print('📱 FOREGROUND: Incoming call - triggering CallKit');
-      try {
-        final callId = data['call_id'] as String?;
-        final callerName = (data['caller_name'] as String?) ?? 'Unknown';
-        final callType = (data['call_type'] as String?) ?? 'video';
-        final matchId = data['match_id'] as String?;
-        final callerId = data['caller_id'] as String?;
-        final callerImageUrl = data['caller_image_url'] as String?;
-        if (callId != null && matchId != null && callerId != null) {
-          if (_isSuppressed(callId)) {
-            print('🚫 FOREGROUND: Suppressed incoming call UI for $callId');
-            return;
-          }
-          // De-dup: if CallKit already showing this call, skip
-          try {
-            final active = await FlutterCallkitIncoming.activeCalls();
-            final isActive = (active ?? []).any((c) => (c['id']?.toString() ?? '') == callId);
-            if (isActive) {
-              print('⚠️ FOREGROUND: Call $callId already active in CallKit - skipping duplicate show');
-              return;
-            }
-          } catch (_) {}
-          final params = CallKitParams(
-            id: callId,
-            nameCaller: callerName,
-            appName: 'LoveBug',
-            avatar: callerImageUrl ?? 'https://i.pravatar.cc',
-            handle: callType == 'video' ? 'Incoming video call' : 'Incoming audio call',
-            type: callType == 'video' ? 1 : 0,
-            duration: 30000,
-            textAccept: 'Accept',
-            textDecline: 'Decline',
-            extra: {
-              'callId': callId,
-              'matchId': matchId,
-              'callType': callType,
-              'isBffMatch': false,
-              'callerId': callerId,
-              'callerName': callerName,
-            },
-            headers: <String, dynamic>{'apiKey': 'LoveBug@123!', 'platform': 'flutter'},
-            android: AndroidParams(
-              isCustomNotification: true,
-              isShowLogo: true,
-              ringtonePath: 'system_ringtone_default',
-              backgroundColor: '#09182F',
-              backgroundUrl: callerImageUrl,
-              actionColor: '#4CAF50',
-            ),
-            ios: IOSParams(
-              iconName: 'CallKitLogo',
-              handleType: 'generic',
-              supportsVideo: callType == 'video',
-              maximumCallGroups: 1,
-              maximumCallsPerCallGroup: 1,
-              audioSessionMode: 'default',
-              audioSessionActive: true,
-              audioSessionPreferredSampleRate: 44100.0,
-              audioSessionPreferredIOBufferDuration: 0.005,
-              supportsDTMF: true,
-              supportsHolding: true,
-              supportsGrouping: false,
-              supportsUngrouping: false,
-              ringtonePath: 'call_ringtone.wav',
-            ),
-          );
-          FlutterCallkitIncoming.showCallkitIncoming(params);
-        }
-      } catch (e) {
-        print('❌ FOREGROUND: Error triggering CallKit: $e');
-      }
+      print('📱 FOREGROUND: Incoming call received via FCM - ignoring to let real-time listener handle it');
       return;
     }
     
@@ -683,7 +613,7 @@ class NotificationService {
   static void _showIncomingCallNotification(Map<String, dynamic> data) {
     // Show incoming call notification with action buttons using flutter_callkit_incoming
     final callId = data['call_id'] as String?;
-    final callerName = (data['caller_name'] as String?) ?? 'Unknown';
+    final callerName = (data['caller_name'] as String?) ?? 'Someone';
     final callType = (data['call_type'] as String?) ?? 'video';
     final matchId = data['match_id'] as String?;
     final callerId = data['caller_id'] as String?;
@@ -705,7 +635,7 @@ class NotificationService {
         'callId': callId,
         'matchId': matchId,
         'callType': callType,
-        'isBffMatch': false,
+        'isBffMatch': data['is_bff_match'] == 'true',
         'callerId': callerId,
         'callerName': callerName,
       },

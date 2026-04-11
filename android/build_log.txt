@@ -1,0 +1,905 @@
+> Task :gradle:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :gradle:compileKotlin UP-TO-DATE
+> Task :gradle:compileJava NO-SOURCE
+> Task :gradle:compileGroovy NO-SOURCE
+> Task :gradle:pluginDescriptors UP-TO-DATE
+> Task :gradle:processResources UP-TO-DATE
+> Task :gradle:classes UP-TO-DATE
+> Task :gradle:jar UP-TO-DATE
+> Task :app:ReleaseMinSdkCheck
+> Task :app:compileFlutterBuildRelease UP-TO-DATE
+> Task :app:packJniLibsflutterBuildRelease UP-TO-DATE
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preReleaseBuild UP-TO-DATE
+> Task :app:configureCMakeRelease[arm64-v8a]
+> Task :app:buildCMakeRelease[arm64-v8a]
+> Task :app:configureCMakeRelease[armeabi-v7a]
+> Task :app:buildCMakeRelease[armeabi-v7a]
+> Task :app:configureCMakeRelease[x86_64]
+> Task :app:buildCMakeRelease[x86_64]
+> Task :app:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :app_links:preBuild UP-TO-DATE
+> Task :app_links:preReleaseBuild UP-TO-DATE
+> Task :app_links:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :app_links:mergeReleaseNativeLibs NO-SOURCE
+> Task :app_links:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :audioplayers_android:preBuild UP-TO-DATE
+> Task :audioplayers_android:preReleaseBuild UP-TO-DATE
+> Task :audioplayers_android:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :audioplayers_android:mergeReleaseNativeLibs NO-SOURCE
+> Task :audioplayers_android:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :camera_android:preBuild UP-TO-DATE
+> Task :camera_android:preReleaseBuild UP-TO-DATE
+> Task :camera_android:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :camera_android:mergeReleaseNativeLibs NO-SOURCE
+> Task :camera_android:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :device_info_plus:preBuild UP-TO-DATE
+> Task :device_info_plus:preReleaseBuild UP-TO-DATE
+> Task :device_info_plus:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :device_info_plus:mergeReleaseNativeLibs NO-SOURCE
+> Task :device_info_plus:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :emoji_picker_flutter:preBuild UP-TO-DATE
+> Task :emoji_picker_flutter:preReleaseBuild UP-TO-DATE
+> Task :emoji_picker_flutter:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :emoji_picker_flutter:mergeReleaseNativeLibs NO-SOURCE
+> Task :emoji_picker_flutter:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :facebook_app_events:preBuild UP-TO-DATE
+> Task :facebook_app_events:preReleaseBuild UP-TO-DATE
+> Task :facebook_app_events:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :facebook_app_events:mergeReleaseNativeLibs NO-SOURCE
+> Task :facebook_app_events:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :file_picker:preBuild UP-TO-DATE
+> Task :file_picker:preReleaseBuild UP-TO-DATE
+> Task :file_picker:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :file_picker:mergeReleaseNativeLibs NO-SOURCE
+> Task :file_picker:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :firebase_analytics:preBuild UP-TO-DATE
+> Task :firebase_analytics:preReleaseBuild UP-TO-DATE
+> Task :firebase_analytics:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :firebase_analytics:mergeReleaseNativeLibs NO-SOURCE
+> Task :firebase_analytics:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :firebase_core:preBuild UP-TO-DATE
+> Task :firebase_core:preReleaseBuild UP-TO-DATE
+> Task :firebase_core:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :firebase_core:mergeReleaseNativeLibs NO-SOURCE
+> Task :firebase_core:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :firebase_messaging:preBuild UP-TO-DATE
+> Task :firebase_messaging:preReleaseBuild UP-TO-DATE
+> Task :firebase_messaging:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :firebase_messaging:mergeReleaseNativeLibs NO-SOURCE
+> Task :firebase_messaging:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :flutter_callkit_incoming:preBuild UP-TO-DATE
+> Task :flutter_callkit_incoming:preReleaseBuild UP-TO-DATE
+> Task :flutter_callkit_incoming:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :flutter_callkit_incoming:mergeReleaseNativeLibs NO-SOURCE
+> Task :flutter_callkit_incoming:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :flutter_plugin_android_lifecycle:preBuild UP-TO-DATE
+> Task :flutter_plugin_android_lifecycle:preReleaseBuild UP-TO-DATE
+> Task :flutter_plugin_android_lifecycle:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :flutter_plugin_android_lifecycle:mergeReleaseNativeLibs NO-SOURCE
+> Task :flutter_plugin_android_lifecycle:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :flutter_webrtc:preBuild UP-TO-DATE
+> Task :flutter_webrtc:preReleaseBuild UP-TO-DATE
+> Task :flutter_webrtc:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :flutter_webrtc:mergeReleaseNativeLibs NO-SOURCE
+> Task :flutter_webrtc:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :geolocator_android:preBuild UP-TO-DATE
+> Task :geolocator_android:preReleaseBuild UP-TO-DATE
+> Task :geolocator_android:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :geolocator_android:mergeReleaseNativeLibs NO-SOURCE
+> Task :geolocator_android:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :google_mobile_ads:preBuild UP-TO-DATE
+> Task :google_mobile_ads:preReleaseBuild UP-TO-DATE
+> Task :google_mobile_ads:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :google_mobile_ads:mergeReleaseNativeLibs NO-SOURCE
+> Task :google_mobile_ads:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :image_cropper:preBuild UP-TO-DATE
+> Task :image_cropper:preReleaseBuild UP-TO-DATE
+> Task :image_cropper:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :image_cropper:mergeReleaseNativeLibs NO-SOURCE
+> Task :image_cropper:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :image_picker_android:preBuild UP-TO-DATE
+> Task :image_picker_android:preReleaseBuild UP-TO-DATE
+> Task :image_picker_android:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :image_picker_android:mergeReleaseNativeLibs NO-SOURCE
+> Task :image_picker_android:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :in_app_purchase_android:preBuild UP-TO-DATE
+> Task :in_app_purchase_android:preReleaseBuild UP-TO-DATE
+> Task :in_app_purchase_android:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :in_app_purchase_android:mergeReleaseNativeLibs NO-SOURCE
+> Task :in_app_purchase_android:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :package_info_plus:preBuild UP-TO-DATE
+> Task :package_info_plus:preReleaseBuild UP-TO-DATE
+> Task :package_info_plus:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :package_info_plus:mergeReleaseNativeLibs NO-SOURCE
+> Task :package_info_plus:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :path_provider_android:preBuild UP-TO-DATE
+> Task :path_provider_android:preReleaseBuild UP-TO-DATE
+> Task :path_provider_android:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :path_provider_android:mergeReleaseNativeLibs NO-SOURCE
+> Task :path_provider_android:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :permission_handler_android:preBuild UP-TO-DATE
+> Task :permission_handler_android:preReleaseBuild UP-TO-DATE
+> Task :permission_handler_android:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :permission_handler_android:mergeReleaseNativeLibs NO-SOURCE
+> Task :permission_handler_android:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :photo_manager:preBuild UP-TO-DATE
+> Task :photo_manager:preReleaseBuild UP-TO-DATE
+> Task :photo_manager:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :photo_manager:mergeReleaseNativeLibs NO-SOURCE
+> Task :photo_manager:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :record_android:preBuild UP-TO-DATE
+> Task :record_android:preReleaseBuild UP-TO-DATE
+> Task :record_android:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :record_android:mergeReleaseNativeLibs NO-SOURCE
+> Task :record_android:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :shared_preferences_android:preBuild UP-TO-DATE
+> Task :shared_preferences_android:preReleaseBuild UP-TO-DATE
+> Task :shared_preferences_android:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :shared_preferences_android:mergeReleaseNativeLibs NO-SOURCE
+> Task :shared_preferences_android:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :url_launcher_android:preBuild UP-TO-DATE
+> Task :url_launcher_android:preReleaseBuild UP-TO-DATE
+> Task :url_launcher_android:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :url_launcher_android:mergeReleaseNativeLibs NO-SOURCE
+> Task :url_launcher_android:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :webview_flutter_android:preBuild UP-TO-DATE
+> Task :webview_flutter_android:preReleaseBuild UP-TO-DATE
+> Task :webview_flutter_android:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :webview_flutter_android:mergeReleaseNativeLibs NO-SOURCE
+> Task :webview_flutter_android:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :app:mergeReleaseNativeLibs UP-TO-DATE
+> Task :app:stripReleaseDebugSymbols UP-TO-DATE
+> Task :app:extractReleaseNativeSymbolTables UP-TO-DATE
+> Task :app:mergeReleaseNativeDebugMetadata UP-TO-DATE
+> Task :app_links:generateReleaseResValues UP-TO-DATE
+> Task :app_links:generateReleaseResources UP-TO-DATE
+> Task :app_links:packageReleaseResources UP-TO-DATE
+> Task :app_links:parseReleaseLocalResources UP-TO-DATE
+> Task :app_links:generateReleaseRFile UP-TO-DATE
+> Task :app_links:javaPreCompileRelease UP-TO-DATE
+> Task :app_links:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :app_links:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :audioplayers_android:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :audioplayers_android:generateReleaseResValues UP-TO-DATE
+> Task :audioplayers_android:generateReleaseResources UP-TO-DATE
+> Task :audioplayers_android:packageReleaseResources UP-TO-DATE
+> Task :audioplayers_android:parseReleaseLocalResources UP-TO-DATE
+> Task :audioplayers_android:generateReleaseRFile UP-TO-DATE
+> Task :audioplayers_android:compileReleaseKotlin UP-TO-DATE
+> Task :audioplayers_android:javaPreCompileRelease UP-TO-DATE
+> Task :audioplayers_android:compileReleaseJavaWithJavac NO-SOURCE
+> Task :audioplayers_android:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :camera_android:generateReleaseBuildConfig UP-TO-DATE
+> Task :camera_android:generateReleaseResValues UP-TO-DATE
+> Task :camera_android:generateReleaseResources UP-TO-DATE
+> Task :camera_android:packageReleaseResources UP-TO-DATE
+> Task :camera_android:parseReleaseLocalResources UP-TO-DATE
+> Task :camera_android:generateReleaseRFile UP-TO-DATE
+> Task :camera_android:javaPreCompileRelease UP-TO-DATE
+> Task :flutter_plugin_android_lifecycle:generateReleaseResValues UP-TO-DATE
+> Task :flutter_plugin_android_lifecycle:generateReleaseResources UP-TO-DATE
+> Task :flutter_plugin_android_lifecycle:packageReleaseResources UP-TO-DATE
+> Task :flutter_plugin_android_lifecycle:parseReleaseLocalResources UP-TO-DATE
+> Task :flutter_plugin_android_lifecycle:generateReleaseRFile UP-TO-DATE
+> Task :flutter_plugin_android_lifecycle:javaPreCompileRelease UP-TO-DATE
+> Task :flutter_plugin_android_lifecycle:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :flutter_plugin_android_lifecycle:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :camera_android:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :camera_android:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :device_info_plus:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :device_info_plus:generateReleaseResValues UP-TO-DATE
+> Task :device_info_plus:generateReleaseResources UP-TO-DATE
+> Task :device_info_plus:packageReleaseResources UP-TO-DATE
+> Task :device_info_plus:parseReleaseLocalResources UP-TO-DATE
+> Task :device_info_plus:generateReleaseRFile UP-TO-DATE
+> Task :device_info_plus:compileReleaseKotlin UP-TO-DATE
+> Task :device_info_plus:javaPreCompileRelease UP-TO-DATE
+> Task :device_info_plus:compileReleaseJavaWithJavac NO-SOURCE
+> Task :device_info_plus:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :emoji_picker_flutter:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :emoji_picker_flutter:generateReleaseResValues UP-TO-DATE
+> Task :emoji_picker_flutter:generateReleaseResources UP-TO-DATE
+> Task :emoji_picker_flutter:packageReleaseResources UP-TO-DATE
+> Task :emoji_picker_flutter:parseReleaseLocalResources UP-TO-DATE
+> Task :emoji_picker_flutter:generateReleaseRFile UP-TO-DATE
+> Task :emoji_picker_flutter:compileReleaseKotlin UP-TO-DATE
+> Task :emoji_picker_flutter:javaPreCompileRelease UP-TO-DATE
+> Task :emoji_picker_flutter:compileReleaseJavaWithJavac NO-SOURCE
+> Task :emoji_picker_flutter:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :facebook_app_events:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :facebook_app_events:generateReleaseBuildConfig UP-TO-DATE
+> Task :facebook_app_events:generateReleaseResValues UP-TO-DATE
+> Task :facebook_app_events:generateReleaseResources UP-TO-DATE
+> Task :facebook_app_events:packageReleaseResources UP-TO-DATE
+> Task :facebook_app_events:parseReleaseLocalResources UP-TO-DATE
+> Task :facebook_app_events:generateReleaseRFile UP-TO-DATE
+> Task :facebook_app_events:compileReleaseKotlin UP-TO-DATE
+> Task :facebook_app_events:javaPreCompileRelease UP-TO-DATE
+> Task :facebook_app_events:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :facebook_app_events:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :file_picker:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :file_picker:generateReleaseResValues UP-TO-DATE
+> Task :file_picker:generateReleaseResources UP-TO-DATE
+> Task :file_picker:packageReleaseResources UP-TO-DATE
+> Task :file_picker:parseReleaseLocalResources UP-TO-DATE
+> Task :file_picker:generateReleaseRFile UP-TO-DATE
+> Task :file_picker:compileReleaseKotlin UP-TO-DATE
+> Task :file_picker:javaPreCompileRelease UP-TO-DATE
+> Task :file_picker:compileReleaseJavaWithJavac NO-SOURCE
+> Task :file_picker:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :firebase_analytics:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :firebase_analytics:generateReleaseBuildConfig UP-TO-DATE
+> Task :firebase_analytics:generateReleaseResValues UP-TO-DATE
+> Task :firebase_analytics:generateReleaseResources UP-TO-DATE
+> Task :firebase_analytics:packageReleaseResources UP-TO-DATE
+> Task :firebase_analytics:parseReleaseLocalResources UP-TO-DATE
+> Task :firebase_analytics:generateReleaseRFile UP-TO-DATE
+> Task :firebase_core:generateReleaseBuildConfig UP-TO-DATE
+> Task :firebase_core:generateReleaseResValues UP-TO-DATE
+> Task :firebase_core:generateReleaseResources UP-TO-DATE
+> Task :firebase_core:packageReleaseResources UP-TO-DATE
+> Task :firebase_core:parseReleaseLocalResources UP-TO-DATE
+> Task :firebase_core:generateReleaseRFile UP-TO-DATE
+> Task :firebase_core:javaPreCompileRelease UP-TO-DATE
+> Task :firebase_core:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :firebase_core:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :firebase_analytics:compileReleaseKotlin UP-TO-DATE
+> Task :firebase_analytics:javaPreCompileRelease UP-TO-DATE
+> Task :firebase_analytics:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :firebase_analytics:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :firebase_messaging:generateReleaseBuildConfig UP-TO-DATE
+> Task :firebase_messaging:generateReleaseResValues UP-TO-DATE
+> Task :firebase_messaging:generateReleaseResources UP-TO-DATE
+> Task :firebase_messaging:packageReleaseResources UP-TO-DATE
+> Task :firebase_messaging:parseReleaseLocalResources UP-TO-DATE
+> Task :firebase_messaging:generateReleaseRFile UP-TO-DATE
+> Task :firebase_messaging:javaPreCompileRelease UP-TO-DATE
+> Task :firebase_messaging:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :firebase_messaging:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :firebase_core:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :flutter_callkit_incoming:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :flutter_callkit_incoming:generateReleaseResValues UP-TO-DATE
+> Task :flutter_callkit_incoming:generateReleaseResources UP-TO-DATE
+> Task :flutter_callkit_incoming:packageReleaseResources UP-TO-DATE
+> Task :flutter_callkit_incoming:parseReleaseLocalResources UP-TO-DATE
+> Task :flutter_callkit_incoming:generateReleaseRFile UP-TO-DATE
+> Task :flutter_callkit_incoming:compileReleaseKotlin UP-TO-DATE
+> Task :flutter_callkit_incoming:javaPreCompileRelease UP-TO-DATE
+> Task :flutter_callkit_incoming:compileReleaseJavaWithJavac NO-SOURCE
+> Task :flutter_callkit_incoming:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :image_picker_android:generateReleaseResValues UP-TO-DATE
+> Task :image_picker_android:generateReleaseResources UP-TO-DATE
+> Task :image_picker_android:packageReleaseResources UP-TO-DATE
+> Task :image_picker_android:parseReleaseLocalResources UP-TO-DATE
+> Task :image_picker_android:generateReleaseRFile UP-TO-DATE
+> Task :image_picker_android:javaPreCompileRelease UP-TO-DATE
+> Task :image_picker_android:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :image_picker_android:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :flutter_plugin_android_lifecycle:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :flutter_webrtc:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :flutter_webrtc:generateReleaseResValues UP-TO-DATE
+> Task :flutter_webrtc:generateReleaseResources UP-TO-DATE
+> Task :flutter_webrtc:packageReleaseResources UP-TO-DATE
+> Task :flutter_webrtc:parseReleaseLocalResources UP-TO-DATE
+> Task :flutter_webrtc:generateReleaseRFile UP-TO-DATE
+> Task :flutter_webrtc:compileReleaseKotlin UP-TO-DATE
+> Task :flutter_webrtc:javaPreCompileRelease UP-TO-DATE
+> Task :flutter_webrtc:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :flutter_webrtc:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :geolocator_android:generateReleaseResValues UP-TO-DATE
+> Task :geolocator_android:generateReleaseResources UP-TO-DATE
+> Task :geolocator_android:packageReleaseResources UP-TO-DATE
+> Task :geolocator_android:parseReleaseLocalResources UP-TO-DATE
+> Task :geolocator_android:generateReleaseRFile UP-TO-DATE
+> Task :geolocator_android:javaPreCompileRelease UP-TO-DATE
+> Task :geolocator_android:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :geolocator_android:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :google_mobile_ads:generateReleaseResValues UP-TO-DATE
+> Task :google_mobile_ads:generateReleaseResources UP-TO-DATE
+> Task :google_mobile_ads:packageReleaseResources UP-TO-DATE
+> Task :google_mobile_ads:parseReleaseLocalResources UP-TO-DATE
+> Task :google_mobile_ads:generateReleaseRFile UP-TO-DATE
+> Task :google_mobile_ads:javaPreCompileRelease UP-TO-DATE
+> Task :webview_flutter_android:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :webview_flutter_android:generateReleaseResValues UP-TO-DATE
+> Task :webview_flutter_android:generateReleaseResources UP-TO-DATE
+> Task :webview_flutter_android:packageReleaseResources UP-TO-DATE
+> Task :webview_flutter_android:parseReleaseLocalResources UP-TO-DATE
+> Task :webview_flutter_android:generateReleaseRFile UP-TO-DATE
+> Task :webview_flutter_android:compileReleaseKotlin UP-TO-DATE
+> Task :webview_flutter_android:javaPreCompileRelease UP-TO-DATE
+> Task :webview_flutter_android:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :webview_flutter_android:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :google_mobile_ads:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :google_mobile_ads:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :image_cropper:generateReleaseResValues UP-TO-DATE
+> Task :image_cropper:generateReleaseResources UP-TO-DATE
+> Task :image_cropper:packageReleaseResources UP-TO-DATE
+> Task :image_cropper:parseReleaseLocalResources UP-TO-DATE
+> Task :image_cropper:generateReleaseRFile UP-TO-DATE
+> Task :image_cropper:javaPreCompileRelease UP-TO-DATE
+> Task :image_cropper:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :image_cropper:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :in_app_purchase_android:generateReleaseBuildConfig UP-TO-DATE
+> Task :in_app_purchase_android:generateReleaseResValues UP-TO-DATE
+> Task :in_app_purchase_android:generateReleaseResources UP-TO-DATE
+> Task :in_app_purchase_android:packageReleaseResources UP-TO-DATE
+> Task :in_app_purchase_android:parseReleaseLocalResources UP-TO-DATE
+> Task :in_app_purchase_android:generateReleaseRFile UP-TO-DATE
+> Task :in_app_purchase_android:javaPreCompileRelease UP-TO-DATE
+> Task :in_app_purchase_android:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :in_app_purchase_android:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :package_info_plus:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :package_info_plus:generateReleaseResValues UP-TO-DATE
+> Task :package_info_plus:generateReleaseResources UP-TO-DATE
+> Task :package_info_plus:packageReleaseResources UP-TO-DATE
+> Task :package_info_plus:parseReleaseLocalResources UP-TO-DATE
+> Task :package_info_plus:generateReleaseRFile UP-TO-DATE
+> Task :package_info_plus:compileReleaseKotlin UP-TO-DATE
+> Task :package_info_plus:javaPreCompileRelease UP-TO-DATE
+> Task :package_info_plus:compileReleaseJavaWithJavac NO-SOURCE
+> Task :package_info_plus:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :path_provider_android:generateReleaseResValues UP-TO-DATE
+> Task :path_provider_android:generateReleaseResources UP-TO-DATE
+> Task :path_provider_android:packageReleaseResources UP-TO-DATE
+> Task :path_provider_android:parseReleaseLocalResources UP-TO-DATE
+> Task :path_provider_android:generateReleaseRFile UP-TO-DATE
+> Task :path_provider_android:javaPreCompileRelease UP-TO-DATE
+> Task :path_provider_android:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :path_provider_android:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :permission_handler_android:generateReleaseResValues UP-TO-DATE
+> Task :permission_handler_android:generateReleaseResources UP-TO-DATE
+> Task :permission_handler_android:packageReleaseResources UP-TO-DATE
+> Task :permission_handler_android:parseReleaseLocalResources UP-TO-DATE
+> Task :permission_handler_android:generateReleaseRFile UP-TO-DATE
+> Task :permission_handler_android:javaPreCompileRelease UP-TO-DATE
+> Task :permission_handler_android:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :permission_handler_android:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :photo_manager:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :photo_manager:generateReleaseResValues UP-TO-DATE
+> Task :photo_manager:generateReleaseResources UP-TO-DATE
+> Task :photo_manager:packageReleaseResources UP-TO-DATE
+> Task :photo_manager:parseReleaseLocalResources UP-TO-DATE
+> Task :photo_manager:generateReleaseRFile UP-TO-DATE
+> Task :photo_manager:compileReleaseKotlin UP-TO-DATE
+> Task :photo_manager:javaPreCompileRelease UP-TO-DATE
+> Task :photo_manager:compileReleaseJavaWithJavac NO-SOURCE
+> Task :photo_manager:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :record_android:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :record_android:generateReleaseResValues UP-TO-DATE
+> Task :record_android:generateReleaseResources UP-TO-DATE
+> Task :record_android:packageReleaseResources UP-TO-DATE
+> Task :record_android:parseReleaseLocalResources UP-TO-DATE
+> Task :record_android:generateReleaseRFile UP-TO-DATE
+> Task :record_android:compileReleaseKotlin UP-TO-DATE
+> Task :record_android:javaPreCompileRelease UP-TO-DATE
+> Task :record_android:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :record_android:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :shared_preferences_android:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :shared_preferences_android:generateReleaseResValues UP-TO-DATE
+> Task :shared_preferences_android:generateReleaseResources UP-TO-DATE
+> Task :shared_preferences_android:packageReleaseResources UP-TO-DATE
+> Task :shared_preferences_android:parseReleaseLocalResources UP-TO-DATE
+> Task :shared_preferences_android:generateReleaseRFile UP-TO-DATE
+> Task :shared_preferences_android:compileReleaseKotlin UP-TO-DATE
+> Task :shared_preferences_android:javaPreCompileRelease UP-TO-DATE
+> Task :shared_preferences_android:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :shared_preferences_android:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :url_launcher_android:generateReleaseBuildConfig UP-TO-DATE
+> Task :url_launcher_android:generateReleaseResValues UP-TO-DATE
+> Task :url_launcher_android:generateReleaseResources UP-TO-DATE
+> Task :url_launcher_android:packageReleaseResources UP-TO-DATE
+> Task :url_launcher_android:parseReleaseLocalResources UP-TO-DATE
+> Task :url_launcher_android:generateReleaseRFile UP-TO-DATE
+> Task :url_launcher_android:javaPreCompileRelease UP-TO-DATE
+> Task :url_launcher_android:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :url_launcher_android:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :webview_flutter_android:bundleLibRuntimeToDirRelease UP-TO-DATE
+> Task :app:checkReleaseDuplicateClasses UP-TO-DATE
+> Task :app:buildKotlinToolingMetadata UP-TO-DATE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app_links:writeReleaseAarMetadata UP-TO-DATE
+> Task :audioplayers_android:writeReleaseAarMetadata UP-TO-DATE
+> Task :camera_android:writeReleaseAarMetadata UP-TO-DATE
+> Task :device_info_plus:writeReleaseAarMetadata UP-TO-DATE
+> Task :emoji_picker_flutter:writeReleaseAarMetadata UP-TO-DATE
+> Task :facebook_app_events:writeReleaseAarMetadata UP-TO-DATE
+> Task :file_picker:writeReleaseAarMetadata UP-TO-DATE
+> Task :firebase_analytics:writeReleaseAarMetadata UP-TO-DATE
+> Task :firebase_core:writeReleaseAarMetadata UP-TO-DATE
+> Task :firebase_messaging:writeReleaseAarMetadata UP-TO-DATE
+> Task :flutter_callkit_incoming:writeReleaseAarMetadata UP-TO-DATE
+> Task :flutter_plugin_android_lifecycle:writeReleaseAarMetadata UP-TO-DATE
+> Task :flutter_webrtc:writeReleaseAarMetadata UP-TO-DATE
+> Task :geolocator_android:writeReleaseAarMetadata UP-TO-DATE
+> Task :google_mobile_ads:writeReleaseAarMetadata UP-TO-DATE
+> Task :image_cropper:writeReleaseAarMetadata UP-TO-DATE
+> Task :image_picker_android:writeReleaseAarMetadata UP-TO-DATE
+> Task :in_app_purchase_android:writeReleaseAarMetadata UP-TO-DATE
+> Task :package_info_plus:writeReleaseAarMetadata UP-TO-DATE
+> Task :path_provider_android:writeReleaseAarMetadata UP-TO-DATE
+> Task :permission_handler_android:writeReleaseAarMetadata UP-TO-DATE
+> Task :photo_manager:writeReleaseAarMetadata UP-TO-DATE
+> Task :record_android:writeReleaseAarMetadata UP-TO-DATE
+> Task :shared_preferences_android:writeReleaseAarMetadata UP-TO-DATE
+> Task :url_launcher_android:writeReleaseAarMetadata UP-TO-DATE
+> Task :webview_flutter_android:writeReleaseAarMetadata UP-TO-DATE
+> Task :app:checkReleaseAarMetadata UP-TO-DATE
+> Task :app:cleanMergeReleaseAssets
+> Task :app:mergeReleaseShaders UP-TO-DATE
+> Task :app:compileReleaseShaders NO-SOURCE
+> Task :app:generateReleaseAssets UP-TO-DATE
+> Task :app_links:mergeReleaseShaders UP-TO-DATE
+> Task :app_links:compileReleaseShaders NO-SOURCE
+> Task :app_links:generateReleaseAssets UP-TO-DATE
+> Task :app_links:mergeReleaseAssets UP-TO-DATE
+> Task :audioplayers_android:mergeReleaseShaders UP-TO-DATE
+> Task :audioplayers_android:compileReleaseShaders NO-SOURCE
+> Task :audioplayers_android:generateReleaseAssets UP-TO-DATE
+> Task :audioplayers_android:mergeReleaseAssets UP-TO-DATE
+> Task :camera_android:mergeReleaseShaders UP-TO-DATE
+> Task :camera_android:compileReleaseShaders NO-SOURCE
+> Task :camera_android:generateReleaseAssets UP-TO-DATE
+> Task :camera_android:mergeReleaseAssets UP-TO-DATE
+> Task :device_info_plus:mergeReleaseShaders UP-TO-DATE
+> Task :device_info_plus:compileReleaseShaders NO-SOURCE
+> Task :device_info_plus:generateReleaseAssets UP-TO-DATE
+> Task :device_info_plus:mergeReleaseAssets UP-TO-DATE
+> Task :emoji_picker_flutter:mergeReleaseShaders UP-TO-DATE
+> Task :emoji_picker_flutter:compileReleaseShaders NO-SOURCE
+> Task :emoji_picker_flutter:generateReleaseAssets UP-TO-DATE
+> Task :emoji_picker_flutter:mergeReleaseAssets UP-TO-DATE
+> Task :facebook_app_events:mergeReleaseShaders UP-TO-DATE
+> Task :facebook_app_events:compileReleaseShaders NO-SOURCE
+> Task :facebook_app_events:generateReleaseAssets UP-TO-DATE
+> Task :facebook_app_events:mergeReleaseAssets UP-TO-DATE
+> Task :file_picker:mergeReleaseShaders UP-TO-DATE
+> Task :file_picker:compileReleaseShaders NO-SOURCE
+> Task :file_picker:generateReleaseAssets UP-TO-DATE
+> Task :file_picker:mergeReleaseAssets UP-TO-DATE
+> Task :firebase_analytics:mergeReleaseShaders UP-TO-DATE
+> Task :firebase_analytics:compileReleaseShaders NO-SOURCE
+> Task :firebase_analytics:generateReleaseAssets UP-TO-DATE
+> Task :firebase_analytics:mergeReleaseAssets UP-TO-DATE
+> Task :firebase_core:mergeReleaseShaders UP-TO-DATE
+> Task :firebase_core:compileReleaseShaders NO-SOURCE
+> Task :firebase_core:generateReleaseAssets UP-TO-DATE
+> Task :firebase_core:mergeReleaseAssets UP-TO-DATE
+> Task :firebase_messaging:mergeReleaseShaders UP-TO-DATE
+> Task :firebase_messaging:compileReleaseShaders NO-SOURCE
+> Task :firebase_messaging:generateReleaseAssets UP-TO-DATE
+> Task :firebase_messaging:mergeReleaseAssets UP-TO-DATE
+> Task :flutter_callkit_incoming:mergeReleaseShaders UP-TO-DATE
+> Task :flutter_callkit_incoming:compileReleaseShaders NO-SOURCE
+> Task :flutter_callkit_incoming:generateReleaseAssets UP-TO-DATE
+> Task :flutter_callkit_incoming:mergeReleaseAssets UP-TO-DATE
+> Task :flutter_plugin_android_lifecycle:mergeReleaseShaders UP-TO-DATE
+> Task :flutter_plugin_android_lifecycle:compileReleaseShaders NO-SOURCE
+> Task :flutter_plugin_android_lifecycle:generateReleaseAssets UP-TO-DATE
+> Task :flutter_plugin_android_lifecycle:mergeReleaseAssets UP-TO-DATE
+> Task :flutter_webrtc:mergeReleaseShaders UP-TO-DATE
+> Task :flutter_webrtc:compileReleaseShaders NO-SOURCE
+> Task :flutter_webrtc:generateReleaseAssets UP-TO-DATE
+> Task :flutter_webrtc:mergeReleaseAssets UP-TO-DATE
+> Task :geolocator_android:mergeReleaseShaders UP-TO-DATE
+> Task :geolocator_android:compileReleaseShaders NO-SOURCE
+> Task :geolocator_android:generateReleaseAssets UP-TO-DATE
+> Task :geolocator_android:mergeReleaseAssets UP-TO-DATE
+> Task :google_mobile_ads:mergeReleaseShaders UP-TO-DATE
+> Task :google_mobile_ads:compileReleaseShaders NO-SOURCE
+> Task :google_mobile_ads:generateReleaseAssets UP-TO-DATE
+> Task :google_mobile_ads:mergeReleaseAssets UP-TO-DATE
+> Task :image_cropper:mergeReleaseShaders UP-TO-DATE
+> Task :image_cropper:compileReleaseShaders NO-SOURCE
+> Task :image_cropper:generateReleaseAssets UP-TO-DATE
+> Task :image_cropper:mergeReleaseAssets UP-TO-DATE
+> Task :image_picker_android:mergeReleaseShaders UP-TO-DATE
+> Task :image_picker_android:compileReleaseShaders NO-SOURCE
+> Task :image_picker_android:generateReleaseAssets UP-TO-DATE
+> Task :image_picker_android:mergeReleaseAssets UP-TO-DATE
+> Task :in_app_purchase_android:mergeReleaseShaders UP-TO-DATE
+> Task :in_app_purchase_android:compileReleaseShaders NO-SOURCE
+> Task :in_app_purchase_android:generateReleaseAssets UP-TO-DATE
+> Task :in_app_purchase_android:mergeReleaseAssets UP-TO-DATE
+> Task :package_info_plus:mergeReleaseShaders UP-TO-DATE
+> Task :package_info_plus:compileReleaseShaders NO-SOURCE
+> Task :package_info_plus:generateReleaseAssets UP-TO-DATE
+> Task :package_info_plus:mergeReleaseAssets UP-TO-DATE
+> Task :path_provider_android:mergeReleaseShaders UP-TO-DATE
+> Task :path_provider_android:compileReleaseShaders NO-SOURCE
+> Task :path_provider_android:generateReleaseAssets UP-TO-DATE
+> Task :path_provider_android:mergeReleaseAssets UP-TO-DATE
+> Task :permission_handler_android:mergeReleaseShaders UP-TO-DATE
+> Task :permission_handler_android:compileReleaseShaders NO-SOURCE
+> Task :permission_handler_android:generateReleaseAssets UP-TO-DATE
+> Task :permission_handler_android:mergeReleaseAssets UP-TO-DATE
+> Task :photo_manager:mergeReleaseShaders UP-TO-DATE
+> Task :photo_manager:compileReleaseShaders NO-SOURCE
+> Task :photo_manager:generateReleaseAssets UP-TO-DATE
+> Task :photo_manager:mergeReleaseAssets UP-TO-DATE
+> Task :record_android:mergeReleaseShaders UP-TO-DATE
+> Task :record_android:compileReleaseShaders NO-SOURCE
+> Task :record_android:generateReleaseAssets UP-TO-DATE
+> Task :record_android:mergeReleaseAssets UP-TO-DATE
+> Task :shared_preferences_android:mergeReleaseShaders UP-TO-DATE
+> Task :shared_preferences_android:compileReleaseShaders NO-SOURCE
+> Task :shared_preferences_android:generateReleaseAssets UP-TO-DATE
+> Task :shared_preferences_android:mergeReleaseAssets UP-TO-DATE
+> Task :url_launcher_android:mergeReleaseShaders UP-TO-DATE
+> Task :url_launcher_android:compileReleaseShaders NO-SOURCE
+> Task :url_launcher_android:generateReleaseAssets UP-TO-DATE
+> Task :url_launcher_android:mergeReleaseAssets UP-TO-DATE
+> Task :webview_flutter_android:mergeReleaseShaders UP-TO-DATE
+> Task :webview_flutter_android:compileReleaseShaders NO-SOURCE
+> Task :webview_flutter_android:generateReleaseAssets UP-TO-DATE
+> Task :webview_flutter_android:mergeReleaseAssets UP-TO-DATE
+> Task :app:mergeReleaseAssets
+> Task :app:copyFlutterAssetsRelease
+> Task :app:generateReleaseResValues UP-TO-DATE
+> Task :app:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :app:generateReleaseResources UP-TO-DATE
+> Task :app:mergeReleaseResources UP-TO-DATE
+> Task :app:packageReleaseResources UP-TO-DATE
+> Task :app:parseReleaseLocalResources UP-TO-DATE
+> Task :app:createReleaseCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksRelease UP-TO-DATE
+> Task :app_links:extractDeepLinksRelease UP-TO-DATE
+> Task :app_links:processReleaseManifest UP-TO-DATE
+> Task :audioplayers_android:extractDeepLinksRelease UP-TO-DATE
+> Task :audioplayers_android:processReleaseManifest UP-TO-DATE
+> Task :camera_android:extractDeepLinksRelease UP-TO-DATE
+> Task :camera_android:processReleaseManifest UP-TO-DATE
+> Task :device_info_plus:extractDeepLinksRelease UP-TO-DATE
+> Task :device_info_plus:processReleaseManifest UP-TO-DATE
+> Task :emoji_picker_flutter:extractDeepLinksRelease UP-TO-DATE
+> Task :emoji_picker_flutter:processReleaseManifest UP-TO-DATE
+> Task :facebook_app_events:extractDeepLinksRelease UP-TO-DATE
+> Task :facebook_app_events:processReleaseManifest UP-TO-DATE
+> Task :file_picker:extractDeepLinksRelease UP-TO-DATE
+> Task :file_picker:processReleaseManifest UP-TO-DATE
+> Task :firebase_analytics:extractDeepLinksRelease UP-TO-DATE
+> Task :firebase_analytics:processReleaseManifest UP-TO-DATE
+> Task :firebase_core:extractDeepLinksRelease UP-TO-DATE
+> Task :firebase_core:processReleaseManifest UP-TO-DATE
+> Task :firebase_messaging:extractDeepLinksRelease UP-TO-DATE
+> Task :firebase_messaging:processReleaseManifest UP-TO-DATE
+> Task :flutter_callkit_incoming:extractDeepLinksRelease UP-TO-DATE
+> Task :flutter_callkit_incoming:processReleaseManifest UP-TO-DATE
+> Task :flutter_plugin_android_lifecycle:extractDeepLinksRelease UP-TO-DATE
+> Task :flutter_plugin_android_lifecycle:processReleaseManifest UP-TO-DATE
+> Task :flutter_webrtc:extractDeepLinksRelease UP-TO-DATE
+> Task :flutter_webrtc:processReleaseManifest UP-TO-DATE
+> Task :geolocator_android:extractDeepLinksRelease UP-TO-DATE
+> Task :geolocator_android:processReleaseManifest UP-TO-DATE
+> Task :google_mobile_ads:extractDeepLinksRelease UP-TO-DATE
+> Task :google_mobile_ads:processReleaseManifest UP-TO-DATE
+> Task :image_cropper:extractDeepLinksRelease UP-TO-DATE
+> Task :image_cropper:processReleaseManifest UP-TO-DATE
+> Task :image_picker_android:extractDeepLinksRelease UP-TO-DATE
+> Task :image_picker_android:processReleaseManifest UP-TO-DATE
+> Task :in_app_purchase_android:extractDeepLinksRelease UP-TO-DATE
+> Task :in_app_purchase_android:processReleaseManifest UP-TO-DATE
+> Task :package_info_plus:extractDeepLinksRelease UP-TO-DATE
+> Task :package_info_plus:processReleaseManifest UP-TO-DATE
+> Task :path_provider_android:extractDeepLinksRelease UP-TO-DATE
+> Task :path_provider_android:processReleaseManifest UP-TO-DATE
+> Task :permission_handler_android:extractDeepLinksRelease UP-TO-DATE
+> Task :permission_handler_android:processReleaseManifest UP-TO-DATE
+> Task :photo_manager:extractDeepLinksRelease UP-TO-DATE
+> Task :photo_manager:processReleaseManifest UP-TO-DATE
+> Task :record_android:extractDeepLinksRelease UP-TO-DATE
+> Task :record_android:processReleaseManifest UP-TO-DATE
+> Task :shared_preferences_android:extractDeepLinksRelease UP-TO-DATE
+> Task :shared_preferences_android:processReleaseManifest UP-TO-DATE
+> Task :url_launcher_android:extractDeepLinksRelease UP-TO-DATE
+> Task :url_launcher_android:processReleaseManifest UP-TO-DATE
+> Task :webview_flutter_android:extractDeepLinksRelease UP-TO-DATE
+> Task :webview_flutter_android:processReleaseManifest UP-TO-DATE
+> Task :app:processReleaseMainManifest UP-TO-DATE
+> Task :app:processReleaseManifest UP-TO-DATE
+> Task :app:processReleaseManifestForPackage UP-TO-DATE
+> Task :app_links:compileReleaseLibraryResources UP-TO-DATE
+> Task :audioplayers_android:compileReleaseLibraryResources UP-TO-DATE
+> Task :camera_android:compileReleaseLibraryResources UP-TO-DATE
+> Task :device_info_plus:compileReleaseLibraryResources UP-TO-DATE
+> Task :emoji_picker_flutter:compileReleaseLibraryResources UP-TO-DATE
+> Task :facebook_app_events:compileReleaseLibraryResources UP-TO-DATE
+> Task :file_picker:compileReleaseLibraryResources UP-TO-DATE
+> Task :firebase_analytics:compileReleaseLibraryResources UP-TO-DATE
+> Task :firebase_core:compileReleaseLibraryResources UP-TO-DATE
+> Task :firebase_messaging:compileReleaseLibraryResources UP-TO-DATE
+> Task :flutter_callkit_incoming:compileReleaseLibraryResources UP-TO-DATE
+> Task :flutter_plugin_android_lifecycle:compileReleaseLibraryResources UP-TO-DATE
+> Task :flutter_webrtc:compileReleaseLibraryResources UP-TO-DATE
+> Task :geolocator_android:compileReleaseLibraryResources UP-TO-DATE
+> Task :google_mobile_ads:compileReleaseLibraryResources UP-TO-DATE
+> Task :image_cropper:compileReleaseLibraryResources UP-TO-DATE
+> Task :image_picker_android:compileReleaseLibraryResources UP-TO-DATE
+> Task :in_app_purchase_android:compileReleaseLibraryResources UP-TO-DATE
+> Task :package_info_plus:compileReleaseLibraryResources UP-TO-DATE
+> Task :path_provider_android:compileReleaseLibraryResources UP-TO-DATE
+> Task :permission_handler_android:compileReleaseLibraryResources UP-TO-DATE
+> Task :photo_manager:compileReleaseLibraryResources UP-TO-DATE
+> Task :record_android:compileReleaseLibraryResources UP-TO-DATE
+> Task :shared_preferences_android:compileReleaseLibraryResources UP-TO-DATE
+> Task :url_launcher_android:compileReleaseLibraryResources UP-TO-DATE
+> Task :webview_flutter_android:compileReleaseLibraryResources UP-TO-DATE
+> Task :app:processReleaseResources UP-TO-DATE
+> Task :app_links:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :audioplayers_android:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :camera_android:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :device_info_plus:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :emoji_picker_flutter:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :facebook_app_events:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :file_picker:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :firebase_analytics:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :firebase_messaging:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :flutter_callkit_incoming:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :flutter_webrtc:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :geolocator_android:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :google_mobile_ads:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :image_cropper:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :image_picker_android:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :in_app_purchase_android:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :package_info_plus:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :path_provider_android:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :permission_handler_android:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :photo_manager:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :record_android:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :shared_preferences_android:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :url_launcher_android:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :app:javaPreCompileRelease UP-TO-DATE
+> Task :app:desugarReleaseFileDependencies UP-TO-DATE
+> Task :app:mergeReleaseStartupProfile UP-TO-DATE
+> Task :app:mergeExtDexRelease UP-TO-DATE
+> Task :app_links:prepareReleaseArtProfile UP-TO-DATE
+> Task :audioplayers_android:prepareReleaseArtProfile UP-TO-DATE
+> Task :camera_android:prepareReleaseArtProfile UP-TO-DATE
+> Task :device_info_plus:prepareReleaseArtProfile UP-TO-DATE
+> Task :emoji_picker_flutter:prepareReleaseArtProfile UP-TO-DATE
+> Task :facebook_app_events:prepareReleaseArtProfile UP-TO-DATE
+> Task :file_picker:prepareReleaseArtProfile UP-TO-DATE
+> Task :firebase_analytics:prepareReleaseArtProfile UP-TO-DATE
+> Task :firebase_core:prepareReleaseArtProfile UP-TO-DATE
+> Task :firebase_messaging:prepareReleaseArtProfile UP-TO-DATE
+> Task :flutter_callkit_incoming:prepareReleaseArtProfile UP-TO-DATE
+> Task :flutter_plugin_android_lifecycle:prepareReleaseArtProfile UP-TO-DATE
+> Task :flutter_webrtc:prepareReleaseArtProfile UP-TO-DATE
+> Task :geolocator_android:prepareReleaseArtProfile UP-TO-DATE
+> Task :google_mobile_ads:prepareReleaseArtProfile UP-TO-DATE
+> Task :image_cropper:prepareReleaseArtProfile UP-TO-DATE
+> Task :image_picker_android:prepareReleaseArtProfile UP-TO-DATE
+> Task :in_app_purchase_android:prepareReleaseArtProfile UP-TO-DATE
+> Task :package_info_plus:prepareReleaseArtProfile UP-TO-DATE
+> Task :path_provider_android:prepareReleaseArtProfile UP-TO-DATE
+> Task :permission_handler_android:prepareReleaseArtProfile UP-TO-DATE
+> Task :photo_manager:prepareReleaseArtProfile UP-TO-DATE
+> Task :record_android:prepareReleaseArtProfile UP-TO-DATE
+> Task :shared_preferences_android:prepareReleaseArtProfile UP-TO-DATE
+> Task :url_launcher_android:prepareReleaseArtProfile UP-TO-DATE
+> Task :webview_flutter_android:prepareReleaseArtProfile UP-TO-DATE
+> Task :app:mergeReleaseArtProfile UP-TO-DATE
+> Task :app_links:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :audioplayers_android:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :camera_android:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :device_info_plus:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :emoji_picker_flutter:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :facebook_app_events:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :file_picker:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :firebase_analytics:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :firebase_messaging:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :firebase_core:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :flutter_callkit_incoming:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :image_picker_android:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :flutter_plugin_android_lifecycle:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :flutter_webrtc:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :geolocator_android:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :google_mobile_ads:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :image_cropper:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :in_app_purchase_android:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :package_info_plus:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :path_provider_android:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :permission_handler_android:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :photo_manager:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :record_android:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :shared_preferences_android:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :url_launcher_android:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :webview_flutter_android:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :app:compressReleaseAssets UP-TO-DATE
+> Task :app:extractReleaseVersionControlInfo UP-TO-DATE
+> Task :app_links:processReleaseJavaRes NO-SOURCE
+> Task :audioplayers_android:processReleaseJavaRes UP-TO-DATE
+> Task :camera_android:processReleaseJavaRes NO-SOURCE
+> Task :device_info_plus:processReleaseJavaRes UP-TO-DATE
+> Task :emoji_picker_flutter:processReleaseJavaRes UP-TO-DATE
+> Task :facebook_app_events:processReleaseJavaRes UP-TO-DATE
+> Task :file_picker:processReleaseJavaRes UP-TO-DATE
+> Task :firebase_analytics:processReleaseJavaRes UP-TO-DATE
+> Task :firebase_core:processReleaseJavaRes NO-SOURCE
+> Task :firebase_messaging:processReleaseJavaRes NO-SOURCE
+> Task :flutter_callkit_incoming:processReleaseJavaRes UP-TO-DATE
+> Task :flutter_plugin_android_lifecycle:processReleaseJavaRes NO-SOURCE
+> Task :flutter_webrtc:processReleaseJavaRes UP-TO-DATE
+> Task :geolocator_android:processReleaseJavaRes NO-SOURCE
+> Task :google_mobile_ads:processReleaseJavaRes NO-SOURCE
+> Task :image_cropper:processReleaseJavaRes NO-SOURCE
+> Task :image_picker_android:processReleaseJavaRes NO-SOURCE
+> Task :in_app_purchase_android:processReleaseJavaRes NO-SOURCE
+> Task :package_info_plus:processReleaseJavaRes UP-TO-DATE
+> Task :path_provider_android:processReleaseJavaRes NO-SOURCE
+> Task :permission_handler_android:processReleaseJavaRes NO-SOURCE
+> Task :photo_manager:processReleaseJavaRes UP-TO-DATE
+> Task :record_android:processReleaseJavaRes UP-TO-DATE
+> Task :shared_preferences_android:processReleaseJavaRes UP-TO-DATE
+> Task :url_launcher_android:processReleaseJavaRes NO-SOURCE
+> Task :webview_flutter_android:processReleaseJavaRes UP-TO-DATE
+> Task :app:optimizeReleaseResources UP-TO-DATE
+> Task :app:collectReleaseDependencies UP-TO-DATE
+> Task :app:sdkReleaseDependencyData UP-TO-DATE
+> Task :app:validateSigningRelease UP-TO-DATE
+> Task :app:writeReleaseAppMetadata UP-TO-DATE
+> Task :app:writeReleaseSigningConfigVersions UP-TO-DATE
+> Task :app_links:stripReleaseDebugSymbols NO-SOURCE
+> Task :app_links:copyReleaseJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :app_links:extractDeepLinksForAarRelease UP-TO-DATE
+> Task :app_links:extractReleaseAnnotations UP-TO-DATE
+> Task :app_links:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :app_links:mergeReleaseConsumerProguardFiles UP-TO-DATE
+> Task :app_links:prepareLintJarForPublish UP-TO-DATE
+> Task :app_links:mergeReleaseJavaResource
+> Task :app_links:mapReleaseSourceSetPaths
+> Task :app_links:syncReleaseLibJars
+> Task :app_links:bundleReleaseAar
+> Task :app_links:mergeReleaseResources
+> Task :audioplayers_android:stripReleaseDebugSymbols NO-SOURCE
+> Task :audioplayers_android:copyReleaseJniLibsProjectAndLocalJars
+> Task :audioplayers_android:extractDeepLinksForAarRelease UP-TO-DATE
+> Task :audioplayers_android:extractReleaseAnnotations
+> Task :audioplayers_android:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :audioplayers_android:mergeReleaseConsumerProguardFiles UP-TO-DATE
+> Task :audioplayers_android:prepareLintJarForPublish UP-TO-DATE
+> Task :audioplayers_android:mapReleaseSourceSetPaths
+> Task :audioplayers_android:mergeReleaseJavaResource
+> Task :audioplayers_android:mergeReleaseResources
+> Task :audioplayers_android:syncReleaseLibJars
+> Task :audioplayers_android:bundleReleaseAar
+> Task :camera_android:stripReleaseDebugSymbols NO-SOURCE
+> Task :camera_android:copyReleaseJniLibsProjectAndLocalJars
+> Task :camera_android:extractDeepLinksForAarRelease UP-TO-DATE
+> Task :camera_android:extractReleaseAnnotations
+> Task :app_links:verifyReleaseResources
+> Task :camera_android:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :app_links:assembleRelease
+> Task :camera_android:mergeReleaseConsumerProguardFiles UP-TO-DATE
+> Task :camera_android:prepareLintJarForPublish UP-TO-DATE
+> Task :camera_android:mergeReleaseJavaResource
+> Task :camera_android:mapReleaseSourceSetPaths
+> Task :camera_android:syncReleaseLibJars
+> Task :camera_android:bundleReleaseAar
+> Task :audioplayers_android:verifyReleaseResources
+> Task :camera_android:mergeReleaseResources
+> Task :audioplayers_android:assembleRelease
+> Task :device_info_plus:stripReleaseDebugSymbols NO-SOURCE
+> Task :device_info_plus:copyReleaseJniLibsProjectAndLocalJars
+> Task :device_info_plus:extractDeepLinksForAarRelease UP-TO-DATE
+> Task :device_info_plus:extractReleaseAnnotations
+> Task :device_info_plus:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :device_info_plus:mergeReleaseConsumerProguardFiles UP-TO-DATE
+> Task :device_info_plus:prepareLintJarForPublish UP-TO-DATE
+> Task :device_info_plus:mapReleaseSourceSetPaths
+> Task :device_info_plus:mergeReleaseJavaResource
+> Task :camera_android:verifyReleaseResources
+> Task :device_info_plus:mergeReleaseResources
+> Task :camera_android:assembleRelease
+> Task :device_info_plus:syncReleaseLibJars
+> Task :device_info_plus:bundleReleaseAar
+> Task :emoji_picker_flutter:stripReleaseDebugSymbols NO-SOURCE
+> Task :emoji_picker_flutter:copyReleaseJniLibsProjectAndLocalJars
+> Task :emoji_picker_flutter:extractDeepLinksForAarRelease UP-TO-DATE
+> Task :emoji_picker_flutter:extractReleaseAnnotations
+> Task :emoji_picker_flutter:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :emoji_picker_flutter:mergeReleaseConsumerProguardFiles UP-TO-DATE
+> Task :emoji_picker_flutter:prepareLintJarForPublish UP-TO-DATE
+> Task :emoji_picker_flutter:mapReleaseSourceSetPaths
+> Task :emoji_picker_flutter:mergeReleaseJavaResource
+> Task :emoji_picker_flutter:syncReleaseLibJars
+> Task :emoji_picker_flutter:bundleReleaseAar
+
+> Task :app:compileReleaseKotlin FAILED
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:14:38 Unresolved reference 'FirebaseMessagingService'.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:15:38 Unresolved reference 'RemoteMessage'.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:17:36 Unresolved reference 'FirebaseMessagingService'.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:19:5 'onNewToken' overrides nothing.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:20:9 Unresolved reference 'FirebaseMessagingService'.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:20:15 Unresolved reference 'onNewToken'.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:24:5 'onMessageReceived' overrides nothing.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:24:51 Unresolved reference 'RemoteMessage'.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:25:9 Unresolved reference 'FirebaseMessagingService'.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:25:15 Unresolved reference 'onMessageReceived'.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:27:60 Unresolved reference 'from'.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:28:51 Unresolved reference 'data'.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:30:34 Unresolved reference 'data'.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:36:35 Unresolved reference 'notification'.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:37:34 Unresolved reference 'notification'.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:41:45 Unresolved reference 'isEmpty'.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:41:63 Unresolved reference 'lowercase'.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:46:26 Argument type mismatch: actual type is 'kotlin.Any', but 'kotlin.String' was expected.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:46:33 Argument type mismatch: actual type is 'kotlin.Any', but 'kotlin.String' was expected.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:52:22 None of the following candidates is applicable:
+constructor(p0: Context!, p1: Class<*>!): Intent
+constructor(p0: String!, p1: Uri!): Intent
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:52:61 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:52:61 Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
+fun <T> T.apply(block: T.() -> Unit): T
+    [R|Contract description]
+     <
+        CallsInPlace(block, EXACTLY_ONCE)
+    >
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:52:67 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:53:13 Unresolved reference 'addFlags'.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:54:44 Unresolved reference 'putExtra'.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:58:13 Argument type mismatch: actual type is 'com.lovebug.lovebug.MyFirebaseMessagingService', but 'android.content.Context!' was expected.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:66:54 None of the following candidates is applicable:
+constructor(p0: Context, p1: Notification): NotificationCompat.Builder
+constructor(p0: Context, p1: String): NotificationCompat.Builder
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:67:14 Unresolved reference 'setSmallIcon'.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:77:32 None of the following candidates is applicable:
+constructor(p0: Context!, p1: Class<*>!): Intent
+constructor(p0: String!, p1: Uri!): Intent
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:77:77 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:77:77 Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
+fun <T> T.apply(block: T.() -> Unit): T
+    [R|Contract description]
+     <
+        CallsInPlace(block, EXACTLY_ONCE)
+    >
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:77:83 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:78:17 Unresolved reference 'action'.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:79:17 Unresolved reference 'putExtra'.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:80:17 Unresolved reference 'putExtra'.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:81:17 Unresolved reference 'putExtra'.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:82:17 Unresolved reference 'putExtra'.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:85:17 Argument type mismatch: actual type is 'com.lovebug.lovebug.MyFirebaseMessagingService', but 'android.content.Context!' was expected.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:89:33 None of the following candidates is applicable:
+constructor(p0: Context!, p1: Class<*>!): Intent
+constructor(p0: String!, p1: Uri!): Intent
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:89:78 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:89:78 Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
+fun <T> T.apply(block: T.() -> Unit): T
+    [R|Contract description]
+     <
+        CallsInPlace(block, EXACTLY_ONCE)
+    >
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:89:84 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:90:17 Unresolved reference 'action'.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:91:17 Unresolved reference 'putExtra'.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:94:17 Argument type mismatch: actual type is 'com.lovebug.lovebug.MyFirebaseMessagingService', but 'android.content.Context!' was expected.
+e: file:///Users/mdsahil/Downloads/datingappbmwv/android/app/src/main/kotlin/com/lovebug/lovebug/MyFirebaseMessagingService.kt:104:35 Unresolved reference 'getSystemService'.
+
+> Task :device_info_plus:verifyReleaseResources
+> Task :emoji_picker_flutter:mergeReleaseResources
+
+[Incubating] Problems report is available at: file:///Users/mdsahil/Downloads/datingappbmwv/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileReleaseKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.12/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 11s
+630 actionable tasks: 48 executed, 582 up-to-date

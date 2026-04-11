@@ -19,6 +19,7 @@ import 'package:lovebug/screens/call_screens/audio_call_screen.dart';
 import 'package:lovebug/services/callkit_service.dart';
 import 'package:lovebug/services/app_state_service.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
+import 'package:lovebug/Widgets/incoming_call_modal.dart';
 
 /// Service to listen for incoming calls in real-time
 /// This is especially important for web where push notifications don't work
@@ -33,6 +34,7 @@ class CallListenerService {
   // When the app is opened from an incoming_call notification body tap on Android,
   // suppress the in-app invite once to avoid confusion and auto-join vibes.
   static bool _suppressNextInvite = false;
+  static RealtimeChannel? _inviteChannel;
 
   /// Mark that the next in-app invite should be suppressed because the app
   /// was opened from a notification body tap (no accept action yet).
@@ -90,15 +92,21 @@ class CallListenerService {
               _handleIncomingCall(payload.newRecord);
             },
           )
-          .subscribe();
-      
-      print('✅ Call session listener subscribed successfully');
-      
-      // Add a test to verify the subscription is working
-      print('📞 Testing real-time subscription...');
-      Future.delayed(Duration(seconds: 2), () {
-        print('📞 Real-time subscription test completed');
-      });
+          .subscribe((status, [error]) {
+            print('📞 REALTIME STATUS for $userId: $status');
+            if (status == 'SUBSCRIBED') {
+              print('✅ SUCCESSFULLY SUBSCRIBED TO CALL SESSIONS');
+            } else if (status == 'CHANNEL_ERROR') {
+              print('❌ CHANNEL ERROR occurred: ${error.toString()}');
+              // Fallback to aggressive polling if channel error
+              _setupAggressivePollingFallback(userId);
+            } else if (status == 'TIMED_OUT') {
+              print('❌ REALTIME SUBSCRIPTION TIMED OUT');
+              _setupAggressivePollingFallback(userId);
+            }
+          });
+        
+        print('📞 Real-time subscription initiated');
     } catch (e) {
       print('❌ Error setting up call session listener: $e');
       // CRITICAL FIX: If real-time subscription fails, fall back to polling immediately
@@ -129,7 +137,7 @@ class CallListenerService {
       }
       final callerId = callData['caller_id'] as String;
       final matchId = callData['match_id'] as String;
-      final callType = callData['call_type'] as String; // FIXED: Use 'call_type' not 'type'
+      final callType = (callData['call_type'] ?? callData['type'] ?? 'video') as String;
       final callState = callData['state'] as String;
       final createdAtStr = (callData['created_at'] ?? callData['started_at'])?.toString();
       DateTime? createdAt;
@@ -155,13 +163,6 @@ class CallListenerService {
       // Only show incoming call if state is 'initial' or 'ringing'
       if (callState != 'initial' && callState != 'ringing') {
         print('📞 Ignoring call with state: $callState');
-        return;
-      }
-
-      // Grace window: avoid racing the incoming push/CallKit. If the call was just created (<3s),
-      // allow the push/CallKit path to present first, and skip this realtime iteration.
-      if (createdAt != null && DateTime.now().difference(createdAt) < const Duration(seconds: 3)) {
-        print('⏳ LISTENER: Grace-window skip for freshly created call $callId');
         return;
       }
 
@@ -383,216 +384,38 @@ class CallListenerService {
     required String matchId,
     required String callType,
   }) {
-    final themeController = Get.find<ThemeController>();
-    final isVideo = callType == 'video';
-    RealtimeChannel? _inviteChannel;
-
     try {
       Get.dialog(
-      Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: EdgeInsets.symmetric(horizontal: 24.w),
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  themeController.getAccentColor().withValues(alpha: 0.18),
-                  themeController.getSecondaryColor().withValues(alpha: 0.18),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(22.r),
-              border: Border.all(
-                color: themeController.getAccentColor().withValues(alpha: 0.35),
-                width: 1.5,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: themeController.getAccentColor().withValues(alpha: 0.15),
-                  blurRadius: 20,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: SafeArea(
-              child: Padding(
-                padding: EdgeInsets.all(20.w),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Caller profile picture
-                    Container(
-                      width: 100.w,
-                      height: 100.w,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: themeController.getAccentColor().withValues(alpha: 0.5),
-                          width: 3.w,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: themeController.getAccentColor().withValues(alpha: 0.3),
-                            blurRadius: 15,
-                            spreadRadius: 2,
-                          ),
-                        ],
-                      ),
-                      child: ClipOval(
-                        child: callerImage != null && callerImage.isNotEmpty
-                            ? Image.network(
-                                callerImage,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return _buildDefaultCallerAvatar(callerName, themeController);
-                                },
-                              )
-                            : _buildDefaultCallerAvatar(callerName, themeController),
-                      ),
-                    ),
-                    SizedBox(height: 20.h),
-                    
-                    // Call type indicator
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 6.h),
-                      decoration: BoxDecoration(
-                        color: themeController.getAccentColor().withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(20.r),
-                        border: Border.all(
-                          color: themeController.getAccentColor().withValues(alpha: 0.5),
-                          width: 1,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            isVideo ? Icons.videocam : Icons.call,
-                            color: themeController.whiteColor,
-                            size: 16.sp,
-                          ),
-                          SizedBox(width: 6.w),
-                          Text(
-                            'Incoming ${isVideo ? 'Video' : 'Audio'} Call',
-                            style: TextStyle(
-                              color: themeController.whiteColor,
-                              fontSize: 14.sp,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: 16.h),
-                    
-                    // Caller name
-                    Text(
-                      callerName,
-                      style: TextStyle(
-                        color: themeController.whiteColor,
-                        fontSize: 24.sp,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    SizedBox(height: 8.h),
-                    Text(
-                      'is calling you...',
-                      style: TextStyle(
-                        color: themeController.whiteColor.withValues(alpha: 0.8),
-                        fontSize: 16.sp,
-                      ),
-                    ),
-                    SizedBox(height: 24.h),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () async {
-                              try { _inviteChannel?.unsubscribe(); } catch (_) {}
-                              if (Get.isDialogOpen ?? false) Get.back();
-                              await _declineCall(callId);
-                            },
-                            child: Container(
-                              padding: EdgeInsets.symmetric(vertical: 12.h),
-                              decoration: BoxDecoration(
-                                color: Colors.red.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(20.r),
-                                border: Border.all(
-                                  color: Colors.red.withOpacity(0.4),
-                                  width: 1.5,
-                                ),
-                              ),
-                              child: const Text(
-                                'Decline',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: 12.w),
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () async {
-                              try { _inviteChannel?.unsubscribe(); } catch (_) {}
-                              if (Get.isDialogOpen ?? false) Get.back();
-                              await _acceptCall(callId, callerId, matchId, callType);
-                            },
-                            child: Container(
-                              padding: EdgeInsets.symmetric(vertical: 12.h),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(colors: [
-                                  themeController.getAccentColor(),
-                                  themeController.getSecondaryColor(),
-                                ]),
-                                borderRadius: BorderRadius.circular(20.r),
-                                border: Border.all(
-                                  color: themeController.getAccentColor().withValues(alpha: 0.5),
-                                  width: 1.5,
-                                ),
-                              ),
-                              child: const Text(
-                                'Accept',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+        IncomingCallModal(
+          callerName: callerName,
+          callerImage: callerImage,
+          callType: callType,
+          onDecline: () async {
+            try { _inviteChannel?.unsubscribe(); } catch (_) {}
+            if (Get.isDialogOpen ?? false) Get.back();
+            await _declineCall(callId);
+          },
+          onAccept: () async {
+            try { _inviteChannel?.unsubscribe(); } catch (_) {}
+            if (Get.isDialogOpen ?? false) Get.back();
+            await _acceptCall(callId, callerId, matchId, callType);
+          },
         ),
-      ),
-      barrierDismissible: false,
-    ).then((_) {
-      // Cleanup when dialog is dismissed
-      try { _inviteChannel?.unsubscribe(); } catch (_) {}
-    });
+        barrierDismissible: false,
+      ).then((_) {
+        // Cleanup when dialog is dismissed
+        try { _inviteChannel?.unsubscribe(); } catch (_) {}
+      });
     } catch (e) {
       print('❌ Failed to show dialog: $e');
     }
 
     // Subscribe to call state updates to auto-dismiss
     try {
-      _inviteChannel = SupabaseService.client.channel('call_invite_$callId');
-      _inviteChannel.onPostgresChanges(
+      final RealtimeChannel channel = SupabaseService.client.channel('call_invite_$callId');
+      _inviteChannel = channel;
+      
+      channel.onPostgresChanges(
         event: PostgresChangeEvent.update,
         schema: 'public',
         table: 'call_sessions',
@@ -608,7 +431,7 @@ class CallListenerService {
               print('📞 Auto-dismissing invite dialog due to state=$s');
               Get.back();
             }
-            try { _inviteChannel?.unsubscribe(); } catch (_) {}
+            try { channel.unsubscribe(); } catch (_) {}
           }
         },
       ).subscribe();
@@ -1020,14 +843,6 @@ class CallListenerService {
               print('🚫 POLLING: CallKit already active for $callId, skipping');
               continue;
             }
-            // Respect a 3s grace window since created_at
-            try {
-              final createdAt = DateTime.parse((callData['created_at'] ?? callData['started_at']).toString());
-              if (DateTime.now().difference(createdAt) < const Duration(seconds: 3)) {
-                print('⏳ POLLING: Grace-window skip for $callId');
-                continue;
-              }
-            } catch (_) {}
             print('📞 Processing incoming call via polling: $callId');
             _handleIncomingCall(callData);
           }

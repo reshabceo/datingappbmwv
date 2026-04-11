@@ -59,24 +59,22 @@ serve(async (req) => {
         sound: 'default',
       },
       data: {
-        type: 'call',
-        callType: callType,
-        callAction: callAction,
-        notificationId: notificationId,
-        webrtcRoomId: webrtcRoomId,
-        matchId: matchId,
-        isBffMatch: isBffMatch?.toString() || 'false',
-        userId: userId,
-        name: name,
-        username: username,
-        imageUrl: imageUrl,
+        type: 'incoming_call', // Changed from 'call' to 'incoming_call'
+        call_type: callType, // Sync with Flutter: caller_id, call_id, etc.
+        call_id: notificationId, // Sync with Flutter
+        caller_id: userId, // Sync with Flutter
+        caller_name: name || username, // Sync with Flutter
+        caller_image_url: imageUrl || '', // Sync with Flutter
+        match_id: matchId,
+        is_bff_match: isBffMatch?.toString() || 'false',
+        webrtc_room_id: webrtcRoomId,
       },
       android: {
         priority: 'high',
         notification: {
           priority: 'high',
           sound: 'default',
-          channelId: 'calls',
+          channelId: 'call_notifications', // Matches native channel ID
         },
       },
       apns: {

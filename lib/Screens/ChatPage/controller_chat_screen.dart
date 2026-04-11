@@ -174,6 +174,7 @@ class EnhancedChatController extends GetxController {
               .from('messages')
               .select('content, created_at')
               .eq('match_id', matchId)
+              .eq('deleted_for_everyone', false)
               .order('created_at', ascending: false)
               .limit(1);
 
@@ -182,6 +183,7 @@ class EnhancedChatController extends GetxController {
               .from('audio_messages')
               .select('created_at')
               .eq('match_id', matchId)
+              .eq('deleted_for_everyone', false)
               .order('created_at', ascending: false)
               .limit(1);
 
@@ -278,6 +280,7 @@ class EnhancedChatController extends GetxController {
               .from('messages')
               .select('content, created_at')
               .eq('match_id', matchId)
+              .eq('deleted_for_everyone', false)
               .order('created_at', ascending: false)
               .limit(1);
 
@@ -286,6 +289,7 @@ class EnhancedChatController extends GetxController {
               .from('audio_messages')
               .select('created_at')
               .eq('match_id', matchId)
+              .eq('deleted_for_everyone', false)
               .order('created_at', ascending: false)
               .limit(1);
 

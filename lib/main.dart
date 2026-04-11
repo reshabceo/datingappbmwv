@@ -43,63 +43,89 @@ import 'Widgets/eula_terms_modal.dart';
 import 'Common/widget_constant.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  // Register the background message handler BEFORE runApp (critical for closed-app delivery)
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    
+    // Set up global error handlers
+    FlutterError.onError = (FlutterErrorDetails details) {
+      FlutterError.presentError(details);
+      print('❌ FLUTTER ERROR: ${details.exception}');
+    };
 
-  // CRITICAL FIX: Initialize AppStateService FIRST before any other services
-  AppStateService.initialize();
-  print('🔧 DEBUG: AppStateService initialized at app startup');
-  
-  // Initialize Supabase
-  await SupabaseService.initialize();
-  
-  // Initialize Payment Service
-  await PaymentService.initialize();
-  
-  // Request camera, photo, and location permissions on app startup
-  await _requestPermissions();
-  
-  // Initialize Firebase (Required for Android, and recommended for shared Dart code)
-  if (Platform.isAndroid || !kIsWeb) {
     try {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
-      print('✅ Firebase initialized successfully in Flutter');
-    } catch (e) {
-      print('⚠️ Firebase initialization warning: $e');
-    }
-  }
-  
-  // Initialize Notification Service
-  await NotificationService.initialize();
-  
-  // Initialize Local Notification Service
-  await LocalNotificationService.initialize();
+      print('🚀 APP STARTING...');
+      
+      // Register the background message handler BEFORE runApp
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-  // Initialize Android call action handler (Accept/Decline from notification)
-  if (Platform.isAndroid) {
-    try {
-      await AndroidCallActionService.initialize();
-    } catch (e) {
-      print('❌ Failed to initialize AndroidCallActionService: $e');
+      // Initialize AppStateService
+      AppStateService.initialize();
+      
+      // Initialize Supabase - Wrap in individual try-catch to avoid total crash
+      try {
+        await SupabaseService.initialize();
+        print('✅ Supabase initialized');
+      } catch (e) {
+        print('❌ Supabase initialization failed: $e');
+      }
+      
+      // Initialize Firebase (Recommended for shared Dart code)
+      if (Platform.isAndroid || !kIsWeb) {
+        try {
+          await Firebase.initializeApp(
+            options: DefaultFirebaseOptions.currentPlatform,
+          );
+          print('✅ Firebase initialized');
+        } catch (e) {
+          print('⚠️ Firebase initialization warning: $e');
+        }
+      }
+      
+      // Initialize Payment Service
+      try {
+        await PaymentService.initialize();
+      } catch (e) {
+        print('❌ PaymentService init failed: $e');
+      }
+      
+      // Other services
+      await NotificationService.initialize().catchError((e) => print('❌ NotificationService init failed: $e'));
+      await LocalNotificationService.initialize().catchError((e) => print('❌ LocalNotificationService init failed: $e'));
+
+      if (Platform.isAndroid) {
+        AndroidCallActionService.initialize().catchError((e) => print('❌ AndroidCallActionService init failed: $e'));
+      }
+      
+      await SharedPreferenceHelper.init();
+      lanCode.value = SharedPreferenceHelper.getString(SharedPreferenceHelper.languageCode, defaultValue: 'en');
+      lanName.value = SharedPreferenceHelper.getString(SharedPreferenceHelper.languageName, defaultValue: 'English');
+      
+      if (!Get.isRegistered<ThemeController>()) {
+        Get.put(ThemeController(), permanent: true);
+      }
+      
+      print('🏁 INITIALIZATION COMPLETE');
+      runApp(MyApp());
+
+      // CRITICAL FIX: Request permissions AFTER the app has started and rendered the first frame.
+      // Doing this early in main() blocks the splash screen and can cause crashes on certain devices (Realme/Android 10).
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _requestPermissions().catchError((e) => print('❌ Permission request failed: $e'));
+      });
+      
+    } catch (e, stack) {
+      print('🔥 FATAL STARTUP ERROR: $e');
+      print(stack);
+      runApp(MaterialApp(
+        home: Scaffold(
+          body: Center(child: Text('Failed to start: $e')),
+        ),
+      ));
     }
-  }
-  
-  print('✅ Firebase initialized successfully');
-  
-  // Initialize SharedPreferences
-  await SharedPreferenceHelper.init();
-  lanCode.value = SharedPreferenceHelper.getString(SharedPreferenceHelper.languageCode, defaultValue: 'en');
-  lanName.value = SharedPreferenceHelper.getString(SharedPreferenceHelper.languageName, defaultValue: 'English');
-  // Ensure ThemeController is registered before any widget requests it
-  if (!Get.isRegistered<ThemeController>()) {
-    Get.put(ThemeController(), permanent: true);
-  }
-  
-  runApp(MyApp());
+  }, (error, stack) {
+    print('🔥 ASYNC ERROR: $error');
+    print(stack);
+  });
 }
 
 /// Request necessary permissions when app starts

@@ -107,12 +107,8 @@ class _VideoCallScreenState extends State<VideoCallScreen>
       // CRITICAL: Set up callbacks AFTER renderers are ready
       webrtcService.onRemoteStream = (stream) {
         print('📞 VideoCallScreen: Remote stream callback triggered');
-        print('📞 VideoCallScreen: Renderers initialized: $_renderersInitialized');
-        print('📞 VideoCallScreen: Stream has video tracks: ${stream.getVideoTracks().length}');
-        print('📞 VideoCallScreen: Stream has audio tracks: ${stream.getAudioTracks().length}');
-        print('📞 VideoCallScreen: Is Initiator: ${widget.payload.callAction == CallAction.create}');
         
-        // CRITICAL: Ensure we're on the main thread and widget is mounted
+        // CRITICAL: Ensure we\'re on the main thread and widget is mounted
         if (!mounted) {
           print('⚠️ VideoCallScreen: Widget not mounted, skipping stream attachment');
           return;
@@ -120,74 +116,27 @@ class _VideoCallScreenState extends State<VideoCallScreen>
         
         // Attach the stream to the renderer
         try {
-          // CRITICAL: Ensure video tracks are enabled before attaching
-          final videoTracks = stream.getVideoTracks();
-          final audioTracks = stream.getAudioTracks();
-          
-          // CRITICAL DEBUG: Log what videos this user can see
-          print('🎯 ===========================================');
-          print('🎯 VIDEO DISPLAY DEBUG (${widget.payload.callAction == CallAction.create ? "CALLER" : "RECEIVER"})');
-          print('🎯 ===========================================');
-          print('🎯 User Role: ${widget.payload.callAction == CallAction.create ? "CALLER" : "RECEIVER"}');
-          print('🎯 Call Action: ${widget.payload.callAction}');
-          print('🎯 Remote Stream Audio Tracks: ${audioTracks.length}');
-          print('🎯 Remote Stream Video Tracks: ${videoTracks.length}');
-          
-          for (var track in audioTracks) {
-            print('🎯 Remote Audio: ${track.id} - enabled: ${track.enabled}, muted: ${track.muted}');
-          }
-          for (var track in videoTracks) {
-            if (!track.enabled) {
-              track.enabled = true;
-              print('📞 VideoCallScreen: Enabled video track: ${track.id}');
-            }
-            print('🎯 Remote Video: ${track.id} - enabled: ${track.enabled}, muted: ${track.muted}');
-          }
-          print('🎯 ===========================================');
-          
-          // 🔧 CRITICAL FIX: Force stream attachment for BOTH caller and receiver
+          // 🔧 CRITICAL FIX: Force stream attachment
           remoteRender.srcObject = stream;
           print('✅ VideoCallScreen: Remote stream attached to renderer');
           
-          // 🔧 CRITICAL FIX: Force UI rebuild to display the video
           setState(() {
             _hasRemoteStream = true;
           });
-          print('✅ VideoCallScreen: UI rebuilt with remote stream');
           
-          // 🔧 CRITICAL FIX: Additional safety for both caller and receiver
-          // Force a small delay to ensure video is properly displayed
-          Future.delayed(Duration(milliseconds: 200), () {
-            if (mounted) {
-              // 🔧 CRITICAL FIX: Force stream re-attachment for receiver
-              if (widget.payload.callAction != CallAction.create) {
-                print('📞 VideoCallScreen: RECEIVER - Force re-attaching remote stream');
-                remoteRender.srcObject = stream;
-              }
-              
-              setState(() {
-                _hasRemoteStream = true;
-              });
-              print('📞 VideoCallScreen: Safety rebuild completed');
-              
-              // 🔧 CRITICAL FIX: Force video to play even if tracks are muted
-              // This is especially important for web browsers
-              Future.delayed(Duration(milliseconds: 500), () {
-                if (mounted && _hasRemoteStream) {
-                  // 🔧 CRITICAL FIX: Final stream attachment attempt for receiver
-                  if (widget.payload.callAction != CallAction.create) {
-                    print('📞 VideoCallScreen: RECEIVER - Final stream attachment attempt');
-                    remoteRender.srcObject = stream;
-                  }
-                  
-                  // Force another rebuild to ensure video is displayed
-                  setState(() {});
-                  print('📞 VideoCallScreen: Final video display attempt');
+          // 🔧 AGGRESSIVE FIX: Multiple delayed re-attachments to ensure video appears
+          // Some devices take time to sync the hardware decoder with the stream
+          for (int delay in [500, 1000, 2000, 3000]) {
+            Future.delayed(Duration(milliseconds: delay), () {
+              if (mounted) {
+                if (remoteRender.srcObject == null || !_hasRemoteStream) {
+                   print('📞 VideoCallScreen: RE-ATTACHING remote stream ($delay ms)');
+                   remoteRender.srcObject = stream;
+                   setState(() { _hasRemoteStream = true; });
                 }
-              });
-            }
-          });
-          
+              }
+            });
+          }
         } catch (e) {
           print('❌ VideoCallScreen: Error attaching remote stream: $e');
         }
@@ -403,10 +352,37 @@ class _VideoCallScreenState extends State<VideoCallScreen>
                   ),
                 ),
                 
-                // BEAUTIFUL: Enhanced call status overlay
+                // BEAUTIFUL: Call status and Timer overlay
+                Positioned(
+                  top: 60.h,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: Obx(() {
+                      final isConnected = webrtcService.callState == CallState.connected;
+                      if (!isConnected) return SizedBox.shrink();
+                      
+                      return Container(
+                        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+                        decoration: BoxDecoration(
+                          color: Colors.black26,
+                          borderRadius: BorderRadius.circular(20.r),
+                        ),
+                        child: TextConstant(
+                          title: webrtcService.formattedDuration,
+                          color: themeController.whiteColor,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+
+                // BEAUTIFUL: Enhanced call status overlay (Connecting)
                 if (!isConnected)
                   Positioned(
-                    bottom: 200.h, // Position above the call controls
+                    bottom: 200.h,
                     left: 0,
                     right: 0,
                     child: Center(
@@ -431,7 +407,6 @@ class _VideoCallScreenState extends State<VideoCallScreen>
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            // Animated loading indicator
                             Container(
                               width: 40.w,
                               height: 40.w,
@@ -449,7 +424,7 @@ class _VideoCallScreenState extends State<VideoCallScreen>
                             ),
                             SizedBox(height: 8.h),
                             TextConstant(
-                              title: 'Please wait while we connect your video call...',
+                              title: 'Connecting secure video line...',
                               color: themeController.whiteColor.withOpacity(0.8),
                               fontSize: 14,
                               fontWeight: FontWeight.w400,
