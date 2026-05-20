@@ -26,12 +26,17 @@ class WebRTCService extends GetxController {
   bool _isInitiator = false; // Track if this peer is the initiator
   bool _isEnding = false; // Guard to prevent repeated cleanup
   bool _isInitialized = false; // Track if service is initialized
+  String? _currentReceiverId; // Store receiver ID for missed call notifications
+  CallType? _currentCallType; // Store call type for missed call notifications
   String? _lastDbState; // Deduplicate DB state updates
   
   final Rx<CallState> _callState = CallState.initial.obs;
   final RxBool _isMuted = false.obs;
   final RxBool _isVideoEnabled = true.obs;
   final RxBool _isSpeakerEnabled = false.obs;
+  final RxInt _callDuration = 0.obs; // Duration in seconds
+  Timer? _durationTimer;
+  bool _historySaved = false;
 
   // Stream subscriptions for real-time updates
   StreamSubscription? _answerSubscription;
@@ -70,6 +75,24 @@ class WebRTCService extends GetxController {
   bool get isSpeakerEnabled => _isSpeakerEnabled.value;
   MediaStream? get localStream => _localStream;
   MediaStream? get remoteStream => _remoteStream;
+  int get callDuration => _callDuration.value;
+
+  /// Format duration into HH:MM:SS or MM:SS
+  String get formattedDuration {
+    int hours = _callDuration.value ~/ 3600;
+    int minutes = (_callDuration.value % 3600) ~/ 60;
+    int seconds = _callDuration.value % 60;
+
+    String hoursStr = hours.toString().padLeft(2, '0');
+    String minutesStr = minutes.toString().padLeft(2, '0');
+    String secondsStr = seconds.toString().padLeft(2, '0');
+
+    if (hours > 0) {
+      return '$hoursStr:$minutesStr:$secondsStr';
+    } else {
+      return '$minutesStr:$secondsStr';
+    }
+  }
 
   // Platform detection for WebRTC compatibility
   bool get _isIOS => !kIsWeb && Platform.isIOS;
@@ -83,6 +106,7 @@ class WebRTCService extends GetxController {
       // STUN servers for NAT discovery (reduced to 3 for better performance)
       {'urls': 'stun:stun.l.google.com:19302'},
       {'urls': 'stun:stun1.l.google.com:19302'},
+      {'urls': 'stun:stun2.l.google.com:19302'},
       {'urls': 'stun:stun.cloudflare.com:3478'},
       // Free TURN server for relay when direct connection fails
       // NOTE: For production, replace with your own TURN server (Coturn/Twilio/Xirsys)
@@ -174,6 +198,9 @@ class WebRTCService extends GetxController {
       
       _currentCallId = roomId;
       _currentMatchId = matchId;
+      _historySaved = false; // Reset history flag for fresh start
+      _currentReceiverId = isInitiator ? matchId : SupabaseService.currentUser?.id; // Note: simplified matchId usage
+      _currentCallType = callType;
       _isInitiator = isInitiator;
       _answerApplied = false;
       _readyToAddRemoteCandidates = false;
@@ -260,6 +287,7 @@ class WebRTCService extends GetxController {
         if (state == RTCIceConnectionState.RTCIceConnectionStateConnected) {
           print('✅ ICE connection established successfully!');
           _updateCallState(CallState.connected);
+          _startDurationTimer(); // Start timer when connected
         } else if (state == RTCIceConnectionState.RTCIceConnectionStateFailed) {
           print('❌ ICE connection failed!');
           _updateCallState(CallState.failed);
@@ -1188,6 +1216,11 @@ class WebRTCService extends GetxController {
 
   Future<void> endCall() async {
     try {
+      // SAVE HISTORY BEFORE CLEANUP
+      if (!_historySaved) {
+        await _saveCallHistory();
+      }
+
       if (_isEnding) {
         print('📞 Ending call skipped (already in progress)');
         return;
@@ -1202,6 +1235,7 @@ class WebRTCService extends GetxController {
       _iceQuickFallbackTimer?.cancel();
       _queuedIceFlushTimer?.cancel();
       _androidRetryTimer?.cancel();
+      _stopDurationTimer(); // Stop timer when call ends
       
       // CRITICAL FIX: Cancel all subscriptions immediately to prevent further callbacks
       await _answerSubscription?.cancel();
@@ -1324,6 +1358,21 @@ class WebRTCService extends GetxController {
               .delete()
               .eq('room_id', _currentCallId!);
           print('✅ Cleaned up room data');
+          
+          // CRITICAL: Send missed call notification if canceled by caller
+          if (_isInitiator && terminationState == 'canceled' && _currentReceiverId != null) {
+            try {
+              final callerName = SupabaseService.currentUser?.userMetadata?['name'] ?? 'Someone';
+              await PushNotificationService.sendMissedCallNotification(
+                userId: _currentReceiverId!,
+                callerName: callerName,
+                callType: _currentCallType?.name ?? 'video',
+              );
+              print('✅ Missed call notification sent to $_currentReceiverId');
+            } catch (e) {
+              print('⚠️ Failed to send missed call notification: $e');
+            }
+          }
           
           // Delete ICE candidates
           await SupabaseService.client
@@ -1549,26 +1598,79 @@ class WebRTCService extends GetxController {
   /// Start ICE connection timeout
   void _startIceConnectionTimeout() {
     _iceConnectionTimeout?.cancel();
-    _iceConnectionTimeout = Timer(const Duration(seconds: 30), () {
-      print('⏰ ICE connection timeout - no connection established in 30 seconds');
+    // INCREASED to 45 seconds for better stability under slow NAT
+    _iceConnectionTimeout = Timer(const Duration(seconds: 45), () {
+      print('⏰ ICE connection timeout - no connection established in 45 seconds');
       _handleIceConnectionFailure();
     });
   }
 
-  // Auto-cancel if no answer within 10 seconds for caller
+  /// Start call duration timer
+  void _startDurationTimer() {
+    _stopDurationTimer(); // Ensure previous timer is canceled
+    _callDuration.value = 0;
+    _durationTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      _callDuration.value++;
+    });
+    print('⏱️ Call duration timer started');
+  }
+
+  /// Stop call duration timer
+  void _stopDurationTimer() {
+    _durationTimer?.cancel();
+    _durationTimer = null;
+    print('⏱️ Call duration timer stopped. Final duration: $formattedDuration');
+  }
+
+  /// Save call history to chat messages table
+  Future<void> _saveCallHistory() async {
+    if (_historySaved) return;
+    if (_currentMatchId == null || _currentMatchId!.isEmpty) return;
+    
+    // Only save if it was a real call session (has a roomId)
+    if (_currentCallId == null || _currentCallId!.isEmpty) return;
+
+    _historySaved = true;
+    
+    final durationText = formattedDuration;
+    final typeText = _currentCallType == CallType.video ? 'Video' : 'Audio';
+    
+    String content;
+    if (_callState.value == CallState.connected) {
+      content = '$typeText Call ($durationText)';
+    } else {
+      // If we are initiator and no one answered, it's a "Cancelled Call"
+      // If we are at receiver side and it failed/timed out, it's a "Missed Call"
+      content = 'Missed $typeText Call';
+    }
+    
+    try {
+      // Use system message to record the call in chat
+      await SupabaseService.sendSystemMessage(
+        matchId: _currentMatchId!,
+        content: content,
+      );
+      print('✅ Call history saved to chat: $content');
+    } catch (e) {
+      print('⚠️ Failed to save call history: $e');
+      _historySaved = false; // Allow retry if failed
+    }
+  }
+
+  // Auto-cancel if no answer within 60 seconds for caller
   void _startNoAnswerTimeout() {
     _noAnswerTimeout?.cancel();
     // Only relevant for initiator while connecting
     if (!_isInitiator) return;
     
-    print('⏰ DEBUG: Starting 10-second timeout for caller (no answer)');
-    _noAnswerTimeout = Timer(const Duration(seconds: 10), () async {
-      print('⏰ DEBUG: 10-second timeout triggered for caller');
+    print('⏰ DEBUG: Starting 60-second timeout for caller (no answer)');
+    _noAnswerTimeout = Timer(const Duration(seconds: 60), () async {
+      print('⏰ DEBUG: 60-second timeout triggered for caller');
       print('⏰ DEBUG: Current call state: ${_callState.value}');
       print('⏰ DEBUG: Answer applied: $_answerApplied');
       
       if (_callState.value == CallState.connecting && !_answerApplied) {
-        print('⏰ No answer within 30s – auto-canceling invite');
+        print('⏰ No answer within 60s – auto-canceling invite');
         try {
           _updateDbStateSafe('timeout');
         } catch (e) {
@@ -1582,20 +1684,20 @@ class WebRTCService extends GetxController {
     });
   }
 
-  // Auto-cancel if receiver doesn't answer within 12 seconds
+  // Auto-cancel if receiver doesn't answer within 60 seconds
   void _startReceiverTimeout() {
     _noAnswerTimeout?.cancel();
     // Only relevant for receiver while connecting
     if (_isInitiator) return;
     
-    print('⏰ DEBUG: Starting 12-second timeout for receiver (not answering)');
-    _noAnswerTimeout = Timer(const Duration(seconds: 12), () async {
-      print('⏰ DEBUG: 12-second timeout triggered for receiver');
+    print('⏰ DEBUG: Starting 60-second timeout for receiver (not answering)');
+    _noAnswerTimeout = Timer(const Duration(seconds: 60), () async {
+      print('⏰ DEBUG: 60-second timeout triggered for receiver');
       print('⏰ DEBUG: Current call state: ${_callState.value}');
       print('⏰ DEBUG: Answer applied: $_answerApplied');
       
       if (_callState.value == CallState.connecting && !_answerApplied) {
-        print('⏰ Receiver timeout - call not answered within 30s');
+        print('⏰ Receiver timeout - call not answered within 60s');
         try {
           _updateDbStateSafe('timeout');
         } catch (e) {

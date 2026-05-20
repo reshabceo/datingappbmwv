@@ -143,7 +143,7 @@ class AuthScreen extends StatelessWidget {
                                       value: language,
                                       child: TextConstant(
                                         title: language,
-                                        color: themeController.blackColor,
+                                        color: themeController.isDarkMode.value ? Colors.white : Colors.black,
                                       ),
                                     );
                                   }).toList();

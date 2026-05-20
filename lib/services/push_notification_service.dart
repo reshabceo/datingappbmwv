@@ -37,18 +37,23 @@ class PushNotificationService {
         body: requestBody,
       );
 
-      print('📱 PUSH: Edge function response status: ${response.status}');
-      print('📱 PUSH: Edge function response data: ${response.data}');
-
-      if (response.status == 200) {
-        print('✅ PUSH: Push notification sent successfully');
-        return true;
+      print('📱 PUSH: Edge function invoked');
+      print('📱 PUSH: Response status: ${response.status}');
+      
+      if (response.status != 200) {
+        print('❌ PUSH: Edge function returned error: ${response.data}');
       } else {
-        print('❌ PUSH: Failed to send push notification: ${response.data}');
-        return false;
+        print('✅ PUSH: Edge function successful: ${response.data}');
       }
+
+      return response.status == 200;
+    } on FunctionException catch (fe) {
+      print('❌ PUSH: Supabase FunctionException:');
+      print('   - Status: ${fe.status}');
+      print('   - Details: ${fe.details}');
+      return false;
     } catch (e) {
-      print('❌ PUSH: Error sending push notification: $e');
+      print('❌ PUSH: Unexpected error calling edge function: $e');
       return false;
     }
   }

@@ -417,7 +417,10 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> with Widg
       ),
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black.withValues(alpha: 0.45),
-    );
+    ).whenComplete(() {
+      // Clear selection when the bottom sheet is closed (either by tapping outside or after action)
+      controller.clearSelection();
+    });
   }
 
   Widget _buildDeleteOption({
@@ -914,15 +917,7 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> with Widg
                         },
                       ),
                       
-                      _buildMenuOption(
-                        icon: Icons.delete_outline,
-                        title: 'Clear Chat',
-                        isDestructive: true,
-                        onTap: () {
-                          Get.back();
-                          _showClearChatDialog();
-                        },
-                      ),
+                      
                       
                       _buildMenuOption(
                         icon: Icons.person_remove,
@@ -1304,7 +1299,7 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> with Widg
         preferredSize: const Size.fromHeight(kToolbarHeight),
           child: Obx(() {
             return controller.isSelectionMode.value
-                ? _buildSelectionAppBar(controller)
+                ? _buildDefaultAppBar() // Disable selection AppBar to enforce 'one by one' deletion
                 : _buildDefaultAppBar();
           }),
       ),
@@ -1437,11 +1432,11 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> with Widg
                                   isSelectionMode: isSelectionMode,
                                   isSelectable: isSelectable,
                                   isSelected: isSelected,
-                                  onTap: controller.isSelectionMode.value && isSelectable
-                                      ? () => controller.toggleSelectionForItem(item)
-                                      : null,
                                   onLongPress: isSelectable
-                                      ? () => controller.startSelectionForItem(item)
+                                      ? () {
+                                          controller.startSelectionForItem(item);
+                                          _showDeleteOptions(controller);
+                                        }
                                       : null,
                                 );
                               } else if (item is AudioMessage) {
@@ -1456,11 +1451,11 @@ class _EnhancedMessageScreenState extends State<EnhancedMessageScreen> with Widg
                                   isSelectionMode: isSelectionMode,
                                   isSelectable: isSelectable,
                                   isSelected: isSelected,
-                                  onTap: controller.isSelectionMode.value && isSelectable
-                                      ? () => controller.toggleSelectionForItem(item)
-                                      : null,
                                   onLongPress: isSelectable
-                                      ? () => controller.startSelectionForItem(item)
+                                      ? () {
+                                          controller.startSelectionForItem(item);
+                                          _showDeleteOptions(controller);
+                                        }
                                       : null,
                             );
                           }

@@ -44,6 +44,14 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = 10
         versionName = "1.0.1"
+        
+        // CRITICAL FIX: Enable MultiDex for the large number of plugins
+        multiDexEnabled = true
+        
+        // CRITICAL FIX: Ensure compatibility across standard architectures
+        ndk {
+            abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a", "x86_64"))
+        }
     }
 
     signingConfigs {
@@ -86,4 +94,9 @@ tasks.withType<org.gradle.api.tasks.compile.JavaCompile>().configureEach {
     ))
     sourceCompatibility = JavaVersion.VERSION_11.toString()
     targetCompatibility = JavaVersion.VERSION_11.toString()
+}
+
+dependencies {
+    implementation(platform("com.google.firebase:firebase-bom:33.1.0"))
+    implementation("com.google.firebase:firebase-messaging")
 }

@@ -165,19 +165,33 @@ class _AudioCallScreenState extends State<AudioCallScreen> {
                     ),
                     heightBox(16.h.toInt()),
                     Obx(() {
+                      final isConnected = webrtcService.callState == CallState.connected;
                       String statusText = 'Connecting...';
-                      if (webrtcService.callState == CallState.connected) {
-                        statusText = 'Connected';
+                      if (isConnected) {
+                        statusText = webrtcService.formattedDuration;
                       } else if (webrtcService.callState == CallState.disconnected) {
                         statusText = 'Call ended';
                       } else if (webrtcService.callState == CallState.failed) {
                         statusText = 'Call failed';
                       }
                       
-                      return TextConstant(
-                        title: statusText,
-                        fontSize: 14,
-                        color: themeController.whiteColor.withValues(alpha: 0.8),
+                      return Column(
+                        children: [
+                          if (isConnected)
+                            TextConstant(
+                              title: 'Connected',
+                              fontSize: 14,
+                              color: themeController.getAccentColor(),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          if (isConnected) heightBox(4.h.toInt()),
+                          TextConstant(
+                            title: statusText,
+                            fontSize: isConnected ? 20 : 14,
+                            color: themeController.whiteColor.withValues(alpha: 0.8),
+                            fontWeight: isConnected ? FontWeight.w600 : FontWeight.w400,
+                          ),
+                        ],
                       );
                     }),
                   ],

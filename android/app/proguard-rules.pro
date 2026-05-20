@@ -16,3 +16,20 @@
 -dontwarn okhttp3.**
 -dontwarn retrofit2.**
 -dontwarn okio.**
+-keep class okhttp3.** { *; }
+
+# Supabase / Postgrest / Gotrue
+-keep class io.supabase.** { *; }
+-keep enum io.supabase.** { *; }
+
+# WebRTC
+-keep class org.webrtc.** { *; }
+-keep class com.oney.WebRTCModule.** { *; }
+-dontwarn org.webrtc.**
+
+# Jitsi Meet (often use with WebRTC)
+-keep class org.jitsi.meet.** { *; }
+
+# Gson (used by many plugins)
+-keep class com.google.gson.** { *; }
+-dontwarn com.google.gson.**
