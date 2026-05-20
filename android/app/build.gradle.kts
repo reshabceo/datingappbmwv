@@ -14,6 +14,15 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(FileInputStream(localPropertiesFile))
+}
+
+val flutterVersionCode = localProperties.getProperty("flutter.versionCode") ?: "1"
+val flutterVersionName = localProperties.getProperty("flutter.versionName") ?: "1.0.0"
+
 android {
     namespace = "com.lovebug.lovebug"
     compileSdk = flutter.compileSdkVersion
@@ -42,8 +51,8 @@ android {
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        versionCode = 10
-        versionName = "1.0.1"
+        versionCode = flutterVersionCode.toInt()
+        versionName = flutterVersionName
         
         // CRITICAL FIX: Enable MultiDex for the large number of plugins
         multiDexEnabled = true
