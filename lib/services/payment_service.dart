@@ -10,14 +10,13 @@ import 'package:http/http.dart' as http;
 import '../config/supabase_config.dart';
 import '../config/cashfree_config.dart';
 import 'analytics_service.dart';
+import 'app_state_service.dart';
 import '../Common/widget_constant.dart';
+import '../Screens/cashfree_checkout_screen.dart';
 
 class PaymentService {
-  // static Razorpay? _razorpay; // COMMENTED OUT - SWITCHED TO CASHFREE
-  static String get _cashfreeAppId => CashfreeConfig.cashfreeAppId;
-  static String get _cashfreeSecretKey => CashfreeConfig.cashfreeSecretKey;
-  static const String _environment = CashfreeConfig.environment;
-  
+  static const String _environment = 'production';
+
   // Subscription plans with pricing
   static const Map<String, Map<String, dynamic>> subscriptionPlans = {
     '1_month': {
@@ -47,10 +46,10 @@ class PaymentService {
   // Display names/counts can differ from the key names
   static const Map<String, Map<String, dynamic>> superLikePackages = {
     'super_like_5': {
-      'name': '3 Super Loves',
+      'name': '5 Super Loves',
       'price': 99,
-      'count': 3,
-      'description': 'Get 3 Super Loves to boost your profile'
+      'count': 5,
+      'description': 'Get 5 Super Loves to boost your profile'
     },
     'super_like_10': {
       'name': '15 Super Loves',
@@ -237,95 +236,64 @@ class PaymentService {
     required String description,
   }) async {
     try {
-      final baseUrl = _environment == 'sandbox' 
-          ? 'https://sandbox.cashfree.com/pg' 
-          : 'https://api.cashfree.com/pg';
+      print('🚀 Calling Cashfree Edge Function for orderId: $orderId');
       
-      // GET THE ABSOLUTE MINIMAL AND CLEANEST REQUEST BODY POSSIBLE
-      // Avoid any dynamic text in order_meta or order_note that could bleed
-      final requestBody = {
-        'order_id': orderId,
-        'order_amount': amount,
-        'order_currency': 'INR',
-        'customer_details': {
-          'customer_id': userId,
-          'customer_name': userName,
-          'customer_email': userEmail,
-          'customer_phone': userPhone,
+      final response = await Supabase.instance.client.functions.invoke(
+        'cashfree-payment',
+        body: {
+          'type': 'createOrder',
+          'orderId': orderId,
+          'amount': amount,
+          'userEmail': userEmail,
+          'userName': userName,
+          'description': description,
+          'userId': userId,
+          'environment': _environment,
+          'userPhone': userPhone,
         },
-        'order_meta': {
-          // STRICT: Only the URL, no parameters, no placeholders
-          'return_url': 'https://lovebug.live/payment-result',
-        },
-        'order_note': 'Upgrade', // Use a simple static string
-      };
+      );
 
-      print('📦 Cashfree CLEAN request body: ${jsonEncode(requestBody)}');
+      final responseData = response.data;
+      if (response.status == 200 && responseData != null && responseData['success'] == true) {
+        print('✅ Edge Function Order Created! Response: $responseData');
+        
+        final rawSessionId = responseData['payment_session_id']?.toString();
+        print('🔍 Received raw session_id: $rawSessionId');
 
-      final response = await http.post(
-          Uri.parse('$baseUrl/orders'),
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-version': '2023-08-01',
-            'x-client-id': _cashfreeAppId,
-            'x-client-secret': _cashfreeSecretKey,
-          },
-          body: jsonEncode(requestBody),
-        );
-
-        if (response.statusCode == 200 || response.statusCode == 201) {
-          final responseData = jsonDecode(response.body);
-          print('✅ Cashfree Order Created! Response: ${jsonEncode(responseData)}');
-          
-          String? paymentUrl;
-          final rawSessionId = responseData['payment_session_id']?.toString();
-          
-          // Debug logs for session ID validation
-          print('🔍 Received raw session_id: $rawSessionId');
-          
-          String? cleanSessionId = rawSessionId;
-          if (cleanSessionId != null && cleanSessionId.contains('payment')) {
-            print('⚠️ Sanitizing corrupted sessionId: $cleanSessionId');
-            // Remove everything from the first occurrence of "payment" to be safe
-            cleanSessionId = cleanSessionId.split('payment').first;
-            print('✨ Cleaned sessionId: $cleanSessionId');
+        String? paymentUrl;
+        // Only use direct payment_link if returned by Edge Function (do NOT use payments.url as it is a backend API endpoint)
+        if (responseData['debug_response'] != null) {
+          final debugResponse = responseData['debug_response'] as Map<dynamic, dynamic>;
+          if (debugResponse['payment_link'] != null) {
+            paymentUrl = debugResponse['payment_link']?.toString();
           }
-
-          // Use direct payments.url if available (recommended by user)
-          paymentUrl = responseData['payments']?['url'] ?? 
-                      responseData['payment_link'];
-
-          if (_environment == 'sandbox') {
-             // If direct URL is missing, construct from cleanSessionId
-             if (paymentUrl == null && cleanSessionId != null) {
-                paymentUrl = 'https://payments-test.cashfree.com/order/#$cleanSessionId';
-                print('🔗 Sandbox Mode: Constructed test checkout URL from cleanSessionId: $paymentUrl');
-             } else {
-                print('🔗 Sandbox Mode: Using direct checkout URL: $paymentUrl');
-             }
-          } else {
-            // Production fallback
-            if (paymentUrl == null && cleanSessionId != null) {
-              paymentUrl = 'https://payments.cashfree.com/order/#$cleanSessionId';
-            }
-            print('🔗 Production Mode: Checkout URL: $paymentUrl');
-          }
-          
-          if (paymentUrl != null) {
-            if (cleanSessionId != null) {
-               // CRITICAL: Always store the CLEANED session ID to avoid "Client session invalid"
-               await _updateOrderSessionId(orderId, cleanSessionId);
-               print('💾 Stored cleaned payment_session_id in DB: $cleanSessionId');
-            }
-            await _openPaymentUrl(paymentUrl, orderId);
-          } else {
-            print('❌ Could not find or construct payment URL from response: $responseData');
-            throw Exception('Payment URL not found in Cashfree response');
-          }
-        } else {
-          print('❌ Cashfree Error Response: ${response.body}');
-          throw Exception('Failed to create payment session: ${response.body}');
         }
+
+        if (rawSessionId != null) {
+          // Store the raw session ID to avoid 'Client session invalid'
+          await _updateOrderSessionId(orderId, rawSessionId);
+          print('💾 Stored payment_session_id in DB: $rawSessionId');
+          
+          // Open the in-app Webview modal
+          Get.to(() => CashfreeCheckoutScreen(
+            paymentSessionId: rawSessionId,
+            orderId: orderId,
+            onPaymentResult: (success, completedOrderId) {
+              print('Checkout screen closed. Result: success=$success, orderId=$completedOrderId');
+              // Start polling only after checkout completes or is closed
+              _startPaymentPolling(completedOrderId);
+            },
+          ));
+        } else if (paymentUrl != null) {
+          await _openPaymentUrl(paymentUrl, orderId);
+        } else {
+          print('❌ Could not find or construct payment URL from response: $responseData');
+          throw Exception('Payment URL not found in Cashfree response');
+        }
+      } else {
+        print('❌ Edge Function Error: ${response.status} - $responseData');
+        throw Exception(responseData?['error'] ?? 'Failed to invoke Edge Function');
+      }
     } catch (e) {
       print('Error creating Cashfree payment session: $e');
       rethrow;
@@ -382,6 +350,16 @@ class PaymentService {
     // Poll every 5 seconds for payment status
     _paymentPollingTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
       try {
+        // Skip verification queries while the app is in the background (i.e. user is on the checkout page)
+        // This is CRITICAL because Cashfree's verify API (GET /orders/{id}) rotates/invalidates 
+        // the active payment_session_id. Doing GET requests while the user is checking out
+        // causes their browser checkout session to become "Invalid".
+        // We only poll when the user is back inside the app.
+        if (!AppStateService.isAppInForeground) {
+          print('⏳ Skipping polling verification tick ${timer.tick} because app is in background/inactive');
+          return;
+        }
+
         print('🔄 Polling payment status for order: $orderId (tick ${timer.tick})...');
         
         // Verify payment with Cashfree API
@@ -393,8 +371,8 @@ class PaymentService {
           _paymentPollingTimer = null;
           print('✅ Payment CONFIRMED for order: $orderId');
           
-          // Update order status in database
-          await _updateOrderStatus(orderId, 'paid', orderId);
+          // Update order status in database - changed 'paid' to 'success' to match CHECK constraint
+          await _updateOrderStatus(orderId, 'success', orderId);
           
           // Activate the subscription/package
           await _activateSubscription(orderId);
@@ -431,7 +409,8 @@ class PaymentService {
           timer.cancel();
           _paymentPollingTimer = null;
           print('⏰ Payment polling TIMEOUT for order: $orderId');
-          await _updateOrderStatus(orderId, 'timeout', null);
+          // Changed 'timeout' to 'failed' to match database CHECK constraint
+          await _updateOrderStatus(orderId, 'failed', null);
           showCustomSnackBar(
             title: 'payment_timeout'.tr,
             message: 'payment_verification_timeout_message'.tr,
@@ -447,21 +426,19 @@ class PaymentService {
   /// Get the full order status string from Cashfree
   static Future<String?> _getOrderStatus(String orderId) async {
     try {
-      final baseUrl = _environment == 'sandbox'
-          ? 'https://sandbox.cashfree.com/pg'
-          : 'https://api.cashfree.com/pg';
-
-      final response = await http.get(
-        Uri.parse('$baseUrl/orders/$orderId'),
-        headers: {
-          'x-api-version': '2023-08-01',
-          'x-client-id': _cashfreeAppId,
-          'x-client-secret': _cashfreeSecretKey,
+      print('🚀 Calling Cashfree Edge Function for status of orderId: $orderId');
+      
+      final response = await Supabase.instance.client.functions.invoke(
+        'cashfree-payment',
+        body: {
+          'type': 'verifyOrder',
+          'orderId': orderId,
+          'environment': _environment,
         },
       );
 
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
+      final responseData = response.data;
+      if (response.status == 200 && responseData != null && responseData['success'] == true) {
         return responseData['order_status'] as String?;
       }
       return null;
@@ -558,7 +535,7 @@ class PaymentService {
           'start_date': now.toIso8601String(),
           'end_date': endDate.toIso8601String(),
           'status': 'active',
-          'payment_order_id': orderId,
+          'order_id': orderId, // Changed from payment_order_id to order_id to match DB schema
           'updated_at': now.toIso8601String(),
         }, onConflict: 'user_id');
         print('✅ Subscription activated: $planType until ${endDate.toIso8601String()}');
@@ -584,24 +561,26 @@ class PaymentService {
   // CASHFREE PAYMENT VERIFICATION
   static Future<bool> _verifyCashfreePayment(String orderId) async {
     try {
-      final baseUrl = _environment == 'sandbox' 
-          ? 'https://sandbox.cashfree.com/pg' 
-          : 'https://api.cashfree.com/pg';
+      print('🚀 Calling Cashfree Edge Function for verification of orderId: $orderId');
       
-      final response = await http.get(
-        Uri.parse('$baseUrl/orders/$orderId'),
-        headers: {
-          'x-api-version': '2023-08-01',
-          'x-client-id': _cashfreeAppId,
-          'x-client-secret': _cashfreeSecretKey,
+      final response = await Supabase.instance.client.functions.invoke(
+        'cashfree-payment',
+        body: {
+          'type': 'verifyOrder',
+          'orderId': orderId,
+          'environment': _environment,
         },
       );
 
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
-        return responseData['order_status'] == 'PAID';
+      final responseData = response.data;
+      if (response.status == 200 && responseData != null && responseData['success'] == true) {
+        print('✅ Edge Function verification response: $responseData');
+        final orderStatus = responseData['order_status'];
+        final paymentStatus = responseData['payment_status'];
+        // Removed 'ACTIVE' orderStatus check because ACTIVE means order created but not paid.
+        final isPaid = orderStatus == 'PAID' || paymentStatus == 'SUCCESS' || paymentStatus == 'PAID';
+        return isPaid;
       }
-      
       return false;
     } catch (e) {
       print('Error verifying Cashfree payment: $e');

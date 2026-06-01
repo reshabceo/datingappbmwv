@@ -63,6 +63,7 @@ dependencies:
   reorderable_grid_view: ^2.2.8
   flutter_card_swiper: ^7.0.2
   emoji_picker_flutter: ^4.3.0
+  flutter_native_splash: ^2.4.1
 
   # Supabase dependencies
   supabase_flutter: ^2.8.0
@@ -113,7 +114,6 @@ dev_dependencies:
   flutter_lints: ^5.0.0
 
   # Generate platform splash screens and launcher icons
-  flutter_native_splash: ^2.4.1
   flutter_launcher_icons: ^0.13.1
 
 dependency_overrides:

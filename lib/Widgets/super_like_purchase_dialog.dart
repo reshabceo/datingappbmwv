@@ -83,8 +83,8 @@ class SuperLikePurchaseDialog extends StatelessWidget {
                   
                   // Super Love Packs
                   _buildPackItem(
-                    title: '3 Super Loves',
-                    pricePerItem: '₹33/ea',
+                    title: '5 Super Loves',
+                    pricePerItem: '₹19.80/ea',
                     totalPrice: '₹99',
                     onTap: () => _buy('super_like_5'),
                     themeController: themeController,

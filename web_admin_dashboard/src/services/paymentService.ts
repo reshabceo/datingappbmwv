@@ -388,7 +388,7 @@ export class PaymentService {
           console.log('Payment polling timeout - user may have abandoned payment');
           clearInterval(pollInterval);
           // Optionally update order status to failed
-          await this.updateOrderStatus(orderId, 'timeout', null);
+          await this.updateOrderStatus(orderId, 'failed', null);
         }
       } catch (error) {
         console.error('Error polling payment status:', error);
@@ -423,7 +423,7 @@ export class PaymentService {
         
         // Cashfree uses different status values than Razorpay
         // Check for successful payment statuses
-        const isOrderPaid = data.order_status === 'PAID' || data.order_status === 'ACTIVE';
+        const isOrderPaid = data.order_status === 'PAID';
         const isPaymentSuccessful = data.payment_status === 'SUCCESS' || data.payment_status === 'PAID';
         
         return isOrderPaid || isPaymentSuccessful;
