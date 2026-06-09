@@ -1,104 +1,145 @@
+import 'dart:async';
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
-import 'supabase_service.dart';
-import 'payment_service.dart';
-import '../widgets/upgrade_prompt_widget.dart';
-import '../Screens/SubscriptionPage/ui_subscription_screen.dart';
+import 'package:in_app_purchase_android/in_app_purchase_android.dart';
 import 'package:lovebug/Common/widget_constant.dart';
 
+import '../Screens/SubscriptionPage/ui_subscription_screen.dart';
+import 'supabase_service.dart';
 
 class InAppPurchaseService {
   static final InAppPurchase _inAppPurchase = InAppPurchase.instance;
-  static final Stream<List<PurchaseDetails>> _purchaseStream = _inAppPurchase.purchaseStream;
-  
-  // Product IDs for different purchases
-  // These must match exactly with your Google Play Console and App Store Connect
-  // IMPORTANT: Use the product IDs from IAP_PRODUCT_DETAILS.md
-  // See IAP_PRODUCT_DETAILS.md for complete setup instructions, descriptions, and review notes
-  static const Map<String, String> productIds = {
-    // Super Like Packages
-    'super_like_5': 'super_like_5',
-    'super_like_10': 'super_like_10',
-    'super_like_20': 'super_like_20',
-    
-    // Premium Subscriptions
-    'premium_1_month': '1_month',
-    'premium_3_months': '3_month',
-    'premium_6_months': '6_month',
+  static StreamSubscription<List<PurchaseDetails>>? _subscription;
+
+  /// Google Play Console product IDs (must match Play Console exactly).
+  static const Set<String> _storeProductIds = {
+    'super_like_5',
+    'super_like_15',
+    'super_like_30',
+    'premium_1_month',
+    'premium_3_month',
+    'premium_6_months',
   };
 
+  static const Map<String, int> _superLikeCounts = {
+    'super_like_5': 5,
+    'super_like_15': 15,
+    'super_like_30': 30,
+  };
 
-  // Pricing for different products
+  static const Map<String, int> _premiumDurationMonths = {
+    'premium_1_month': 1,
+    'premium_3_month': 3,
+    'premium_6_months': 6,
+  };
+
+  // Local fallback pricing for DB records and UI when store prices are unavailable.
   static const Map<String, Map<String, dynamic>> productPricing = {
     'super_like_5': {
       'price': 99.0,
       'currency': 'INR',
       'title': '5 Super Loves',
-      'description': 'You’re 3x more likely to match!',
+      'description': 'You\'re 3x more likely to match!',
     },
-    'super_like_10': {
+    'super_like_15': {
       'price': 179.0,
-      'currency': 'INR', 
-      'title': '10 Super Loves Pack',
-      'description': 'Get 10 Super Loves • Popular Choice',
+      'currency': 'INR',
+      'title': '15 Super Loves Pack',
+      'description': 'Get 15 Super Loves • Popular Choice',
     },
-    'super_like_20': {
+    'super_like_30': {
       'price': 299.0,
       'currency': 'INR',
-      'title': '20 Super Loves Pack', 
-      'description': 'Get 20 Super Loves • Best Value',
+      'title': '30 Super Loves Pack',
+      'description': 'Get 30 Super Loves • Best Value',
     },
-
     'premium_1_month': {
       'price': 1500.0,
       'currency': 'INR',
-      'title': 'Premium - 1 Month',
-      'description': 'Unlimited swipes, calls, media, and more!',
+      'title': 'Premium 1 month Membership',
+      'description': 'Full premium access for 1 month',
     },
-    'premium_3_months': {
+    'premium_3_month': {
       'price': 2250.0,
       'currency': 'INR',
-      'title': 'Premium - 3 Months',
-      'description': '3 months of full premium access',
+      'title': '3 months Premium Membership',
+      'description': 'Full premium access for 3 months',
     },
     'premium_6_months': {
       'price': 3600.0,
       'currency': 'INR',
-      'title': 'Premium - 6 Months',
-      'description': '6 months of full premium access',
+      'title': '6 months premium plan',
+      'description': 'Full premium access for 6 months',
     },
   };
 
   static bool _isInitialized = false;
+  static List<ProductDetails> _products = [];
 
-  // Initialize in-app purchases
   static Future<void> initialize() async {
     if (_isInitialized) return;
 
     try {
       final bool isAvailable = await _inAppPurchase.isAvailable();
       if (!isAvailable) {
-        print('In-app purchases not available');
+        print('❌ In-app purchases not available on this device');
         return;
       }
 
-      // Listen to purchase stream
-      _purchaseStream.listen((List<PurchaseDetails> purchaseDetailsList) {
-        _handlePurchases(purchaseDetailsList);
-      });
+      _subscription?.cancel();
+      _subscription = _inAppPurchase.purchaseStream.listen(
+        _handlePurchases,
+        onDone: () => _subscription?.cancel(),
+        onError: (error) => print('❌ In-App Purchase Stream Error: $error'),
+      );
+
+      await _loadProducts();
 
       _isInitialized = true;
-      print('In-app purchases initialized successfully');
+      print('✅ In-app purchases initialized. Loaded ${_products.length} products.');
     } catch (e) {
-      print('Error initializing in-app purchases: $e');
+      print('❌ Error initializing in-app purchases: $e');
     }
   }
 
-  // Handle purchase updates
-  static void _handlePurchases(List<PurchaseDetails> purchaseDetailsList) {
+  static Future<void> _loadProducts() async {
+    try {
+      final ProductDetailsResponse response =
+          await _inAppPurchase.queryProductDetails(_storeProductIds);
+
+      if (response.error != null) {
+        print('❌ Error querying products: ${response.error?.message}');
+        return;
+      }
+
+      _products = response.productDetails;
+      if (response.notFoundIDs.isNotEmpty) {
+        print('⚠️ Products not found in Play Console: ${response.notFoundIDs}');
+      }
+      for (final prod in _products) {
+        print('📦 Loaded Product: ${prod.id} - ${prod.title} (${prod.price})');
+      }
+    } catch (e) {
+      print('❌ Error loading products: $e');
+    }
+  }
+
+  static void dispose() {
+    _subscription?.cancel();
+    _subscription = null;
+    _isInitialized = false;
+  }
+
+  static Future<void> restorePurchases() async {
+    if (!_isInitialized) await initialize();
+    await _inAppPurchase.restorePurchases();
+  }
+
+  static void _handlePurchases(List<PurchaseDetails> purchaseDetailsList) async {
     for (final PurchaseDetails purchaseDetails in purchaseDetailsList) {
       if (purchaseDetails.status == PurchaseStatus.pending) {
         _showPendingUI();
@@ -106,18 +147,18 @@ class InAppPurchaseService {
         if (purchaseDetails.status == PurchaseStatus.error) {
           _handleError(purchaseDetails.error!);
         } else if (purchaseDetails.status == PurchaseStatus.purchased ||
-                   purchaseDetails.status == PurchaseStatus.restored) {
-          _handleSuccessfulPurchase(purchaseDetails);
+            purchaseDetails.status == PurchaseStatus.restored) {
+          await _handleSuccessfulPurchase(purchaseDetails);
         }
-        
+
         if (purchaseDetails.pendingCompletePurchase) {
-          _inAppPurchase.completePurchase(purchaseDetails);
+          await _inAppPurchase.completePurchase(purchaseDetails);
+          print('✅ Completed purchase for ID: ${purchaseDetails.purchaseID}');
         }
       }
     }
   }
 
-  // Show pending purchase UI
   static void _showPendingUI() {
     showCustomSnackBar(
       title: 'processing_purchase'.tr,
@@ -125,8 +166,8 @@ class InAppPurchaseService {
     );
   }
 
-  // Handle purchase errors
   static void _handleError(IAPError error) {
+    print('❌ Purchase flow error: ${error.code} - ${error.message}');
     showCustomSnackBar(
       title: 'purchase_failed'.tr,
       message: error.message,
@@ -134,28 +175,36 @@ class InAppPurchaseService {
     );
   }
 
-  // Handle successful purchase
   static Future<void> _handleSuccessfulPurchase(PurchaseDetails purchaseDetails) async {
     try {
       final productId = purchaseDetails.productID;
-      final transactionId = purchaseDetails.purchaseID;
-      
-      // Record purchase in database
-      await _recordPurchase(productId, transactionId ?? '');
-      
-      // Handle different purchase types
-      if (productId.contains('super_like')) {
-        await _handleSuperLikePurchase(productId);
-      } else if (productId.contains('premium')) {
-        await _handlePremiumPurchase(productId);
+      final transactionId = purchaseDetails.purchaseID ??
+          purchaseDetails.verificationData.serverVerificationData;
+
+      print('🎉 Processing purchase of $productId (Transaction: $transactionId)');
+
+      await _recordPurchase(productId, transactionId);
+
+      if (Platform.isAndroid && _superLikeCounts.containsKey(productId)) {
+        final androidAddition =
+            _inAppPurchase.getPlatformAddition<InAppPurchaseAndroidPlatformAddition>();
+        await androidAddition.consumePurchase(purchaseDetails);
+        print('✅ Consumed super like pack $productId');
       }
-      
-      showCustomSnackBar(
-        title: 'purchase_successful'.tr,
-        message: 'purchase_processed_message'.tr,
-      );
+
+      if (_superLikeCounts.containsKey(productId)) {
+        await _handleSuperLikePurchase(productId);
+      } else if (_premiumDurationMonths.containsKey(productId)) {
+        await _handlePremiumPurchase(productId, transactionId);
+      } else {
+        print('⚠️ Unknown product ID: $productId');
+        showCustomSnackBar(
+          title: 'purchase_successful'.tr,
+          message: 'purchase_processed_message'.tr,
+        );
+      }
     } catch (e) {
-      print('Error handling successful purchase: $e');
+      print('❌ Error handling successful purchase: $e');
       showCustomSnackBar(
         title: 'purchase_error'.tr,
         message: '${'failed_to_process_purchase'.tr}: $e',
@@ -164,21 +213,11 @@ class InAppPurchaseService {
     }
   }
 
-  // Record purchase in database
   static Future<void> _recordPurchase(String productId, String transactionId) async {
     try {
-      // Detect platform
-      String platform = 'unknown';
-      try {
-        if (Platform.isAndroid) {
-          platform = 'google_play';
-        } else if (Platform.isIOS) {
-          platform = 'apple_pay';
-        }
-      } catch (e) {
-        platform = 'google_play'; // Default fallback
-      }
-      
+      final platform =
+          Platform.isAndroid ? 'google_play' : (Platform.isIOS ? 'apple_pay' : 'unknown');
+
       await SupabaseService.client.from('in_app_purchases').insert({
         'user_id': SupabaseService.currentUser?.id,
         'purchase_type': productId,
@@ -187,159 +226,224 @@ class InAppPurchaseService {
         'platform': platform,
         'transaction_id': transactionId,
         'status': 'completed',
+        'created_at': DateTime.now().toIso8601String(),
       });
+      print('💾 Logged purchase in in_app_purchases table.');
     } catch (e) {
-      print('Error recording purchase: $e');
+      print('⚠️ Error recording purchase transaction: $e');
     }
   }
 
-  // Handle super like purchase
   static Future<void> _handleSuperLikePurchase(String productId) async {
     try {
-      int superLikesToAdd = 0;
-      // Support multiple product ID formats for backward compatibility
-      switch (productId) {
-        // New product IDs (current)
-        case 'super_like_3_pack_new':
-          superLikesToAdd = 3;
-          break;
-        case 'super_like_15_pack_new':
-          superLikesToAdd = 15;
-          break;
-        case 'super_like_30_pack_new':
-          superLikesToAdd = 30;
-          break;
-        // Old product IDs (backward compatibility)
-        case 'super_like_3_pack':
-        case 'lovebug_super_like_3':
-        case 'lovebug_spark_connection_pack':
-          superLikesToAdd = 3;
-          break;
-        case 'super_like_15_pack':
-        case 'lovebug_super_like_15':
-        case 'lovebug_premium_spark_bundle':
-          superLikesToAdd = 15;
-          break;
-        case 'super_like_30_pack':
-        case 'lovebug_super_like_30':
-        case 'lovebug_ultimate_spark_collection':
-          superLikesToAdd = 30;
-          break;
+      final userId = SupabaseService.currentUser?.id;
+      if (userId == null) return;
+
+      final superLikesToAdd = _superLikeCounts[productId] ?? 5;
+      print('⭐️ Adding $superLikesToAdd Super Likes to user $userId');
+
+      try {
+        await SupabaseService.client.rpc('add_super_likes', params: {
+          'p_user_id': userId,
+          'p_super_likes_to_add': superLikesToAdd,
+        });
+      } catch (e) {
+        print('⚠️ RPC add_super_likes failed: $e, trying fallback...');
+        try {
+          await SupabaseService.client.rpc('add_super_likes', params: {
+            'p_user_id': userId,
+            'p_count': superLikesToAdd,
+          });
+        } catch (e2) {
+          final profile = await SupabaseService.client
+              .from('profiles')
+              .select('super_likes_count')
+              .eq('id', userId)
+              .maybeSingle();
+          final currentCount = (profile?['super_likes_count'] as int?) ?? 0;
+          await SupabaseService.client
+              .from('profiles')
+              .update({'super_likes_count': currentCount + superLikesToAdd})
+              .eq('id', userId);
+        }
       }
-      
-      // Add super likes to user's account
-      await SupabaseService.client.rpc('add_super_likes', params: {
-        'user_id': SupabaseService.currentUser?.id,
-        'super_likes_to_add': superLikesToAdd,
-      });
-      
+
       showCustomSnackBar(
         title: 'super_loves_added'.tr,
         message: 'you_received_super_loves'.tr.replaceAll('\$count', superLikesToAdd.toString()),
       );
     } catch (e) {
-      print('Error handling super like purchase: $e');
+      print('❌ Error handling super like database update: $e');
     }
   }
 
-  // Handle premium subscription purchase
-  static Future<void> _handlePremiumPurchase(String productId) async {
+  static Future<void> _handlePremiumPurchase(String productId, String transactionId) async {
     try {
-      int durationMonths = 0;
-      switch (productId) {
-        case 'premium_monthly':
-          durationMonths = 1;
-          break;
-        case 'premium_quarterly':
-          durationMonths = 3;
-          break;
-        case 'premium_semiannual':
-          durationMonths = 6;
-          break;
+      final userId = SupabaseService.currentUser?.id;
+      if (userId == null) return;
+
+      final durationMonths = _premiumDurationMonths[productId] ?? 1;
+      final normalizedPlan = productId;
+
+      print('👑 Activating premium ($durationMonths months) for user $userId');
+
+      final now = DateTime.now();
+      final endDate = DateTime(now.year, now.month + durationMonths, now.day);
+
+      try {
+        await SupabaseService.client.rpc('activate_premium_subscription', params: {
+          'p_user_id': userId,
+          'p_duration_months': durationMonths,
+          'p_payment_method': 'google_play',
+        });
+      } catch (e) {
+        print('⚠️ RPC activate_premium_subscription failed: $e');
       }
-      
-      // Activate premium subscription
-      await SupabaseService.client.rpc('activate_premium_subscription', params: {
-        'user_id': SupabaseService.currentUser?.id,
-        'duration_months': durationMonths,
-        'payment_method': 'in_app_purchase',
-      });
-      
+
+      try {
+        await SupabaseService.client.from('user_subscriptions').upsert({
+          'user_id': userId,
+          'plan_type': normalizedPlan,
+          'start_date': now.toIso8601String(),
+          'end_date': endDate.toIso8601String(),
+          'status': 'active',
+          'order_id': transactionId,
+          'updated_at': now.toIso8601String(),
+        }, onConflict: 'user_id');
+      } catch (e) {
+        print('⚠️ Error inserting into user_subscriptions: $e');
+      }
+
+      try {
+        await SupabaseService.client
+            .from('profiles')
+            .update({'is_premium': true})
+            .eq('id', userId);
+      } catch (e) {
+        print('⚠️ Error updating profile premium flag: $e');
+      }
+
+      try {
+        if (Get.isRegistered<SubscriptionScreen>()) {
+          Get.find<SubscriptionScreen>();
+        }
+      } catch (_) {}
+
       showCustomSnackBar(
         title: 'premium_activated'.tr,
         message: 'premium_activated_message'.tr,
       );
     } catch (e) {
-      print('Error handling premium purchase: $e');
+      print('❌ Error handling premium database update: $e');
     }
   }
 
-  // Purchase super likes
+  static Future<ProductDetails?> _resolveProduct(String productId) async {
+    if (!_isInitialized) await initialize();
+
+    ProductDetails? product =
+        _products.firstWhereOrNull((prod) => prod.id == productId);
+
+    if (product == null) {
+      print('⚠️ Product $productId not loaded. Re-querying store...');
+      await _loadProducts();
+      product = _products.firstWhereOrNull((prod) => prod.id == productId);
+    }
+
+    return product;
+  }
+
   static Future<void> purchaseSuperLikes(String packageType) async {
     try {
-      final user = SupabaseService.currentUser;
-      if (user == null) {
+      if (SupabaseService.currentUser == null) {
         showCustomSnackBar(title: 'error'.tr, message: 'please_login_first'.tr, isError: true);
         return;
       }
 
-      final planKey = productIds[packageType] ?? packageType;
-      
-      print('🚀 Routing SuperLike purchase to Cashfree: $planKey');
-      
-      await PaymentService.initiatePayment(
-        planType: planKey,
-        userEmail: user.email ?? '',
-        userName: user.userMetadata?['name'] ?? user.email?.split('@')[0] ?? 'User',
+      if (!_storeProductIds.contains(packageType) || !_superLikeCounts.containsKey(packageType)) {
+        showCustomSnackBar(
+          title: 'error'.tr,
+          message: 'Invalid super like package.',
+          isError: true,
+        );
+        return;
+      }
+
+      print('🚀 Initiating super like purchase: $packageType');
+      final product = await _resolveProduct(packageType);
+      if (product == null) {
+        showCustomSnackBar(
+          title: 'error'.tr,
+          message: 'Product not available. Ensure it is active in Google Play Console.',
+          isError: true,
+        );
+        return;
+      }
+
+      await _inAppPurchase.buyConsumable(
+        purchaseParam: PurchaseParam(productDetails: product),
+        autoConsume: true,
       );
     } catch (e) {
-      print('Error purchasing super likes: $e');
-      showCustomSnackBar(title: 'error'.tr, message: '${'failed_to_initiate_purchase'.tr}: $e', isError: true);
+      print('❌ Error purchasing super likes: $e');
+      showCustomSnackBar(
+        title: 'error'.tr,
+        message: '${'failed_to_initiate_purchase'.tr}: $e',
+        isError: true,
+      );
     }
   }
 
-
-  // Purchase premium subscription
   static Future<void> purchasePremium(String planType) async {
     try {
-      final user = SupabaseService.currentUser;
-      if (user == null) {
+      if (SupabaseService.currentUser == null) {
         showCustomSnackBar(title: 'error'.tr, message: 'please_login_first'.tr, isError: true);
         return;
       }
 
-      final planKey = productIds[planType] ?? planType;
-      
-      print('🚀 Routing Premium purchase to Cashfree: $planKey');
+      if (!_storeProductIds.contains(planType) || !_premiumDurationMonths.containsKey(planType)) {
+        showCustomSnackBar(
+          title: 'error'.tr,
+          message: 'Invalid subscription plan.',
+          isError: true,
+        );
+        return;
+      }
 
-      await PaymentService.initiatePayment(
-        planType: planKey,
-        userEmail: user.email ?? '',
-        userName: user.userMetadata?['name'] ?? user.email?.split('@')[0] ?? 'User',
+      print('🚀 Initiating premium subscription purchase: $planType');
+      final product = await _resolveProduct(planType);
+      if (product == null) {
+        showCustomSnackBar(
+          title: 'error'.tr,
+          message: 'Subscription not available. Ensure base plans are active in Google Play Console.',
+          isError: true,
+        );
+        return;
+      }
+
+      // Google Play subscriptions are purchased via buyNonConsumable in the Flutter IAP plugin.
+      await _inAppPurchase.buyNonConsumable(
+        purchaseParam: PurchaseParam(productDetails: product),
       );
     } catch (e) {
-      print('Error purchasing premium: $e');
-      showCustomSnackBar(title: 'error'.tr, message: '${'failed_to_initiate_purchase'.tr}: $e', isError: true);
+      print('❌ Error purchasing premium: $e');
+      showCustomSnackBar(
+        title: 'error'.tr,
+        message: '${'failed_to_initiate_purchase'.tr}: $e',
+        isError: true,
+      );
     }
   }
 
-
-  // Get product details
-  static Future<ProductDetails?> _getProductDetails(String productId) async {
+  static Future<ProductDetails?> getProductDetails(String productId) async {
     try {
-      final ProductDetailsResponse response = await _inAppPurchase.queryProductDetails({productId});
-      if (response.notFoundIDs.isNotEmpty) {
-        print('Product not found: $productId');
-        return null;
-      }
-      return response.productDetails.first;
+      return await _resolveProduct(productId);
     } catch (e) {
       print('Error getting product details: $e');
       return null;
     }
   }
 
-  // Show super like purchase dialog
   static void showSuperLikePurchaseDialog() {
     Get.dialog(
       Dialog(
@@ -351,7 +455,6 @@ class InAppPurchaseService {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Title
               Text(
                 'Buy Super Loves',
                 style: TextStyle(
@@ -360,18 +463,11 @@ class InAppPurchaseService {
                   color: Colors.black87,
                 ),
               ),
-              
               SizedBox(height: 16.h),
-              
-              // Super like packages
-              ...productPricing.entries
-                  .where((entry) => entry.key.contains('super_like'))
-                  .map((entry) => _buildSuperLikePackage(entry.key, entry.value))
-                  .toList(),
-              
+              ..._superLikeCounts.keys.map(
+                (id) => _buildSuperLikePackage(id, productPricing[id]!),
+              ),
               SizedBox(height: 16.h),
-              
-              // Cancel button
               OutlinedButton(
                 onPressed: () => Get.back(),
                 style: OutlinedButton.styleFrom(
@@ -380,7 +476,7 @@ class InAppPurchaseService {
                     borderRadius: BorderRadius.circular(8.r),
                   ),
                 ),
-                child: Text('Cancel'),
+                child: const Text('Cancel'),
               ),
             ],
           ),
@@ -390,7 +486,6 @@ class InAppPurchaseService {
     );
   }
 
-  // Build super like package widget
   static Widget _buildSuperLikePackage(String packageId, Map<String, dynamic> pricing) {
     return Container(
       margin: EdgeInsets.only(bottom: 12.h),

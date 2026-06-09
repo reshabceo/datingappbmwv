@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import '../services/payment_service.dart';
+import '../services/in_app_purchase_service.dart';
 import '../services/supabase_service.dart';
 import '../ThemeController/theme_controller.dart';
 import 'package:lovebug/Common/widget_constant.dart';
@@ -95,7 +96,7 @@ class SuperLikePurchaseDialog extends StatelessWidget {
                     title: '15 Super Loves',
                     pricePerItem: '₹11.93/ea',
                     totalPrice: '₹179',
-                    onTap: () => _buy('super_like_10'),
+                    onTap: () => _buy('super_like_15'),
                     themeController: themeController,
                   ),
                   SizedBox(height: 12.h),
@@ -104,7 +105,7 @@ class SuperLikePurchaseDialog extends StatelessWidget {
                     title: '30 Super Loves',
                     pricePerItem: '₹9.97/ea',
                     totalPrice: '₹299',
-                    onTap: () => _buy('super_like_20'),
+                    onTap: () => _buy('super_like_30'),
                     themeController: themeController,
                   ),
                   
@@ -280,8 +281,8 @@ class SuperLikePurchaseDialog extends StatelessWidget {
           color: themeController.whiteColor.withOpacity(0.3),
         ),
         TextButton(
-          onPressed: () {
-            // Add restore purchases functionality
+          onPressed: () async {
+            await InAppPurchaseService.restorePurchases();
           },
           style: TextButton.styleFrom(
             foregroundColor: themeController.whiteColor.withOpacity(0.8),
@@ -300,12 +301,7 @@ class SuperLikePurchaseDialog extends StatelessWidget {
     Get.back();
     final user = SupabaseService.currentUser;
     if (user != null) {
-      await PaymentService.initiatePayment(
-        planType: packageKey,
-        userEmail: user.email ?? '',
-        userName: user.userMetadata?['name'] ?? 'User',
-        userPhone: user.phone,
-      );
+      await InAppPurchaseService.purchaseSuperLikes(packageKey);
     } else {
       showCustomSnackBar(title: 'error'.tr, message: 'please_login_to_purchase'.tr, isError: true);
     }

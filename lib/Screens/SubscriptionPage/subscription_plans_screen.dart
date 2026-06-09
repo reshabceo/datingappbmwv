@@ -150,7 +150,7 @@ class SubscriptionPlansScreen extends StatelessWidget {
                           // 1 Month Plan
                           _buildPremiumPlanCard(
                             context: context,
-                            planType: '1_month',
+                            planType: 'premium_1_month',
                             title: 'Premium - 1 Month',
                             price: '₹1,500',
                             originalPrice: '₹2,000',
@@ -165,7 +165,7 @@ class SubscriptionPlansScreen extends StatelessWidget {
                               'Super loves',
                               'Profile boost',
                             ],
-                            onTap: () => controller.initiatePayment('1_month'),
+                            onTap: () => controller.initiatePayment('premium_1_month'),
                           ),
                           
                           SizedBox(height: 16.h),
@@ -173,7 +173,7 @@ class SubscriptionPlansScreen extends StatelessWidget {
                           // 3 Month Plan
                           _buildPremiumPlanCard(
                             context: context,
-                            planType: '3_month',
+                            planType: 'premium_3_month',
                             title: 'Premium - 3 Months',
                             price: '₹2,250',
                             originalPrice: '₹4,500',
@@ -188,7 +188,7 @@ class SubscriptionPlansScreen extends StatelessWidget {
                               'Super loves',
                               'Profile boost',
                             ],
-                            onTap: () => controller.initiatePayment('3_month'),
+                            onTap: () => controller.initiatePayment('premium_3_month'),
                           ),
                           
                           SizedBox(height: 16.h),
@@ -196,7 +196,7 @@ class SubscriptionPlansScreen extends StatelessWidget {
                           // 6 Month Plan (Most Popular)
                           _buildPremiumPlanCard(
                             context: context,
-                            planType: '6_month',
+                            planType: 'premium_6_months',
                             title: 'Premium - 6 Months',
                             price: '₹3,600',
                             originalPrice: '₹9,000',
@@ -212,7 +212,7 @@ class SubscriptionPlansScreen extends StatelessWidget {
                               'Profile boost',
                             ],
                             isPopular: true,
-                            onTap: () => controller.initiatePayment('6_month'),
+                            onTap: () => controller.initiatePayment('premium_6_months'),
                           ),
                         ],
                       ),

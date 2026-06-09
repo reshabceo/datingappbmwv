@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 import '../../services/payment_service.dart';
 import '../../services/supabase_service.dart';
+import '../../services/in_app_purchase_service.dart';
 import 'package:lovebug/Common/widget_constant.dart';
 
 class SubscriptionController extends GetxController {
@@ -67,26 +68,13 @@ class SubscriptionController extends GetxController {
     try {
       isLoading.value = true;
       
-      // Get current user details
       final user = SupabaseService.currentUser;
       if (user == null) {
         showCustomSnackBar(title: 'error'.tr, message: 'please_login_first'.tr, isError: true);
         return;
       }
 
-      // Get user profile for name, email and phone
-      final profile = await SupabaseService.getProfile(user.id);
-      final userName = profile?['name'] ?? 'User';
-      final userEmail = user.email ?? '';
-      final userPhone = profile?['phone'] ?? user.phone;
-
-      // Initialize payment
-      await PaymentService.initiatePayment(
-        planType: planType,
-        userEmail: userEmail,
-        userName: userName,
-        userPhone: userPhone,
-      );
+      await InAppPurchaseService.purchasePremium(planType);
     } catch (e) {
       print('Error initiating payment: $e');
       showCustomSnackBar(title: 'error'.tr, message: 'failed_to_initiate_payment'.tr, isError: true);
@@ -139,11 +127,11 @@ class SubscriptionController extends GetxController {
     if (subscriptionDetails.isNotEmpty) {
       final planType = subscriptionDetails['plan_type']?.toString();
       switch (planType) {
-        case '1_month':
+        case 'premium_1_month':
           return 'Premium - 1 Month';
-        case '3_month':
+        case 'premium_3_month':
           return 'Premium - 3 Months';
-        case '6_month':
+        case 'premium_6_months':
           return 'Premium - 6 Months';
         default:
           return 'Premium';

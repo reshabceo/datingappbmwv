@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import '../services/payment_service.dart';
+import '../services/in_app_purchase_service.dart';
 import '../services/supabase_service.dart';
 import 'super_like_purchase_dialog.dart';
 import 'package:lovebug/Common/widget_constant.dart';
@@ -89,7 +90,7 @@ class QuickSuperLikePurchaseButtons extends StatelessWidget {
             price: '₹179',
             subtitle: 'Popular Choice',
             isRecommended: true,
-            onTap: () => _purchaseSuperLikes('super_like_10'),
+            onTap: () => _purchaseSuperLikes('super_like_15'),
           ),
           
           SizedBox(height: 8.h),
@@ -99,7 +100,7 @@ class QuickSuperLikePurchaseButtons extends StatelessWidget {
             title: '30 Super Loves',
             price: '₹299',
             subtitle: 'Best Value',
-            onTap: () => _purchaseSuperLikes('super_like_20'),
+            onTap: () => _purchaseSuperLikes('super_like_30'),
           ),
         ],
       ),
@@ -214,12 +215,7 @@ class QuickSuperLikePurchaseButtons extends StatelessWidget {
   void _purchaseSuperLikes(String packageKey) async {
     final user = SupabaseService.currentUser;
     if (user != null) {
-      await PaymentService.initiatePayment(
-        planType: packageKey,
-        userEmail: user.email ?? '',
-        userName: user.userMetadata?['name'] ?? 'User',
-        userPhone: user.phone,
-      );
+      await InAppPurchaseService.purchaseSuperLikes(packageKey);
     } else {
       showCustomSnackBar(title: 'error'.tr, message: 'please_login_to_purchase'.tr, isError: true);
     }

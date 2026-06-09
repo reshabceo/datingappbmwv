@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
-import '../../services/payment_service.dart';
+import '../../services/in_app_purchase_service.dart';
 import '../../services/supabase_service.dart';
 import '../../ThemeController/theme_controller.dart';
 import 'dart:ui';
@@ -12,12 +12,7 @@ class SubscriptionScreen extends StatelessWidget {
   void _purchaseSubscription(String planId) async {
     final user = SupabaseService.currentUser;
     if (user != null) {
-      await PaymentService.initiatePayment(
-        planType: planId,
-        userEmail: user.email ?? '',
-        userName: user.userMetadata?['name'] ?? 'User',
-        userPhone: user.phone,
-      );
+      await InAppPurchaseService.purchasePremium(planId);
     } else {
       Get.snackbar('Error', 'Please login to purchase');
     }
@@ -141,26 +136,26 @@ class SubscriptionScreen extends StatelessWidget {
                                title: '1 Month',
                               price: '₹1,500',
                               subtitle: 'Billed monthly',
-                              onTap: () => _purchaseSubscription('1_month'),
+                              onTap: () => _purchaseSubscription('premium_1_month'),
                               themeController: themeController,
                             ),
                             _buildPlan(
                                title: '3 Months',
                               price: '₹2,250',
                               subtitle: 'Billed every 3 months',
-                              onTap: () => _purchaseSubscription('3_month'),
+                              onTap: () => _purchaseSubscription('premium_3_month'),
                               themeController: themeController,
                             ),
                             _buildPlan(
                                title: '6 Months',
                               price: '₹3,600',
                               subtitle: 'Billed every 6 months',
-                              onTap: () => _purchaseSubscription('6_month'),
+                              onTap: () => _purchaseSubscription('premium_6_months'),
                               themeController: themeController,
                             ),
                             const Spacer(),
                             Text(
-                              'Payments are processed securely via Cashfree.',
+                              'Payments are processed securely via Google Play.',
                               style: TextStyle(color: themeController.whiteColor.withValues(alpha: 0.6), fontSize: 12.sp),
                             ),
 

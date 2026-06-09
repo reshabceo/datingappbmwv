@@ -12,6 +12,7 @@ import 'package:lovebug/shared_prefrence_helper.dart';
 import 'package:lovebug/services/supabase_service.dart';
 import 'package:lovebug/services/analytics_service.dart';
 import 'package:lovebug/services/payment_service.dart';
+import 'package:lovebug/services/in_app_purchase_service.dart';
 import 'package:lovebug/services/call_listener_service.dart';
 import 'package:lovebug/services/callkit_listener_service.dart';
 import 'package:lovebug/services/webrtc_service.dart';
@@ -81,11 +82,11 @@ Future<void> main() async {
         }
       }
       
-      // Initialize Payment Service
+      // Initialize In-App Purchase Service
       try {
-        await PaymentService.initialize();
+        await InAppPurchaseService.initialize();
       } catch (e) {
-        print('❌ PaymentService init failed: $e');
+        print('❌ InAppPurchaseService init failed: $e');
       }
       
       // Other services
