@@ -106,7 +106,7 @@ Future<void> main() async {
       }
       
       print('🏁 INITIALIZATION COMPLETE');
-      runApp(MyApp());
+      runApp(const MyApp());
 
       // CRITICAL FIX: Request permissions AFTER the app has started and rendered the first frame.
       // Doing this early in main() blocks the splash screen and can cause crashes on certain devices (Realme/Android 10).
@@ -293,49 +293,52 @@ Future<void> _trackAppLaunch() async {
   }
 }
 
-class MyApp extends StatelessWidget {
-  MyApp({super.key});
+class MyApp extends StatefulWidget {
+  const MyApp({super.key});
 
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
   final ThemeController themeController = Get.find<ThemeController>();
+  final Widget _authGate = const _AuthGate();
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        FocusScope.of(context).unfocus();
+    return ScreenUtilInit(
+      minTextAdapt: true,
+      splitScreenMode: true,
+      designSize: const Size(375, 812),
+      builder: (_, child) {
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: const SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.light,
+            statusBarBrightness: Brightness.dark,
+            systemNavigationBarColor: Colors.transparent,
+            systemNavigationBarIconBrightness: Brightness.light,
+          ),
+          child: Obx(() => GetMaterialApp(
+            title: 'dating_app'.tr,
+            debugShowCheckedModeBanner: false,
+            locale: lanCode.value.isNotEmpty ? Locale(lanCode.value) : const Locale('en'),
+            fallbackLocale: const Locale('en'),
+            translations: AppTranslations(),
+            theme: themeController.lightTheme,
+            darkTheme: themeController.darkTheme,
+            themeMode: themeController.isDarkMode.value ? ThemeMode.dark : ThemeMode.light,
+            home: _authGate,
+            builder: (context, child) {
+              return GestureDetector(
+                onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+                behavior: HitTestBehavior.deferToChild,
+                child: child ?? const SizedBox.shrink(),
+              );
+            },
+          )),
+        );
       },
-      child: ScreenUtilInit(
-        minTextAdapt: true,
-        splitScreenMode: true,
-        designSize: const Size(375, 812),
-        builder: (_, child) {
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
-        statusBarBrightness: Brightness.dark,
-        systemNavigationBarColor: Colors.transparent,
-        systemNavigationBarIconBrightness: Brightness.light,
-      ),
-              child: Obx(() => GetMaterialApp(
-                title: 'dating_app'.tr,
-                debugShowCheckedModeBanner: false,
-                locale: lanCode.value.isNotEmpty ? Locale(lanCode.value) : const Locale('en'),
-                fallbackLocale: const Locale('en'),
-                translations: AppTranslations(),
-                theme: themeController.lightTheme,
-                darkTheme: themeController.darkTheme,
-                themeMode: themeController.isDarkMode.value ? ThemeMode.dark : ThemeMode.light,
-                home: _AuthGate(),
-                // Global snackbar styling for visibility
-                builder: (context, child) {
-                  return child ?? const SizedBox.shrink();
-                },
-                // home: BottombarScreen(),
-              )),
-            );
-        },
-      ),
     );
   }
 }
@@ -504,6 +507,8 @@ bool _isIncomingCallPayload(Map<String, dynamic> rawData) {
 }
 
 class _AuthGate extends StatefulWidget {
+  const _AuthGate();
+
   @override
   State<_AuthGate> createState() => _AuthGateState();
 }
@@ -583,62 +588,27 @@ class _AuthGateState extends State<_AuthGate> with WidgetsBindingObserver {
     });
   }
 
+  void _handleEulaAccepted() {
+    if (!mounted) return;
+    setState(() {
+      _eulaAccepted = true;
+    });
+    _checkSessionAndProfile();
+  }
+
   Future<void> _checkEulaAndSession() async {
-    // First check if EULA has been accepted
     _checkingEula = true;
     _eulaAccepted = SharedPreferenceHelper.getBool(
       SharedPreferenceHelper.eulaTermsAccepted,
       defaultValue: false,
     );
-    
-    print('📋 DEBUG: EULA accepted status: $_eulaAccepted');
-    
-    if (!_eulaAccepted) {
-      // Show EULA modal and wait for acceptance
-      _checkingEula = false;
-      setState(() {});
-      
-      // CRITICAL FIX: Use post-frame callback to ensure modal shows on iPad
-      // This ensures the widget tree is fully built before showing the modal
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        if (mounted) {
-          print('📋 DEBUG: Showing EULA modal on iPad/iPhone');
-          // Show EULA modal - it will save acceptance status when user accepts
-          await Get.dialog(
-            EULATermsModal(),
-            barrierDismissible: false,
-          );
-          
-          // Re-check after modal is closed
-          if (mounted) {
-            _eulaAccepted = SharedPreferenceHelper.getBool(
-              SharedPreferenceHelper.eulaTermsAccepted,
-              defaultValue: false,
-            );
-            
-            print('📋 DEBUG: EULA accepted after modal: $_eulaAccepted');
-            
-            if (_eulaAccepted) {
-              _checkingEula = false;
-              setState(() {});
-              // Now proceed with normal session/profile check
-              _checkSessionAndProfile();
-            } else {
-              // User didn't accept, keep showing modal
-              print('⚠️ DEBUG: EULA not accepted, showing modal again');
-              _checkEulaAndSession();
-            }
-          }
-        }
-      });
-      
-      // Return early - modal will be shown via post-frame callback
-      return;
-    }
-    
     _checkingEula = false;
-    // Now proceed with normal session/profile check
-    _checkSessionAndProfile();
+
+    if (mounted) setState(() {});
+
+    if (_eulaAccepted) {
+      _checkSessionAndProfile();
+    }
   }
 
   Future<void> _checkSessionAndProfile() async {
@@ -1098,55 +1068,24 @@ class _AuthGateState extends State<_AuthGate> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     print('🔍 DEBUG: _AuthGate build - _ready: $_ready, _checkingProfile: $_checkingProfile, _checkingEula: $_checkingEula, _eulaAccepted: $_eulaAccepted, _hasSession: $_hasSession, _hasProfile: $_hasProfile');
     
-    // Show loading while checking EULA or session/profile
-    if (_checkingEula || !_ready || _checkingProfile) {
-      print('🔍 DEBUG: Showing loading indicator');
-      return Scaffold(
+    if (_checkingEula) {
+      return const Scaffold(
         backgroundColor: Colors.black,
-        body: Center(
-          child: CircularProgressIndicator(
-            color: Colors.pink,
-          ),
-        ),
+        body: Center(child: CircularProgressIndicator(color: Colors.pink)),
       );
     }
-    
-    // If EULA not accepted, show loading screen while modal is being displayed
-    // The modal will be shown via post-frame callback in _checkEulaAndSession
+
     if (!_eulaAccepted) {
-      // CRITICAL FIX: Ensure modal is shown if it hasn't been shown yet
-      if (!_checkingEula) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && !_eulaAccepted) {
-            // Try to show modal again if it's not showing
-            Get.dialog(
-              EULATermsModal(),
-              barrierDismissible: false,
-            ).then((_) {
-              if (mounted) {
-                _eulaAccepted = SharedPreferenceHelper.getBool(
-                  SharedPreferenceHelper.eulaTermsAccepted,
-                  defaultValue: false,
-                );
-                if (_eulaAccepted) {
-                  setState(() {});
-                  _checkSessionAndProfile();
-                }
-              }
-            });
-          }
-        });
-      }
-      
-      return Scaffold(
+      return EULATermsModal(onAccepted: _handleEulaAccepted);
+    }
+
+    if (!_ready || _checkingProfile) {
+      return const Scaffold(
         backgroundColor: Colors.black,
-        body: Center(
-          child: CircularProgressIndicator(
-            color: Colors.pink,
-          ),
-        ),
+        body: Center(child: CircularProgressIndicator(color: Colors.pink)),
       );
     }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         Widget child;
@@ -1160,9 +1099,9 @@ class _AuthGateState extends State<_AuthGate> with WidgetsBindingObserver {
           print('🔍 DEBUG: Showing BottombarScreen (has session and profile)');
           child = BottombarScreen();
         }
-        
+
         print('🔍 DEBUG: About to return child widget: ${child.runtimeType}');
-        
+
         if (constraints.maxWidth > 600) {
           return Center(
             child: Container(
