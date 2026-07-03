@@ -28,7 +28,8 @@ class AnalyticsService {
       await _analytics?.setAnalyticsCollectionEnabled(true);
       
       // Initialize Facebook App Events
-      // _facebookAppEvents = FacebookAppEvents();
+      _facebookAppEvents = FacebookAppEvents();
+      await _facebookAppEvents?.setAutoLogAppEventsEnabled(true);
       
       // Initialize Google Mobile Ads
       // await MobileAds.instance.initialize();
@@ -116,6 +117,9 @@ class AnalyticsService {
     try {
       // Firebase Analytics
       await _analytics?.logLogin(loginMethod: method);
+      
+      // Facebook App Events
+      await _facebookAppEvents?.logEvent(name: 'fb_mobile_login');
       
       // Supabase
       await _sendEventToSupabase(
@@ -467,7 +471,7 @@ class AnalyticsService {
       await _analytics?.logEvent(name: 'app_install');
       
       // Facebook App Events
-      // await _facebookAppEvents?.logEvent(name: 'fb_mobile_activate_app');
+      await _facebookAppEvents?.logEvent(name: 'fb_mobile_activate_app');
       
       // Supabase
       await _sendEventToSupabase(
@@ -492,7 +496,7 @@ class AnalyticsService {
       await _analytics?.logEvent(name: 'first_open');
       
       // Facebook App Events
-      // await _facebookAppEvents?.logEvent(name: 'fb_mobile_activate_app');
+      await _facebookAppEvents?.logEvent(name: 'fb_mobile_activate_app');
       
       // Supabase
       await _sendEventToSupabase(
@@ -517,7 +521,7 @@ class AnalyticsService {
       await _analytics?.logSignUp(signUpMethod: method);
       
       // Facebook App Events
-      // await _facebookAppEvents?.logEvent(name: 'fb_mobile_complete_registration');
+      await _facebookAppEvents?.logEvent(name: 'fb_mobile_complete_registration');
       
       // Supabase
       await _sendEventToSupabase(
@@ -550,7 +554,7 @@ class AnalyticsService {
       );
       
       // Facebook App Events
-      // await _facebookAppEvents?.logEvent(name: 'fb_mobile_complete_registration');
+      await _facebookAppEvents?.logEvent(name: 'fb_mobile_complete_registration');
       
       // Supabase
       await _sendEventToSupabase(
@@ -589,14 +593,21 @@ class AnalyticsService {
       );
       
       // Facebook App Events
-      // await _facebookAppEvents?.logPurchase(
-      //   amount: price,
-      //   currency: currency,
-      //   parameters: {
-      //     'fb_content_id': subscriptionId,
-      //     'fb_content_type': 'subscription',
-      //   },
-      // );
+      await _facebookAppEvents?.logPurchase(
+        amount: price,
+        currency: currency,
+        parameters: {
+          'fb_content_id': subscriptionId,
+          'fb_content_type': 'subscription',
+        },
+      );
+      await _facebookAppEvents?.logEvent(
+        name: 'Subscribe',
+        parameters: {
+          'fb_content_id': subscriptionId,
+          'fb_content_type': 'subscription',
+        },
+      );
       
       // Supabase
       await _sendEventToSupabase(
@@ -625,7 +636,7 @@ class AnalyticsService {
       await _analytics?.logEvent(name: 'session_start');
       
       // Facebook App Events
-      // await _facebookAppEvents?.logEvent(name: 'fb_mobile_activate_app');
+      await _facebookAppEvents?.logEvent(name: 'fb_mobile_activate_app');
       
       // Call existing session start logic
       await startSession();
@@ -644,7 +655,7 @@ class AnalyticsService {
       await _analytics?.logLogin(loginMethod: method);
       
       // Facebook App Events
-      // await _facebookAppEvents?.logEvent(name: 'fb_mobile_login');
+      await _facebookAppEvents?.logEvent(name: 'fb_mobile_login');
       
       // Supabase
       await _sendEventToSupabase(

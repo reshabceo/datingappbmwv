@@ -77,6 +77,9 @@ Future<void> main() async {
             options: DefaultFirebaseOptions.currentPlatform,
           );
           print('✅ Firebase initialized');
+          
+          // Initialize Analytics Service after Firebase
+          await AnalyticsService.initialize();
         } catch (e) {
           print('⚠️ Firebase initialization warning: $e');
         }

@@ -16,7 +16,7 @@ publish_to: "none" # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.3+19
+version: 1.0.6+22
 
 environment:
   sdk: ^3.8.1
@@ -81,8 +81,8 @@ dependencies:
   facebook_app_events: ^0.20.0
 
   # In-App Purchases
-  in_app_purchase: ^3.1.11
-  in_app_purchase_android: ^0.3.6
+  in_app_purchase: ^3.2.3
+  in_app_purchase_android: ^0.4.0+10
 
   # Additional tracking dependencies
   package_info_plus: ^8.0.0

@@ -685,6 +685,9 @@ class AuthController extends GetxController {
           // If this is a signup flow OR profile is incomplete, go to profile form
           if (isSignupFlow || !isProfileComplete) {
             print('📝 DEBUG: Navigating to profile form (signup: $isSignupFlow, incomplete: ${!isProfileComplete})');
+            if (isSignupFlow) {
+              await AnalyticsService.trackSignUp(session.user.appMetadata['provider'] ?? 'email_otp');
+            }
             Get.offAll(() => MultiStepProfileForm());
             return;
           } else {
@@ -695,6 +698,7 @@ class AuthController extends GetxController {
         } else {
           // No profile exists - must be a new signup, go to profile form
           print('📝 DEBUG: No profile found, navigating to profile form');
+          await AnalyticsService.trackSignUp(session.user.appMetadata['provider'] ?? 'oauth_auto');
           Get.offAll(() => MultiStepProfileForm());
           return;
         }
@@ -704,6 +708,7 @@ class AuthController extends GetxController {
         // Otherwise, try to go to main app
         if (isSignupFlow) {
           print('📝 DEBUG: Error during signup, navigating to profile form');
+          await AnalyticsService.trackSignUp('error_fallback');
           Get.offAll(() => MultiStepProfileForm());
         } else {
           print('✅ DEBUG: Error but not signup, navigating to main app');

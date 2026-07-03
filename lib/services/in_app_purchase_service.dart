@@ -10,6 +10,7 @@ import 'package:lovebug/Common/widget_constant.dart';
 
 import '../Screens/SubscriptionPage/ui_subscription_screen.dart';
 import 'supabase_service.dart';
+import 'analytics_service.dart';
 
 class InAppPurchaseService {
   static final InAppPurchase _inAppPurchase = InAppPurchase.instance;
@@ -184,6 +185,24 @@ class InAppPurchaseService {
       print('🎉 Processing purchase of $productId (Transaction: $transactionId)');
 
       await _recordPurchase(productId, transactionId);
+
+      // Track purchase in AnalyticsService
+      try {
+        final pricing = productPricing[productId];
+        final price = (pricing?['price'] as num?)?.toDouble() ?? 0.0;
+        final currency = (pricing?['currency'] as String?) ?? 'INR';
+        final title = (pricing?['title'] as String?) ?? productId;
+        
+        await AnalyticsService.trackSubscriptionPurchased(
+          subscriptionId: transactionId,
+          planName: title,
+          price: price,
+          currency: currency,
+          paymentMethod: 'google_play',
+        );
+      } catch (ae) {
+        print('⚠️ Error tracking purchase in analytics: $ae');
+      }
 
       if (Platform.isAndroid && _superLikeCounts.containsKey(productId)) {
         final androidAddition =
